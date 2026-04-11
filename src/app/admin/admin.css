@@ -245,6 +245,12 @@
   place-items: center;
   font-size: 1.15rem;
   flex-shrink: 0;
+  color: var(--text);
+}
+
+.admin-stat-card__icon svg {
+  width: 1.35rem;
+  height: 1.35rem;
 }
 
 .admin-stat-card--blue .admin-stat-card__icon {
@@ -379,6 +385,13 @@
   color: var(--primary);
   border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
   background: color-mix(in srgb, var(--primary) 6%, var(--surface));
+}
+
+.admin-icon-btn svg {
+  width: 1.05rem;
+  height: 1.05rem;
+  flex-shrink: 0;
+  pointer-events: none;
 }
 
 .admin-icon-btn:disabled {

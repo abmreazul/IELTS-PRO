@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { Check } from "lucide-react";
 import { LogoMark } from "@/components/layout/logo-mark";
 import { MotionConfig, motion, useScroll, useSpring } from "framer-motion";
 import { useEffect, useState } from "react";
@@ -238,7 +239,7 @@ export function HomePage() {
                 whileHover={{ y: -4, boxShadow: "0 20px 50px rgba(0,0,0,0.12)" }}
               >
                 <span className="hero-float-card__check" aria-hidden>
-                  ✓
+                  <Check strokeWidth={2.5} />
                 </span>
                 <div>
                   <p className="hero-float-card__name">Sarah M.</p>
@@ -419,7 +420,7 @@ export function HomePage() {
                   {plan.features.map((line) => (
                     <li key={line}>
                       <span className="pricing-check" aria-hidden>
-                        ✓
+                        <Check strokeWidth={2.5} />
                       </span>
                       {line}
                     </li>

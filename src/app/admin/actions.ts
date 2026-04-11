@@ -136,6 +136,8 @@ export type ExamWizardSaveInput = {
   is_published: boolean;
   structure_json: unknown;
   scoring_json: unknown;
+  /** Listening section: one URL per part (MP3 etc.), stored on the exam row. */
+  listening_audio_json?: unknown;
   questions: WizardQuestionInput[];
 };
 
@@ -200,6 +202,7 @@ export async function saveExamWizard(
 
   const structure_json = input.structure_json ?? [];
   const scoring_json = input.scoring_json ?? {};
+  const listening_audio_json = sanitizeListeningAudioJson(input.listening_audio_json);
 
   const examPayload = {
     category_id,
@@ -217,6 +220,7 @@ export async function saveExamWizard(
     is_published: Boolean(input.is_published),
     structure_json,
     scoring_json,
+    listening_audio_json,
   };
 
   const admin = createServiceRoleClient();
@@ -337,6 +341,89 @@ export async function duplicateExam(formData: FormData) {
   revalidatePath("/admin/exams");
   revalidatePath("/mock-exam");
   redirect(`/admin/exams/${newId}`);
+}
+
+const EXAM_MEDIA_BUCKET = "exam-media";
+const MAX_COVER_BYTES = 8 * 1024 * 1024;
+const MAX_AUDIO_BYTES = 45 * 1024 * 1024;
+
+export async function uploadExamMedia(
+  formData: FormData,
+): Promise<{ ok: true; url: string } | { ok: false; message: string }> {
+  try {
+    await requireAdmin();
+  } catch {
+    return { ok: false, message: "Unauthorized" };
+  }
+
+  const file = formData.get("file");
+  const folderRaw = String(formData.get("folder") ?? "").trim();
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false, message: "No file selected" };
+  }
+
+  const folder = folderRaw === "listening" ? "listening" : "covers";
+  const mime = (file.type || "").toLowerCase();
+  const isImage = mime.startsWith("image/");
+  const isAudio = mime.startsWith("audio/");
+  if (folder === "covers" && !isImage) {
+    return { ok: false, message: "Cover must be an image (JPEG, PNG, WebP, or GIF)." };
+  }
+  if (folder === "listening" && !isAudio) {
+    return { ok: false, message: "Listening files must be audio (MP3, WAV, WebM, OGG, etc.)." };
+  }
+
+  const maxBytes = folder === "covers" ? MAX_COVER_BYTES : MAX_AUDIO_BYTES;
+  if (file.size > maxBytes) {
+    return {
+      ok: false,
+      message: `File too large. Max ${Math.round(maxBytes / 1024 / 1024)} MB for ${folder === "covers" ? "images" : "audio"}.`,
+    };
+  }
+
+  let ext = (file.name.split(".").pop() || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (!ext) {
+    ext = folder === "covers" ? "jpg" : "mp3";
+  }
+  const objectName = `${crypto.randomUUID()}.${ext}`.slice(0, 200);
+  const path = `${folder}/${objectName}`;
+
+  const admin = createServiceRoleClient();
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const { error } = await admin.storage.from(EXAM_MEDIA_BUCKET).upload(path, buffer, {
+    contentType: file.type || undefined,
+    upsert: false,
+  });
+
+  if (error) {
+    if (error.message?.includes("Bucket not found") || error.message?.includes("not found")) {
+      return {
+        ok: false,
+        message:
+          "Storage bucket missing. Run migration 006_exam_media_storage.sql in Supabase (creates bucket exam-media).",
+      };
+    }
+    return { ok: false, message: error.message };
+  }
+
+  const { data } = admin.storage.from(EXAM_MEDIA_BUCKET).getPublicUrl(path);
+  return { ok: true, url: data.publicUrl };
+}
+
+function sanitizeListeningAudioJson(raw: unknown): { part: number; url: string; title: string }[] {
+  if (!Array.isArray(raw)) return [];
+  const out: { part: number; url: string; title: string }[] = [];
+  for (const row of raw) {
+    if (!row || typeof row !== "object") continue;
+    const o = row as Record<string, unknown>;
+    const part = Math.max(1, Math.min(20, Math.floor(Number(o.part)) || 1));
+    const url = String(o.url ?? "").trim().slice(0, 2000);
+    if (!url) continue;
+    const title = String(o.title ?? "").trim().slice(0, 200) || `Part ${part}`;
+    out.push({ part, url, title });
+  }
+  out.sort((a, b) => a.part - b.part);
+  return out;
 }
 
 function parseExamForm(formData: FormData) {

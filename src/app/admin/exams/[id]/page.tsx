@@ -53,6 +53,7 @@ export default async function AdminEditExamPage({ params }: { params: Promise<{ 
     is_published: exam.is_published,
     structure_json: (exam as { structure_json?: unknown }).structure_json,
     scoring_json: (exam as { scoring_json?: unknown }).scoring_json,
+    listening_audio_json: (exam as { listening_audio_json?: unknown }).listening_audio_json,
   };
 
   return (

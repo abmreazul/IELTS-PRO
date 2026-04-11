@@ -9,18 +9,18 @@ export const metadata: Metadata = {
   description: "Browse full and partial IELTS mock exams by category.",
 };
 
+/** Cache catalog briefly so repeat visits are faster (revalidate on admin publish via revalidatePath). */
+export const revalidate = 60;
+
 export default async function MockExamPage() {
   const supabase = await createClient();
 
-  const { data: categories } = await supabase
-    .from("exam_categories")
-    .select("id, slug, name, sort_order")
-    .order("sort_order", { ascending: true });
-
-  const { data: examsRaw } = await supabase
-    .from("mock_exams")
-    .select(
-      `
+  const [{ data: categories }, { data: examsRaw }, authRes] = await Promise.all([
+    supabase.from("exam_categories").select("id, slug, name, sort_order").order("sort_order", { ascending: true }),
+    supabase
+      .from("mock_exams")
+      .select(
+        `
       id,
       category_id,
       title,
@@ -34,30 +34,34 @@ export default async function MockExamPage() {
       price_cents,
       currency,
       cover_image_url,
+      listening_audio_json,
       is_published,
       exam_categories ( id, slug, name, sort_order )
     `,
-    )
-    .eq("is_published", true);
+      )
+      .eq("is_published", true),
+    supabase.auth.getUser(),
+  ]);
 
   const exams = (examsRaw ?? []) as unknown as MockExamRow[];
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = authRes.data.user;
 
   const attemptsByExamId: Record<string, MockAttemptRow> = {};
   const entitledExamIds = new Set<string>();
 
   if (user) {
-    const { data: attempts } = await supabase
-      .from("mock_attempts")
-      .select(
-        "id, exam_id, status, overall_band, listening_band, reading_band, writing_band, speaking_band, completed_at, created_at",
-      )
-      .eq("user_id", user.id)
-      .eq("status", "completed")
-      .order("created_at", { ascending: false });
+    const [{ data: attempts }, { data: ents }] = await Promise.all([
+      supabase
+        .from("mock_attempts")
+        .select(
+          "id, exam_id, status, overall_band, listening_band, reading_band, writing_band, speaking_band, completed_at, created_at",
+        )
+        .eq("user_id", user.id)
+        .eq("status", "completed")
+        .order("created_at", { ascending: false }),
+      supabase.from("exam_entitlements").select("exam_id").eq("user_id", user.id),
+    ]);
 
     for (const row of attempts ?? []) {
       const a = row as MockAttemptRow;
@@ -65,11 +69,6 @@ export default async function MockExamPage() {
         attemptsByExamId[a.exam_id] = a;
       }
     }
-
-    const { data: ents } = await supabase
-      .from("exam_entitlements")
-      .select("exam_id")
-      .eq("user_id", user.id);
 
     for (const e of ents ?? []) {
       entitledExamIds.add((e as { exam_id: string }).exam_id);

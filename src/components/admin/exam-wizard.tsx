@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { GripVertical, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { saveExamWizard, type ExamWizardSaveInput, type WizardQuestionInput } from "@/app/admin/actions";
+import { ExamLocalUpload } from "@/components/admin/exam-local-upload";
 import {
   DEFAULT_FULL_STRUCTURE,
   DEFAULT_SCORING,
@@ -33,7 +35,26 @@ export type ExamWizardInitialExam = {
   is_published: boolean;
   structure_json?: unknown;
   scoring_json?: unknown;
+  listening_audio_json?: unknown;
 };
+
+type ListeningClip = { part: number; url: string; title: string };
+
+function parseListeningClips(raw: unknown): ListeningClip[] {
+  if (!Array.isArray(raw)) return [];
+  const out: ListeningClip[] = [];
+  for (const row of raw) {
+    if (!row || typeof row !== "object") continue;
+    const o = row as Record<string, unknown>;
+    const part = Math.max(1, Math.min(20, Math.floor(Number(o.part)) || 1));
+    const url = String(o.url ?? "").trim();
+    if (!url) continue;
+    const title = String(o.title ?? "").trim() || `Part ${part}`;
+    out.push({ part, url, title });
+  }
+  out.sort((a, b) => a.part - b.part);
+  return out;
+}
 
 type DbQuestion = {
   id: string;
@@ -244,6 +265,30 @@ export function ExamWizard({
     initialQuestions.length ? initialQuestions.map(dbQuestionToDraft) : [],
   );
 
+  const [listeningClips, setListeningClips] = useState<ListeningClip[]>(() =>
+    parseListeningClips(initialExam?.listening_audio_json),
+  );
+
+  const hasListening = modules.includes("listening");
+  const listeningPartCount = structure.find((s) => s.module === "listening")?.parts ?? 4;
+
+  useEffect(() => {
+    const max = structure.find((s) => s.module === "listening")?.parts ?? 4;
+    setListeningClips((prev) => prev.filter((c) => c.part >= 1 && c.part <= max));
+  }, [structure]);
+
+  const setListeningPartUrl = useCallback((part: number, url: string) => {
+    const t = url.trim();
+    if (!t) {
+      setListeningClips((prev) => prev.filter((c) => c.part !== part));
+      return;
+    }
+    setListeningClips((prev) => {
+      const rest = prev.filter((c) => c.part !== part);
+      return [...rest, { part, url: t, title: `Part ${part}` }].sort((a, b) => a.part - b.part);
+    });
+  }, []);
+
   const syncStructureModules = useCallback(
     (mods: string[]) => {
       setStructure((prev) => {
@@ -323,6 +368,7 @@ export function ExamWizard({
       is_published: published,
       structure_json: structureOut,
       scoring_json: scoring,
+      listening_audio_json: hasListening ? listeningClips : [],
       questions: questions.map(toWizardQuestion),
     };
   };
@@ -549,7 +595,7 @@ export function ExamWizard({
               <label className="admin-label">Thumbnail</label>
               <div className="admin-dropzone">
                 <label className="admin-label" htmlFor="ew-cover" style={{ marginBottom: "0.5rem" }}>
-                  Image URL (or paste Unsplash link)
+                  Image URL (optional — or upload from disk)
                 </label>
                 <input
                   id="ew-cover"
@@ -558,6 +604,15 @@ export function ExamWizard({
                   onChange={(e) => setCoverUrl(e.target.value)}
                   placeholder="https://…"
                 />
+                <div style={{ marginTop: "0.85rem" }}>
+                  <ExamLocalUpload
+                    folder="covers"
+                    accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
+                    label="Upload cover image"
+                    disabled={pending}
+                    onUploaded={(url) => setCoverUrl(url)}
+                  />
+                </div>
               </div>
             </div>
             <div>
@@ -655,6 +710,73 @@ export function ExamWizard({
               </div>
             ))}
           </div>
+
+          {hasListening ? (
+            <div
+              style={{
+                marginTop: "1.5rem",
+                paddingTop: "1.25rem",
+                borderTop: "1px solid var(--border)",
+              }}
+            >
+              <h3 style={{ margin: "0 0 0.35rem", fontSize: "1.05rem", fontWeight: 800 }}>Listening audio</h3>
+              <p style={{ margin: "0 0 1rem", color: "var(--muted)", fontSize: "0.9rem" }}>
+                Upload MP3/WAV/WebM from your computer or paste a URL. Files go to Supabase Storage; the public link is
+                stored on this exam (one per part — typical IELTS listening has four parts).
+              </p>
+              {Array.from({ length: listeningPartCount }, (_, i) => i + 1).map((part) => {
+                const clip = listeningClips.find((c) => c.part === part);
+                return (
+                  <div
+                    key={part}
+                    style={{
+                      display: "grid",
+                      gap: "0.65rem",
+                      marginBottom: "1rem",
+                      padding: "0.85rem 1rem",
+                      border: "1px solid var(--border)",
+                      borderRadius: "12px",
+                      background: "color-mix(in srgb, var(--bg-alt) 70%, var(--surface))",
+                    }}
+                  >
+                    <div style={{ fontWeight: 800, fontSize: "0.92rem" }}>Part {part}</div>
+                    {clip?.url ? (
+                      <audio controls src={clip.url} style={{ width: "100%", maxWidth: "480px" }} preload="metadata" />
+                    ) : null}
+                    <ExamLocalUpload
+                      folder="listening"
+                      accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/webm,audio/ogg,.mp3,.wav,.webm,.ogg"
+                      label="Upload audio file"
+                      disabled={pending}
+                      onUploaded={(url) => setListeningPartUrl(part, url)}
+                    />
+                    <div>
+                      <label className="admin-label" htmlFor={`listen-url-${part}`}>
+                        Or paste audio URL
+                      </label>
+                      <input
+                        id={`listen-url-${part}`}
+                        className="admin-input"
+                        value={clip?.url ?? ""}
+                        onChange={(e) => setListeningPartUrl(part, e.target.value)}
+                        placeholder="https://…"
+                      />
+                    </div>
+                    {clip?.url ? (
+                      <button
+                        type="button"
+                        className="admin-btn-ghost"
+                        style={{ justifySelf: "start", fontSize: "0.82rem" }}
+                        onClick={() => setListeningPartUrl(part, "")}
+                      >
+                        Clear part {part}
+                      </button>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -676,7 +798,18 @@ export function ExamWizard({
           {questions.map((q) => (
             <div key={q.tempId} className="admin-question-card">
               <div className="admin-question-card__bar">
-                <span style={{ color: "var(--muted)", fontSize: "0.85rem" }}>⋮⋮ Drag order (coming soon)</span>
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "0.35rem",
+                    color: "var(--muted)",
+                    fontSize: "0.85rem",
+                  }}
+                >
+                  <GripVertical style={{ width: "1rem", height: "1rem", opacity: 0.65 }} aria-hidden />
+                  Drag order (coming soon)
+                </span>
                 <button
                   type="button"
                   className="admin-icon-btn"
@@ -684,7 +817,7 @@ export function ExamWizard({
                   title="Remove"
                   aria-label="Remove question"
                 >
-                  🗑
+                  <Trash2 />
                 </button>
               </div>
               <div className="admin-form-grid admin-form-grid--2">
@@ -933,6 +1066,11 @@ export function ExamWizard({
               {priceDollars}
             </li>
             <li>{questions.length} question(s) in bank</li>
+            {hasListening ? (
+              <li>
+                Listening audio: {listeningClips.filter((c) => c.url).length} / {listeningPartCount} part(s) with a URL
+              </li>
+            ) : null}
             <li>
               Sections:{" "}
               {structure

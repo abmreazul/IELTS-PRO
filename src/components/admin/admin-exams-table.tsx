@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { BarChart3, Copy, Eye, Pencil, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { deleteExam, duplicateExam } from "@/app/admin/actions";
 
@@ -124,20 +125,30 @@ export function AdminExamsTable({ exams }: { exams: AdminExamRow[] }) {
                   </td>
                   <td>
                     <div className="admin-table-actions">
-                      <Link href={`/admin/exams/${row.id}`} className="admin-icon-btn" title="Edit">
-                        ✎
+                      <Link href={`/admin/exams/${row.id}`} className="admin-icon-btn" title="Edit" aria-label="Edit">
+                        <Pencil />
                       </Link>
-                      <Link href={`/admin/exams/${row.id}/analytics`} className="admin-icon-btn" title="Analytics">
-                        📊
+                      <Link
+                        href={`/admin/exams/${row.id}/analytics`}
+                        className="admin-icon-btn"
+                        title="Analytics"
+                        aria-label="Analytics"
+                      >
+                        <BarChart3 />
                       </Link>
                       <form action={duplicateExam} style={{ display: "inline" }}>
                         <input type="hidden" name="id" value={row.id} />
-                        <button type="submit" className="admin-icon-btn" title="Duplicate">
-                          ⎘
+                        <button type="submit" className="admin-icon-btn" title="Duplicate" aria-label="Duplicate">
+                          <Copy />
                         </button>
                       </form>
-                      <Link href={`/mock-exam/${row.slug}/take`} className="admin-icon-btn" title="Preview take page">
-                        👁
+                      <Link
+                        href={`/mock-exam/${row.slug}/take`}
+                        className="admin-icon-btn"
+                        title="Preview take page"
+                        aria-label="Preview take page"
+                      >
+                        <Eye />
                       </Link>
                       <form
                         action={deleteExam}
@@ -147,8 +158,8 @@ export function AdminExamsTable({ exams }: { exams: AdminExamRow[] }) {
                         }}
                       >
                         <input type="hidden" name="id" value={row.id} />
-                        <button type="submit" className="admin-icon-btn" title="Delete">
-                          🗑
+                        <button type="submit" className="admin-icon-btn" title="Delete" aria-label="Delete">
+                          <Trash2 />
                         </button>
                       </form>
                     </div>

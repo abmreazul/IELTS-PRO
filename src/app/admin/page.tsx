@@ -1,12 +1,14 @@
 import Link from "next/link";
+import { BookOpen, DollarSign, TrendingUp, Users } from "lucide-react";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
 
 export default async function AdminHomePage() {
   const admin = createServiceRoleClient();
 
-  const [{ count: examCount }, { data: attempts }] = await Promise.all([
+  const [{ count: examCount }, { data: attempts }, { data: examsForRev }] = await Promise.all([
     admin.from("mock_exams").select("*", { count: "exact", head: true }),
     admin.from("mock_attempts").select("exam_id, overall_band, status"),
+    admin.from("mock_exams").select("id, price_cents"),
   ]);
 
   const completed = (attempts ?? []).filter((a) => a.status === "completed");
@@ -22,7 +24,6 @@ export default async function AdminHomePage() {
   const avgBand = bandN > 0 ? (sumBand / bandN).toFixed(1) : "—";
 
   const priceByExam = new Map<string, number>();
-  const { data: examsForRev } = await admin.from("mock_exams").select("id, price_cents");
   for (const e of examsForRev ?? []) {
     priceByExam.set(e.id, e.price_cents ?? 0);
   }
@@ -53,7 +54,7 @@ export default async function AdminHomePage() {
       <div className="admin-stat-grid">
         <div className="admin-stat-card admin-stat-card--blue">
           <div className="admin-stat-card__icon" aria-hidden>
-            📘
+            <BookOpen strokeWidth={2} />
           </div>
           <div>
             <div className="admin-stat-card__label">Total exams</div>
@@ -62,7 +63,7 @@ export default async function AdminHomePage() {
         </div>
         <div className="admin-stat-card admin-stat-card--green">
           <div className="admin-stat-card__icon" aria-hidden>
-            👤
+            <Users strokeWidth={2} />
           </div>
           <div>
             <div className="admin-stat-card__label">Total attempts</div>
@@ -71,7 +72,7 @@ export default async function AdminHomePage() {
         </div>
         <div className="admin-stat-card admin-stat-card--purple">
           <div className="admin-stat-card__icon" aria-hidden>
-            📈
+            <TrendingUp strokeWidth={2} />
           </div>
           <div>
             <div className="admin-stat-card__label">Average score</div>
@@ -80,7 +81,7 @@ export default async function AdminHomePage() {
         </div>
         <div className="admin-stat-card admin-stat-card--orange">
           <div className="admin-stat-card__icon" aria-hidden>
-            $
+            <DollarSign strokeWidth={2} />
           </div>
           <div>
             <div className="admin-stat-card__label">Revenue (est.)</div>

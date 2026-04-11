@@ -665,6 +665,11 @@ img {
   font-size: 0.95rem;
 }
 
+.hero-float-card__check svg {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
 .dark .hero-float-card__check {
   color: #4ade80;
 }
@@ -942,6 +947,13 @@ img {
   flex-shrink: 0;
   color: var(--primary);
   font-weight: 700;
+}
+
+.pricing-check svg {
+  width: 1.125rem;
+  height: 1.125rem;
+  margin-top: 0.12rem;
+  display: block;
 }
 
 /* ——— Testimonials ——— */
