@@ -2,7 +2,10 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
 import { isAdminEmail } from "@/lib/auth/admin";
-import { deleteExam } from "../actions";
+import {
+  AdminExamsTable,
+  type AdminExamRow,
+} from "@/components/admin/admin-exams-table";
 
 function categoryNameFromRelation(rel: unknown): string | null {
   if (rel == null) return null;
@@ -32,65 +35,67 @@ export default async function AdminExamsListPage() {
   }
 
   const admin = createServiceRoleClient();
-  const { data: exams } = await admin
-    .from("mock_exams")
-    .select("id, title, slug, is_published, exam_type, price_cents, currency, exam_categories(name)")
-    .order("title", { ascending: true });
+  const [{ data: exams }, { data: attempts }] = await Promise.all([
+    admin
+      .from("mock_exams")
+      .select(
+        "id, title, slug, is_published, exam_type, modules, price_cents, currency, created_at, exam_categories(name)",
+      )
+      .order("created_at", { ascending: false }),
+    admin.from("mock_attempts").select("exam_id, overall_band, status"),
+  ]);
+
+  const completed = (attempts ?? []).filter((a) => a.status === "completed");
+  const statsByExam = new Map<string, { count: number; sum: number; n: number }>();
+  for (const a of completed) {
+    if (!a.exam_id) continue;
+    const cur = statsByExam.get(a.exam_id) ?? { count: 0, sum: 0, n: 0 };
+    cur.count += 1;
+    if (a.overall_band != null) {
+      cur.sum += Number(a.overall_band);
+      cur.n += 1;
+    }
+    statsByExam.set(a.exam_id, cur);
+  }
+
+  const rows: AdminExamRow[] = (exams ?? []).map((row) => {
+    const st = statsByExam.get(row.id);
+    const avgBand = st && st.n > 0 ? st.sum / st.n : null;
+    return {
+      id: row.id,
+      title: row.title,
+      slug: row.slug,
+      is_published: row.is_published,
+      exam_type: row.exam_type,
+      modules: row.modules as string[] | null,
+      price_cents: row.price_cents,
+      currency: row.currency,
+      created_at: row.created_at,
+      categoryName: categoryNameFromRelation(row.exam_categories),
+      attempts: st?.count ?? 0,
+      avgBand,
+    };
+  });
 
   return (
     <>
-      <h1 className="admin-h1">Mock exams</h1>
-      <p className="admin-lead">Create and publish exams for the Mock Exam catalog.</p>
-
-      <p style={{ marginBottom: "1.25rem" }}>
+      <div className="admin-dash-head">
+        <div>
+          <h1 className="admin-h1" style={{ marginBottom: "0.35rem" }}>
+            Mock exams
+          </h1>
+          <p className="admin-lead" style={{ marginBottom: 0 }}>
+            Create, publish, and manage IELTS-format mocks. Revenue is estimated from completed attempts × list
+            price.
+          </p>
+        </div>
         <Link href="/admin/exams/new" className="btn btn-primary btn-topbar-cta">
-          New exam
+          + Create New Exam
         </Link>
-      </p>
+      </div>
 
       <div className="admin-card">
-        <div className="admin-table-wrap">
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>Title</th>
-                <th>Category</th>
-                <th>Type</th>
-                <th>Price</th>
-                <th>Published</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {(exams ?? []).map((row) => {
-                const catName = categoryNameFromRelation(row.exam_categories);
-                const price = (row.price_cents / 100).toFixed(2);
-                return (
-                  <tr key={row.id}>
-                    <td>{row.title}</td>
-                    <td>{catName ?? "—"}</td>
-                    <td>{row.exam_type}</td>
-                    <td>
-                      {row.currency} {price}
-                    </td>
-                    <td>{row.is_published ? "Yes" : "No"}</td>
-                    <td style={{ whiteSpace: "nowrap" }}>
-                      <Link href={`/admin/exams/${row.id}`} className="btn btn-outline" style={{ fontSize: "0.8rem" }}>
-                        Edit
-                      </Link>
-                      <form action={deleteExam} style={{ display: "inline-block", marginLeft: "0.35rem" }}>
-                        <input type="hidden" name="id" value={row.id} />
-                        <button type="submit" className="btn btn-outline" style={{ fontSize: "0.8rem" }}>
-                          Delete
-                        </button>
-                      </form>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <AdminExamsTable exams={rows} />
       </div>
     </>
   );

@@ -7,7 +7,12 @@ import { TopbarAuthDesktop, TopbarAuthMobile } from "@/components/home/topbar-au
 import { LogoMark } from "./logo-mark";
 import { ThemeToggle } from "./theme-toggle";
 
-export function SiteHeader() {
+type SiteHeaderProps = {
+  /** Highlights Admin when you are in /admin (marketing-style top bar). */
+  adminNavActive?: boolean;
+};
+
+export function SiteHeader({ adminNavActive = false }: SiteHeaderProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
@@ -27,11 +32,13 @@ export function SiteHeader() {
           </Link>
 
           <nav className="nav nav--desktop" aria-label="Primary">
+            <Link href="/">Home</Link>
+            <Link href="/mock-exam">Mock Exams</Link>
             <a href="/#features">Features</a>
-            <a href="/#how">How it Works</a>
             <a href="/#pricing">Pricing</a>
-            <a href="/#testimonials">Testimonials</a>
-            <Link href="/mock-exam">Mock Exam</Link>
+            <Link href="/admin" className={adminNavActive ? "topbar-link--active" : undefined}>
+              Admin
+            </Link>
           </nav>
 
           <div className="topbar-actions">
@@ -76,20 +83,24 @@ export function SiteHeader() {
             transition={{ type: "spring", damping: 28, stiffness: 320 }}
             aria-label="Mobile"
           >
+            <Link href="/" onClick={() => setMobileOpen(false)}>
+              Home
+            </Link>
+            <Link href="/mock-exam" onClick={() => setMobileOpen(false)}>
+              Mock Exams
+            </Link>
             <a href="/#features" onClick={() => setMobileOpen(false)}>
               Features
-            </a>
-            <a href="/#how" onClick={() => setMobileOpen(false)}>
-              How it Works
             </a>
             <a href="/#pricing" onClick={() => setMobileOpen(false)}>
               Pricing
             </a>
-            <a href="/#testimonials" onClick={() => setMobileOpen(false)}>
-              Testimonials
-            </a>
-            <Link href="/mock-exam" onClick={() => setMobileOpen(false)}>
-              Mock Exam
+            <Link
+              href="/admin"
+              className={adminNavActive ? "topbar-link--active" : undefined}
+              onClick={() => setMobileOpen(false)}
+            >
+              Admin
             </Link>
             <hr className="mobile-drawer__rule" />
             <TopbarAuthMobile onNavigate={() => setMobileOpen(false)} />

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { ExamForm } from "@/components/admin/exam-form";
+import { ExamWizard } from "@/components/admin/exam-wizard";
 
 export default async function AdminNewExamPage() {
   const supabase = await createClient();
@@ -12,6 +12,11 @@ export default async function AdminNewExamPage() {
   if (!categories?.length) {
     return (
       <>
+        <p className="admin-lead">
+          <Link href="/admin/exams" className="admin-wizard-back">
+            ← Back to exams
+          </Link>
+        </p>
         <h1 className="admin-h1">New exam</h1>
         <p className="admin-lead">
           Create at least one{" "}
@@ -24,17 +29,5 @@ export default async function AdminNewExamPage() {
     );
   }
 
-  return (
-    <>
-      <h1 className="admin-h1">New exam</h1>
-      <p className="admin-lead">
-        <Link href="/admin/exams" style={{ color: "var(--primary)", fontWeight: 600 }}>
-          ← Back to list
-        </Link>
-      </p>
-      <div className="admin-card">
-        <ExamForm categories={categories} />
-      </div>
-    </>
-  );
+  return <ExamWizard categories={categories} />;
 }

@@ -171,6 +171,15 @@ img {
   width: 100%;
 }
 
+.nav--desktop a.topbar-link--active {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.nav--desktop a.topbar-link--active::after {
+  width: 100%;
+}
+
 .nav--mobile {
   display: none;
 }
@@ -505,6 +514,10 @@ img {
   font-size: 1.05rem;
   color: var(--text);
   padding: 0.35rem 0;
+}
+
+.mobile-drawer a.topbar-link--active {
+  color: var(--primary);
 }
 
 .mobile-drawer__rule {
