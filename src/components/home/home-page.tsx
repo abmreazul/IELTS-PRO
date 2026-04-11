@@ -2,16 +2,9 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useTheme } from "next-themes";
-import {
-  AnimatePresence,
-  MotionConfig,
-  motion,
-  useScroll,
-  useSpring,
-} from "framer-motion";
+import { LogoMark } from "@/components/layout/logo-mark";
+import { MotionConfig, motion, useScroll, useSpring } from "framer-motion";
 import { useEffect, useState } from "react";
-import { TopbarAuthDesktop, TopbarAuthMobile } from "./topbar-auth";
 import { fadeUp, floatCard, heroImage, staggerContainer, staggerItem } from "./motion-variants";
 
 const features = [
@@ -112,27 +105,6 @@ const testimonials = [
   },
 ] as const;
 
-function LogoMark() {
-  return (
-    <svg className="logo-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M4 5.5h16v13H4v-13z"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinejoin="round"
-      />
-      <path d="M8 8.5h8M8 12h5.5M8 15.5h6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-      <path
-        d="M17 3.5l2 2-2 2"
-        stroke="var(--primary)"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
 function FeatureIcon({ name }: { name: (typeof features)[number]["icon"] }) {
   const common = { width: 22, height: 22, fill: "none", stroke: "currentColor", strokeWidth: 1.7 };
   switch (name) {
@@ -181,153 +153,16 @@ function FeatureIcon({ name }: { name: (typeof features)[number]["icon"] }) {
   }
 }
 
-function ThemeToggle() {
-  const { setTheme, resolvedTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    const id = requestAnimationFrame(() => setMounted(true));
-    return () => cancelAnimationFrame(id);
-  }, []);
-
-  if (!mounted) {
-    return <span className="theme-toggle theme-toggle--placeholder" aria-hidden />;
-  }
-
-  const isDark = resolvedTheme === "dark";
-
-  return (
-    <motion.button
-      type="button"
-      className="theme-toggle"
-      onClick={() => setTheme(isDark ? "light" : "dark")}
-      aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-      whileHover={{ scale: 1.05 }}
-      whileTap={{ scale: 0.95 }}
-    >
-      <span className="theme-toggle__track">
-        <motion.span
-          className="theme-toggle__thumb"
-          layout
-          transition={{ type: "spring", stiffness: 500, damping: 35 }}
-        >
-          {isDark ? (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-              <path
-                d="M21 14.5A8.5 8.5 0 0111.5 5a8.4 8.4 0 013.5 9.5z"
-                stroke="currentColor"
-                strokeWidth="1.6"
-                strokeLinejoin="round"
-              />
-            </svg>
-          ) : (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-              <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="1.6" />
-              <path
-                d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"
-                stroke="currentColor"
-                strokeWidth="1.6"
-                strokeLinecap="round"
-              />
-            </svg>
-          )}
-        </motion.span>
-      </span>
-    </motion.button>
-  );
-}
-
 export function HomePage() {
-  const [mobileOpen, setMobileOpen] = useState(false);
   const [billing, setBilling] = useState<"monthly" | "yearly">("monthly");
   const { scrollYProgress } = useScroll();
   const scaleX = useSpring(scrollYProgress, { stiffness: 100, damping: 30, restDelta: 0.001 });
-
-  useEffect(() => {
-    document.body.style.overflow = mobileOpen ? "hidden" : "";
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [mobileOpen]);
 
   return (
     <MotionConfig reducedMotion="user">
       <motion.div className="scroll-progress" style={{ scaleX }} aria-hidden />
 
       <main className="page">
-        <header className="topbar">
-          <div className="container topbar-inner">
-            <a href="#" className="brand-link">
-              <LogoMark />
-              <span className="brand-text">IELTS Pro</span>
-            </a>
-
-            <nav className="nav nav--desktop" aria-label="Primary">
-              <a href="#features">Features</a>
-              <a href="#how">How it Works</a>
-              <a href="#pricing">Pricing</a>
-              <a href="#testimonials">Testimonials</a>
-            </nav>
-
-            <div className="topbar-actions">
-              <ThemeToggle />
-              <TopbarAuthDesktop />
-              <motion.button
-                type="button"
-                className="menu-btn nav--mobile"
-                aria-expanded={mobileOpen}
-                aria-label={mobileOpen ? "Close menu" : "Open menu"}
-                onClick={() => setMobileOpen((o) => !o)}
-                whileTap={{ scale: 0.95 }}
-              >
-                <span className="menu-btn__line" data-open={mobileOpen ? "true" : "false"} />
-                <span className="menu-btn__line" data-open={mobileOpen ? "true" : "false"} />
-                <span className="menu-btn__line" data-open={mobileOpen ? "true" : "false"} />
-              </motion.button>
-            </div>
-          </div>
-        </header>
-
-        <AnimatePresence>
-          {mobileOpen ? (
-            <motion.div
-              className="mobile-drawer-backdrop"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              onClick={() => setMobileOpen(false)}
-            />
-          ) : null}
-        </AnimatePresence>
-
-        <AnimatePresence>
-          {mobileOpen ? (
-            <motion.nav
-              className="mobile-drawer"
-              initial={{ x: "100%" }}
-              animate={{ x: 0 }}
-              exit={{ x: "100%" }}
-              transition={{ type: "spring", damping: 28, stiffness: 320 }}
-              aria-label="Mobile"
-            >
-              <a href="#features" onClick={() => setMobileOpen(false)}>
-                Features
-              </a>
-              <a href="#how" onClick={() => setMobileOpen(false)}>
-                How it Works
-              </a>
-              <a href="#pricing" onClick={() => setMobileOpen(false)}>
-                Pricing
-              </a>
-              <a href="#testimonials" onClick={() => setMobileOpen(false)}>
-                Testimonials
-              </a>
-              <hr className="mobile-drawer__rule" />
-              <TopbarAuthMobile onNavigate={() => setMobileOpen(false)} />
-            </motion.nav>
-          ) : null}
-        </AnimatePresence>
-
         <section className="hero">
           <div className="container hero-grid">
             <motion.div
