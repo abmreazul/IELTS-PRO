@@ -67,7 +67,7 @@ export function AdminExamsTable({ exams }: { exams: AdminExamRow[] }) {
       <input
         type="search"
         className="admin-search"
-        placeholder="Search exams…"
+        placeholder="Search exams..."
         value={q}
         onChange={(e) => setQ(e.target.value)}
         aria-label="Search exams"
@@ -77,33 +77,26 @@ export function AdminExamsTable({ exams }: { exams: AdminExamRow[] }) {
         <table className="admin-table">
           <thead>
             <tr>
-              <th style={{ width: "2rem" }} aria-label="Select" />
-              <th>Exam</th>
-              <th>Format</th>
+              <th style={{ width: "2.5rem" }} aria-label="Select" />
+              <th>Exam Title</th>
+              <th>Category</th>
               <th>Status</th>
               <th>Created</th>
               <th>Attempts</th>
-              <th>Avg score</th>
-              <th>Price</th>
+              <th>Avg Score</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {filtered.map((row) => {
               const badge = categoryBadge(row);
-              const price = (row.price_cents / 100).toFixed(2);
               return (
                 <tr key={row.id}>
                   <td>
-                    <input type="checkbox" disabled aria-label="Bulk actions coming later" title="Placeholder" />
+                    <input type="checkbox" disabled aria-label="Select exam" className="admin-table-check" />
                   </td>
                   <td>
-                    <div style={{ fontWeight: 600 }}>{row.title}</div>
-                    {row.categoryName ? (
-                      <div style={{ fontSize: "0.78rem", color: "var(--muted)", marginTop: "0.15rem" }}>
-                        {row.categoryName}
-                      </div>
-                    ) : null}
+                    <div className="admin-table-title">{row.title}</div>
                   </td>
                   <td>
                     <span className={badge.className}>{badge.label}</span>
@@ -119,10 +112,7 @@ export function AdminExamsTable({ exams }: { exams: AdminExamRow[] }) {
                   </td>
                   <td>{formatDate(row.created_at)}</td>
                   <td>{row.attempts}</td>
-                  <td>{row.avgBand != null ? row.avgBand.toFixed(1) : "—"}</td>
-                  <td>
-                    {row.currency} {price}
-                  </td>
+                  <td>{row.avgBand != null ? row.avgBand.toFixed(1) : "-"}</td>
                   <td>
                     <div className="admin-table-actions">
                       <Link href={`/admin/exams/${row.id}`} className="admin-icon-btn" title="Edit" aria-label="Edit">
@@ -154,7 +144,7 @@ export function AdminExamsTable({ exams }: { exams: AdminExamRow[] }) {
                         action={deleteExam}
                         style={{ display: "inline" }}
                         onSubmit={(e) => {
-                          if (!confirm(`Delete “${row.title}”?`)) e.preventDefault();
+                          if (!confirm(`Delete "${row.title}"?`)) e.preventDefault();
                         }}
                       >
                         <input type="hidden" name="id" value={row.id} />

@@ -1,18 +1,48 @@
 import Link from "next/link";
 import { BookOpen, DollarSign, TrendingUp, Users } from "lucide-react";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
+import {
+  AdminExamsTable,
+  type AdminExamRow,
+} from "@/components/admin/admin-exams-table";
+
+function categoryNameFromRelation(rel: unknown): string | null {
+  if (rel == null) return null;
+  if (Array.isArray(rel)) {
+    const first = rel[0];
+    if (first && typeof first === "object" && "name" in first) {
+      const n = (first as { name: unknown }).name;
+      return typeof n === "string" ? n : null;
+    }
+    return null;
+  }
+  if (typeof rel === "object" && "name" in rel) {
+    const n = (rel as { name: unknown }).name;
+    return typeof n === "string" ? n : null;
+  }
+  return null;
+}
 
 export default async function AdminHomePage() {
   const admin = createServiceRoleClient();
 
-  const [{ count: examCount }, { data: attempts }, { data: examsForRev }] = await Promise.all([
-    admin.from("mock_exams").select("*", { count: "exact", head: true }),
-    admin.from("mock_attempts").select("exam_id, overall_band, status"),
-    admin.from("mock_exams").select("id, price_cents"),
-  ]);
+  const [{ count: examCount }, { data: attempts }, { data: examsForRev }, { data: exams }] =
+    await Promise.all([
+      admin.from("mock_exams").select("*", { count: "exact", head: true }),
+      admin.from("mock_attempts").select("exam_id, overall_band, status"),
+      admin.from("mock_exams").select("id, price_cents"),
+      admin
+        .from("mock_exams")
+        .select(
+          "id, title, slug, is_published, exam_type, modules, price_cents, currency, created_at, exam_categories(name)",
+        )
+        .order("created_at", { ascending: false }),
+    ]);
 
+  /* ── Stats ─────────────────────────────────────────── */
   const completed = (attempts ?? []).filter((a) => a.status === "completed");
   const totalAttempts = completed.length;
+
   let sumBand = 0;
   let bandN = 0;
   for (const a of completed) {
@@ -39,77 +69,94 @@ export default async function AdminHomePage() {
     maximumFractionDigits: 0,
   });
 
+  /* ── Table rows ─────────────────────────────────────── */
+  const statsByExam = new Map<string, { count: number; sum: number; n: number }>();
+  for (const a of completed) {
+    if (!a.exam_id) continue;
+    const cur = statsByExam.get(a.exam_id) ?? { count: 0, sum: 0, n: 0 };
+    cur.count += 1;
+    if (a.overall_band != null) {
+      cur.sum += Number(a.overall_band);
+      cur.n += 1;
+    }
+    statsByExam.set(a.exam_id, cur);
+  }
+
+  const rows: AdminExamRow[] = (exams ?? []).map((row) => {
+    const st = statsByExam.get(row.id);
+    const avgBandRow = st && st.n > 0 ? st.sum / st.n : null;
+    return {
+      id: row.id,
+      title: row.title,
+      slug: row.slug,
+      is_published: row.is_published,
+      exam_type: row.exam_type,
+      modules: row.modules as string[] | null,
+      price_cents: row.price_cents,
+      currency: row.currency,
+      created_at: row.created_at,
+      categoryName: categoryNameFromRelation(row.exam_categories),
+      attempts: st?.count ?? 0,
+      avgBand: avgBandRow,
+    };
+  });
+
   return (
     <>
+      {/* ── Header ─────────────────────────────────── */}
       <div className="admin-dash-head">
         <div>
           <h1>Admin Dashboard</h1>
-          <p>Manage and create mock exams aligned with IELTS task types.</p>
+          <p>Manage and create mock exams</p>
         </div>
-        <Link href="/admin/exams/new" className="btn btn-primary btn-topbar-cta">
+        <Link href="/admin/exams/new" className="admin-cta-btn">
           + Create New Exam
         </Link>
       </div>
 
+      {/* ── Stat cards ─────────────────────────────── */}
       <div className="admin-stat-grid">
         <div className="admin-stat-card admin-stat-card--blue">
+          <div className="admin-stat-card__body">
+            <div className="admin-stat-card__label">Total Exams</div>
+            <div className="admin-stat-card__value">{examCount ?? 0}</div>
+          </div>
           <div className="admin-stat-card__icon" aria-hidden>
             <BookOpen strokeWidth={2} />
           </div>
-          <div>
-            <div className="admin-stat-card__label">Total exams</div>
-            <div className="admin-stat-card__value">{examCount ?? 0}</div>
-          </div>
         </div>
         <div className="admin-stat-card admin-stat-card--green">
+          <div className="admin-stat-card__body">
+            <div className="admin-stat-card__label">Total Attempts</div>
+            <div className="admin-stat-card__value">{totalAttempts}</div>
+          </div>
           <div className="admin-stat-card__icon" aria-hidden>
             <Users strokeWidth={2} />
           </div>
-          <div>
-            <div className="admin-stat-card__label">Total attempts</div>
-            <div className="admin-stat-card__value">{totalAttempts}</div>
-          </div>
         </div>
         <div className="admin-stat-card admin-stat-card--purple">
+          <div className="admin-stat-card__body">
+            <div className="admin-stat-card__label">Average Score</div>
+            <div className="admin-stat-card__value">{avgBand}</div>
+          </div>
           <div className="admin-stat-card__icon" aria-hidden>
             <TrendingUp strokeWidth={2} />
           </div>
-          <div>
-            <div className="admin-stat-card__label">Average score</div>
-            <div className="admin-stat-card__value">{avgBand}</div>
-          </div>
         </div>
         <div className="admin-stat-card admin-stat-card--orange">
+          <div className="admin-stat-card__body">
+            <div className="admin-stat-card__label">Revenue</div>
+            <div className="admin-stat-card__value">{revenue}</div>
+          </div>
           <div className="admin-stat-card__icon" aria-hidden>
             <DollarSign strokeWidth={2} />
-          </div>
-          <div>
-            <div className="admin-stat-card__label">Revenue (est.)</div>
-            <div className="admin-stat-card__value">{revenue}</div>
           </div>
         </div>
       </div>
 
+      {/* ── Exams table ────────────────────────────── */}
       <div className="admin-card">
-        <h2>Quick links</h2>
-        <ul style={{ margin: 0, paddingLeft: "1.2rem", lineHeight: 1.85 }}>
-          <li>
-            <Link href="/admin/exams" style={{ fontWeight: 600 }}>
-              All mock exams
-            </Link>{" "}
-            — search, edit, duplicate, publish
-          </li>
-          <li>
-            <Link href="/admin/categories" style={{ fontWeight: 600 }}>
-              Categories
-            </Link>
-          </li>
-          <li>
-            <Link href="/mock-exam" style={{ fontWeight: 600 }}>
-              Public catalog
-            </Link>
-          </li>
-        </ul>
+        <AdminExamsTable exams={rows} />
       </div>
     </>
   );
