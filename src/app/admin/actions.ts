@@ -2,16 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/server";
 import { isAdminEmail } from "@/lib/auth/admin";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
 
 async function requireAdmin() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
+  const { user, error } = await getAuthUser();
   if (error || !user?.email) {
     throw new Error("Unauthorized");
   }

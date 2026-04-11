@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getAuthUser } from "@/lib/supabase/server";
 import { MockExamCatalog } from "@/components/mock-exam/mock-exam-catalog";
 import type { MockAttemptRow, MockExamRow } from "@/components/mock-exam/types";
 import "./mock-exam.css";
@@ -15,7 +15,9 @@ export const revalidate = 60;
 export default async function MockExamPage() {
   const supabase = await createClient();
 
-  const [{ data: categories }, { data: examsRaw }, authRes] = await Promise.all([
+  // Fire ALL queries in parallel — including auth (which is cached from
+  // middleware/layout if already called) and the two data queries.
+  const [{ data: categories }, { data: examsRaw }, { user }] = await Promise.all([
     supabase.from("exam_categories").select("id, slug, name, sort_order").order("sort_order", { ascending: true }),
     supabase
       .from("mock_exams")
@@ -40,12 +42,10 @@ export default async function MockExamPage() {
     `,
       )
       .eq("is_published", true),
-    supabase.auth.getUser(),
+    getAuthUser(),
   ]);
 
   const exams = (examsRaw ?? []) as unknown as MockExamRow[];
-
-  const user = authRes.data.user;
 
   const attemptsByExamId: Record<string, MockAttemptRow> = {};
   const entitledExamIds = new Set<string>();

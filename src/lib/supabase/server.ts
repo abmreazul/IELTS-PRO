@@ -1,7 +1,13 @@
+import { cache } from "react";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
-export async function createClient() {
+/**
+ * Memoised per-request Supabase server client.
+ * React.cache() ensures the same client is reused across layout → page →
+ * component within a single server render, avoiding redundant cookie reads.
+ */
+export const createClient = cache(async () => {
   const cookieStore = await cookies();
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -28,4 +34,18 @@ export async function createClient() {
       },
     },
   });
-}
+});
+
+/**
+ * Memoised per-request auth user.
+ * No matter how many server components call getAuthUser(), only ONE network
+ * call to Supabase Auth is made per request.
+ */
+export const getAuthUser = cache(async () => {
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
+  return { user, error };
+});

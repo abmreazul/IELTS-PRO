@@ -6,7 +6,54 @@ import { motion } from "framer-motion";
 import { LogOut, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
+
+/* ── Shared auth hook ─────────────────────────────────────────────────
+ * Both TopbarAuthDesktop and TopbarAuthMobile render in every layout.
+ * Previously each created its own Supabase client, called getUser(),
+ * and subscribed to onAuthStateChange — doubling the auth overhead.
+ *
+ * This module-level singleton ensures ONE client, ONE getUser() call,
+ * and ONE auth listener regardless of how many components consume it.
+ * ─────────────────────────────────────────────────────────────────── */
+
+let cachedUser: User | null = null;
+let listeners = new Set<() => void>();
+let initialised = false;
+
+function emitChange() {
+  for (const fn of listeners) fn();
+}
+
+function subscribe(cb: () => void) {
+  listeners.add(cb);
+  // Initialise the singleton on first subscription (CSR only)
+  if (!initialised) {
+    initialised = true;
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data }) => {
+      cachedUser = data.user ?? null;
+      emitChange();
+    });
+    supabase.auth.onAuthStateChange((_event, session) => {
+      cachedUser = session?.user ?? null;
+      emitChange();
+    });
+  }
+  return () => {
+    listeners.delete(cb);
+  };
+}
+
+function getSnapshot() {
+  return cachedUser;
+}
+
+function useAuthUser() {
+  return useSyncExternalStore(subscribe, getSnapshot, () => null);
+}
+
+/* ── Helpers ──────────────────────────────────────────────────────── */
 
 function displayName(user: User) {
   const meta = user.user_metadata as Record<string, string | undefined> | undefined;
@@ -15,23 +62,12 @@ function displayName(user: User) {
   return user.email?.split("@")[0] ?? "Account";
 }
 
+/* ── Desktop ─────────────────────────────────────────────────────── */
+
 export function TopbarAuthDesktop() {
-  const [user, setUser] = useState<User | null>(null);
+  const user = useAuthUser();
   const [open, setOpen] = useState(false);
   const router = useRouter();
-
-  useEffect(() => {
-    const supabase = createClient();
-    supabase.auth.getUser().then(({ data }) => {
-      setUser(data.user ?? null);
-    });
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
-    return () => subscription.unsubscribe();
-  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -104,22 +140,11 @@ export function TopbarAuthDesktop() {
   );
 }
 
-export function TopbarAuthMobile({ onNavigate }: { onNavigate: () => void }) {
-  const [user, setUser] = useState<User | null>(null);
-  const router = useRouter();
+/* ── Mobile ──────────────────────────────────────────────────────── */
 
-  useEffect(() => {
-    const supabase = createClient();
-    supabase.auth.getUser().then(({ data }) => {
-      setUser(data.user ?? null);
-    });
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
-    return () => subscription.unsubscribe();
-  }, []);
+export function TopbarAuthMobile({ onNavigate }: { onNavigate: () => void }) {
+  const user = useAuthUser();
+  const router = useRouter();
 
   async function signOut() {
     const supabase = createClient();

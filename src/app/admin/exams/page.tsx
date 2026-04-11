@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
 import { isAdminEmail } from "@/lib/auth/admin";
 import {
@@ -25,10 +25,8 @@ function categoryNameFromRelation(rel: unknown): string | null {
 }
 
 export default async function AdminExamsListPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Cached — admin layout already called getAuthUser(), this is a free hit
+  const { user } = await getAuthUser();
 
   if (!user?.email || !isAdminEmail(user.email)) {
     return null;

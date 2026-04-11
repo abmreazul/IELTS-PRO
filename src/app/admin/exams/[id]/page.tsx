@@ -1,40 +1,40 @@
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getAuthUser } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
 import { isAdminEmail } from "@/lib/auth/admin";
 import { ExamWizard, type ExamWizardInitialExam } from "@/components/admin/exam-wizard";
 
 export default async function AdminEditExamPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user } = await getAuthUser();
   if (!user?.email || !isAdminEmail(user.email)) {
     notFound();
   }
 
   const admin = createServiceRoleClient();
-  const { data: exam, error } = await admin.from("mock_exams").select("*").eq("id", id).maybeSingle();
+  const supabase = await createClient();
+
+  // Fire all three queries in parallel instead of sequentially
+  const [{ data: exam, error }, { data: categories }, { data: questionRows }] = await Promise.all([
+    admin.from("mock_exams").select("*").eq("id", id).maybeSingle(),
+    supabase
+      .from("exam_categories")
+      .select("id, name, slug")
+      .order("sort_order", { ascending: true }),
+    admin
+      .from("exam_questions")
+      .select("id, module, question_type, prompt, options_json, correct_json, points")
+      .eq("exam_id", id)
+      .order("sort_order", { ascending: true }),
+  ]);
 
   if (error || !exam) {
     notFound();
   }
 
-  const { data: categories } = await supabase
-    .from("exam_categories")
-    .select("id, name, slug")
-    .order("sort_order", { ascending: true });
-
   if (!categories?.length) {
     notFound();
   }
-
-  const { data: questionRows } = await admin
-    .from("exam_questions")
-    .select("id, module, question_type, prompt, options_json, correct_json, points")
-    .eq("exam_id", id)
-    .order("sort_order", { ascending: true });
 
   const initialExam: ExamWizardInitialExam = {
     id: exam.id,

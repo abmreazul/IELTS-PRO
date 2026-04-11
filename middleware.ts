@@ -32,7 +32,10 @@ export async function middleware(request: NextRequest) {
     },
   });
 
-  await supabase.auth.getUser();
+  // getSession() refreshes the JWT locally (no network call to Auth API).
+  // Actual user validation via getUser() happens in server components where
+  // security matters (e.g., admin layout). This saves ~200-400ms per navigation.
+  await supabase.auth.getSession();
 
   return supabaseResponse;
 }
