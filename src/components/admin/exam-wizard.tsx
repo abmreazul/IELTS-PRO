@@ -95,6 +95,12 @@ function modulesFromSurface(s: Surface): { exam_type: "full" | "partial"; module
   return { exam_type: "partial", modules: [s] };
 }
 
+/** Auto-map surface → category by slug. Full → 'full-exams', otherwise match module name. */
+function categoryForSurface(s: Surface, categories: Category[]): string | undefined {
+  const slug = s === "full" ? "full-exams" : s;
+  return categories.find((c) => c.slug === slug)?.id;
+}
+
 function parseStructure(raw: unknown): SectionStructure[] {
   if (!Array.isArray(raw) || raw.length === 0) return [...DEFAULT_FULL_STRUCTURE];
   const out: SectionStructure[] = [];
@@ -234,7 +240,9 @@ export function ExamWizard({
     : "full";
   const [surface, setSurface] = useState<Surface>(initialSurface);
 
-  const [categoryId, setCategoryId] = useState(initialExam?.category_id ?? categories[0]?.id ?? "");
+  const [categoryId, setCategoryId] = useState(
+    initialExam?.category_id ?? categoryForSurface(initialSurface, categories) ?? categories[0]?.id ?? "",
+  );
   const [title, setTitle] = useState(initialExam?.title ?? "");
   const [slug, setSlug] = useState(initialExam?.slug ?? "");
   const [description, setDescription] = useState(initialExam?.description ?? "");
@@ -311,6 +319,9 @@ export function ExamWizard({
     setSurface(s);
     const { modules: m } = modulesFromSurface(s);
     syncStructureModules(m);
+    // Auto-set category when exam type changes
+    const catId = categoryForSurface(s, categories);
+    if (catId) setCategoryId(catId);
   };
 
   const questionCountTotal = useMemo(() => {
@@ -402,27 +413,23 @@ export function ExamWizard({
     <div>
       <div className="admin-wizard-toolbar">
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.75rem" }}>
-          <Link href="/admin/exams" className="admin-wizard-back">
+          <Link href="/admin" className="admin-wizard-back">
             ← Back to Dashboard
           </Link>
           <span style={{ color: "var(--border)", fontWeight: 300 }}>|</span>
           <span className="admin-wizard-title">{isEdit ? "Edit exam" : "Create New Exam"}</span>
         </div>
         <div className="admin-wizard-actions">
-          <button type="button" className="btn btn-outline" disabled={pending} onClick={() => runSave(isPublished)}>
+          <button type="button" className="btn btn-outline" disabled={pending} onClick={() => runSave(false)}>
             Save Draft
           </button>
           <button
             type="button"
             className="btn btn-primary btn-topbar-cta"
             disabled={pending}
-            onClick={() => {
-              setIsPublished(true);
-              runSave(true);
-              setStep(4);
-            }}
+            onClick={() => runSave(true)}
           >
-            Preview &amp; Publish
+            Publish
           </button>
         </div>
       </div>
@@ -480,24 +487,7 @@ export function ExamWizard({
               />
             </div>
             <div>
-              <label className="admin-label" htmlFor="ew-cat">
-                Catalog category
-              </label>
-              <select
-                id="ew-cat"
-                className="admin-select"
-                value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
-              >
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <span className="admin-label">Exam type (required)</span>
+              <span className="admin-label">Exam Category</span>
               <div className="admin-segment" style={{ marginTop: "0.35rem" }}>
                 {(["full", "listening", "reading", "writing", "speaking"] as Surface[]).map((s) => (
                   <label key={s}>
@@ -592,23 +582,30 @@ export function ExamWizard({
               </div>
             </div>
             <div>
-              <label className="admin-label">Thumbnail</label>
-              <div className="admin-dropzone">
-                <label className="admin-label" htmlFor="ew-cover" style={{ marginBottom: "0.5rem" }}>
-                  Image URL (optional — or upload from disk)
-                </label>
-                <input
-                  id="ew-cover"
-                  className="admin-input"
-                  value={coverUrl}
-                  onChange={(e) => setCoverUrl(e.target.value)}
-                  placeholder="https://…"
-                />
-                <div style={{ marginTop: "0.85rem" }}>
+              <span className="admin-label">Thumbnail Image</span>
+              <div className="admin-thumb-grid">
+                {/* Card 1: Image URL */}
+                <div className="admin-thumb-card">
+                  <p className="admin-thumb-card__title">Image URL</p>
+                  <input
+                    id="ew-cover"
+                    className="admin-input"
+                    value={coverUrl}
+                    onChange={(e) => setCoverUrl(e.target.value)}
+                    placeholder="https://images.unsplash.com/…"
+                  />
+                  {coverUrl.trim() ? (
+                    <div className="admin-thumb-preview">
+                      <img src={coverUrl.trim()} alt="Cover preview" />
+                    </div>
+                  ) : null}
+                </div>
+                {/* Card 2: Upload from device */}
+                <div className="admin-thumb-card">
+                  <p className="admin-thumb-card__title">Upload from device</p>
                   <ExamLocalUpload
                     folder="covers"
                     accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
-                    label="Upload cover image"
                     disabled={pending}
                     onUploaded={(url) => setCoverUrl(url)}
                   />
