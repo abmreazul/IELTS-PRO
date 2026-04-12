@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BookOpen, DollarSign, TrendingUp, Users } from "lucide-react";
+import { unstable_cache } from "next/cache";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
 import {
   AdminExamsTable,
@@ -23,83 +24,98 @@ function categoryNameFromRelation(rel: unknown): string | null {
   return null;
 }
 
+/**
+ * Cache admin dashboard data for 30s.
+ * revalidatePath("/admin") from server actions will bust this instantly.
+ */
+const getAdminDashboardData = unstable_cache(
+  async () => {
+    const admin = createServiceRoleClient();
+
+    const [{ count: examCount }, { data: attempts }, { data: examsForRev }, { data: exams }] =
+      await Promise.all([
+        admin.from("mock_exams").select("*", { count: "exact", head: true }),
+        admin.from("mock_attempts").select("exam_id, overall_band, status"),
+        admin.from("mock_exams").select("id, price_cents"),
+        admin
+          .from("mock_exams")
+          .select(
+            "id, title, slug, is_published, exam_type, modules, price_cents, currency, created_at, exam_categories(name)",
+          )
+          .order("created_at", { ascending: false }),
+      ]);
+
+    /* ── Stats ─────────────────────────────────────────── */
+    const completed = (attempts ?? []).filter((a) => a.status === "completed");
+    const totalAttempts = completed.length;
+
+    let sumBand = 0;
+    let bandN = 0;
+    for (const a of completed) {
+      if (a.overall_band != null) {
+        sumBand += Number(a.overall_band);
+        bandN += 1;
+      }
+    }
+    const avgBand = bandN > 0 ? (sumBand / bandN).toFixed(1) : "—";
+
+    const priceByExam = new Map<string, number>();
+    for (const e of examsForRev ?? []) {
+      priceByExam.set(e.id, e.price_cents ?? 0);
+    }
+    let revenueCents = 0;
+    for (const a of completed) {
+      if (a.exam_id) {
+        revenueCents += priceByExam.get(a.exam_id) ?? 0;
+      }
+    }
+    const revenue = (revenueCents / 100).toLocaleString(undefined, {
+      style: "currency",
+      currency: "USD",
+      maximumFractionDigits: 0,
+    });
+
+    /* ── Table rows ─────────────────────────────────────── */
+    const statsByExam = new Map<string, { count: number; sum: number; n: number }>();
+    for (const a of completed) {
+      if (!a.exam_id) continue;
+      const cur = statsByExam.get(a.exam_id) ?? { count: 0, sum: 0, n: 0 };
+      cur.count += 1;
+      if (a.overall_band != null) {
+        cur.sum += Number(a.overall_band);
+        cur.n += 1;
+      }
+      statsByExam.set(a.exam_id, cur);
+    }
+
+    const rows: AdminExamRow[] = (exams ?? []).map((row) => {
+      const st = statsByExam.get(row.id);
+      const avgBandRow = st && st.n > 0 ? st.sum / st.n : null;
+      return {
+        id: row.id,
+        title: row.title,
+        slug: row.slug,
+        is_published: row.is_published,
+        exam_type: row.exam_type,
+        modules: row.modules as string[] | null,
+        price_cents: row.price_cents,
+        currency: row.currency,
+        created_at: row.created_at,
+        categoryName: categoryNameFromRelation(row.exam_categories),
+        attempts: st?.count ?? 0,
+        avgBand: avgBandRow,
+      };
+    });
+
+    return { examCount: examCount ?? 0, totalAttempts, avgBand, revenue, rows };
+  },
+  ["admin-dashboard"],
+  { revalidate: 30, tags: ["admin-dashboard"] },
+);
+
 export default async function AdminHomePage() {
-  const admin = createServiceRoleClient();
-
-  const [{ count: examCount }, { data: attempts }, { data: examsForRev }, { data: exams }] =
-    await Promise.all([
-      admin.from("mock_exams").select("*", { count: "exact", head: true }),
-      admin.from("mock_attempts").select("exam_id, overall_band, status"),
-      admin.from("mock_exams").select("id, price_cents"),
-      admin
-        .from("mock_exams")
-        .select(
-          "id, title, slug, is_published, exam_type, modules, price_cents, currency, created_at, exam_categories(name)",
-        )
-        .order("created_at", { ascending: false }),
-    ]);
-
-  /* ── Stats ─────────────────────────────────────────── */
-  const completed = (attempts ?? []).filter((a) => a.status === "completed");
-  const totalAttempts = completed.length;
-
-  let sumBand = 0;
-  let bandN = 0;
-  for (const a of completed) {
-    if (a.overall_band != null) {
-      sumBand += Number(a.overall_band);
-      bandN += 1;
-    }
-  }
-  const avgBand = bandN > 0 ? (sumBand / bandN).toFixed(1) : "—";
-
-  const priceByExam = new Map<string, number>();
-  for (const e of examsForRev ?? []) {
-    priceByExam.set(e.id, e.price_cents ?? 0);
-  }
-  let revenueCents = 0;
-  for (const a of completed) {
-    if (a.exam_id) {
-      revenueCents += priceByExam.get(a.exam_id) ?? 0;
-    }
-  }
-  const revenue = (revenueCents / 100).toLocaleString(undefined, {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  });
-
-  /* ── Table rows ─────────────────────────────────────── */
-  const statsByExam = new Map<string, { count: number; sum: number; n: number }>();
-  for (const a of completed) {
-    if (!a.exam_id) continue;
-    const cur = statsByExam.get(a.exam_id) ?? { count: 0, sum: 0, n: 0 };
-    cur.count += 1;
-    if (a.overall_band != null) {
-      cur.sum += Number(a.overall_band);
-      cur.n += 1;
-    }
-    statsByExam.set(a.exam_id, cur);
-  }
-
-  const rows: AdminExamRow[] = (exams ?? []).map((row) => {
-    const st = statsByExam.get(row.id);
-    const avgBandRow = st && st.n > 0 ? st.sum / st.n : null;
-    return {
-      id: row.id,
-      title: row.title,
-      slug: row.slug,
-      is_published: row.is_published,
-      exam_type: row.exam_type,
-      modules: row.modules as string[] | null,
-      price_cents: row.price_cents,
-      currency: row.currency,
-      created_at: row.created_at,
-      categoryName: categoryNameFromRelation(row.exam_categories),
-      attempts: st?.count ?? 0,
-      avgBand: avgBandRow,
-    };
-  });
+  const { examCount, totalAttempts, avgBand, revenue, rows } =
+    await getAdminDashboardData();
 
   return (
     <>
@@ -119,7 +135,7 @@ export default async function AdminHomePage() {
         <div className="admin-stat-card admin-stat-card--blue">
           <div className="admin-stat-card__body">
             <div className="admin-stat-card__label">Total Exams</div>
-            <div className="admin-stat-card__value">{examCount ?? 0}</div>
+            <div className="admin-stat-card__value">{examCount}</div>
           </div>
           <div className="admin-stat-card__icon" aria-hidden>
             <BookOpen strokeWidth={2} />

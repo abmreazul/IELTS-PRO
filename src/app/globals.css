@@ -1199,3 +1199,36 @@ img {
     justify-self: start;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   Skeleton shimmer — used by loading.tsx files
+   ═══════════════════════════════════════════════════════════════════ */
+
+@keyframes skel-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skel {
+  border-radius: 8px;
+  background: linear-gradient(
+    90deg,
+    var(--bg-alt) 25%,
+    color-mix(in srgb, var(--border) 40%, var(--bg-alt)) 37%,
+    var(--bg-alt) 63%
+  );
+  background-size: 200% 100%;
+  animation: skel-shimmer 1.5s ease-in-out infinite;
+}
+
+.skel-text {
+  display: block;
+}
+
+.skel-btn {
+  border-radius: 10px;
+}
