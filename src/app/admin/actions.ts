@@ -340,9 +340,52 @@ export async function duplicateExam(formData: FormData) {
 }
 
 const EXAM_MEDIA_BUCKET = "exam-media";
-const MAX_COVER_BYTES = 8 * 1024 * 1024;
-const MAX_AUDIO_BYTES = 45 * 1024 * 1024;
 
+/**
+ * Returns a signed upload URL so the client can upload directly to Supabase
+ * Storage — bypasses Vercel's 4.5 MB serverless body limit entirely.
+ */
+export async function getSignedUploadUrl(
+  folder: "covers" | "listening",
+  fileName: string,
+  contentType: string,
+): Promise<{ ok: true; signedUrl: string; path: string; publicUrl: string } | { ok: false; message: string }> {
+  try {
+    await requireAdmin();
+  } catch {
+    return { ok: false, message: "Unauthorized" };
+  }
+
+  let ext = (fileName.split(".").pop() || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (!ext) ext = folder === "covers" ? "jpg" : "mp3";
+  const objectName = `${crypto.randomUUID()}.${ext}`.slice(0, 200);
+  const path = `${folder}/${objectName}`;
+
+  const admin = createServiceRoleClient();
+  const { data, error } = await admin.storage
+    .from(EXAM_MEDIA_BUCKET)
+    .createSignedUploadUrl(path);
+
+  if (error || !data) {
+    if (error?.message?.includes("Bucket not found") || error?.message?.includes("not found")) {
+      return { ok: false, message: "Storage bucket 'exam-media' missing. Create it in Supabase dashboard." };
+    }
+    return { ok: false, message: error?.message ?? "Failed to create upload URL" };
+  }
+
+  const { data: publicData } = admin.storage.from(EXAM_MEDIA_BUCKET).getPublicUrl(path);
+
+  return {
+    ok: true,
+    signedUrl: data.signedUrl,
+    path,
+    publicUrl: publicData.publicUrl,
+  };
+}
+
+/**
+ * @deprecated — kept for backward compat. New uploads use getSignedUploadUrl + direct PUT.
+ */
 export async function uploadExamMedia(
   formData: FormData,
 ): Promise<{ ok: true; url: string } | { ok: false; message: string }> {
@@ -369,18 +412,18 @@ export async function uploadExamMedia(
     return { ok: false, message: "Listening files must be audio (MP3, WAV, WebM, OGG, etc.)." };
   }
 
+  const MAX_COVER_BYTES = 8 * 1024 * 1024;
+  const MAX_AUDIO_BYTES = 45 * 1024 * 1024;
   const maxBytes = folder === "covers" ? MAX_COVER_BYTES : MAX_AUDIO_BYTES;
   if (file.size > maxBytes) {
     return {
       ok: false,
-      message: `File too large. Max ${Math.round(maxBytes / 1024 / 1024)} MB for ${folder === "covers" ? "images" : "audio"}.`,
+      message: `File too large. Max ${Math.round(maxBytes / 1024 / 1024)} MB.`,
     };
   }
 
   let ext = (file.name.split(".").pop() || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-  if (!ext) {
-    ext = folder === "covers" ? "jpg" : "mp3";
-  }
+  if (!ext) ext = folder === "covers" ? "jpg" : "mp3";
   const objectName = `${crypto.randomUUID()}.${ext}`.slice(0, 200);
   const path = `${folder}/${objectName}`;
 
@@ -392,13 +435,6 @@ export async function uploadExamMedia(
   });
 
   if (error) {
-    if (error.message?.includes("Bucket not found") || error.message?.includes("not found")) {
-      return {
-        ok: false,
-        message:
-          "Storage bucket missing. Run migration 006_exam_media_storage.sql in Supabase (creates bucket exam-media).",
-      };
-    }
     return { ok: false, message: error.message };
   }
 

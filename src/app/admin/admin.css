@@ -810,6 +810,23 @@
   }
 }
 
+.admin-upload-progress {
+  width: 100%;
+  max-width: 200px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+  margin-top: 0.35rem;
+}
+
+.admin-upload-progress__bar {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--primary);
+  transition: width 0.2s ease;
+}
+
 /* ——— Thumbnail two-column grid ——— */
 .admin-thumb-grid {
   display: grid;

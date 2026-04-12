@@ -1,8 +1,8 @@
 "use client";
 
 import { Upload } from "lucide-react";
-import { useCallback, useRef, useState, useTransition } from "react";
-import { uploadExamMedia } from "@/app/admin/actions";
+import { useCallback, useRef, useState } from "react";
+import { getSignedUploadUrl } from "@/app/admin/actions";
 
 type Props = {
   folder: "covers" | "listening";
@@ -12,26 +12,82 @@ type Props = {
   onUploaded: (publicUrl: string) => void;
 };
 
+const MAX_COVER_BYTES = 8 * 1024 * 1024;
+const MAX_AUDIO_BYTES = 45 * 1024 * 1024;
+
 export function ExamLocalUpload({ folder, accept, label, disabled, onUploaded }: Props) {
-  const [pending, startTransition] = useTransition();
+  const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
   const [err, setErr] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = useCallback(
-    (file: File) => {
+    async (file: File) => {
       setErr(null);
-      startTransition(async () => {
-        const fd = new FormData();
-        fd.append("file", file);
-        fd.append("folder", folder);
-        const res = await uploadExamMedia(fd);
-        if (!res.ok) {
-          setErr(res.message);
+
+      // Client-side validation
+      const mime = (file.type || "").toLowerCase();
+      if (folder === "covers" && !mime.startsWith("image/")) {
+        setErr("Cover must be an image (JPEG, PNG, WebP, or GIF).");
+        return;
+      }
+      if (folder === "listening" && !mime.startsWith("audio/")) {
+        setErr("Listening files must be audio (MP3, WAV, WebM, OGG).");
+        return;
+      }
+
+      const maxBytes = folder === "covers" ? MAX_COVER_BYTES : MAX_AUDIO_BYTES;
+      if (file.size > maxBytes) {
+        setErr(`File too large. Max ${Math.round(maxBytes / 1024 / 1024)} MB.`);
+        return;
+      }
+
+      setUploading(true);
+      setProgress(0);
+
+      try {
+        // Step 1: Get signed upload URL from server (tiny request — no file data)
+        const result = await getSignedUploadUrl(folder, file.name, file.type);
+        if (!result.ok) {
+          setErr(result.message);
+          setUploading(false);
           return;
         }
-        onUploaded(res.url);
-      });
+
+        // Step 2: Upload directly to Supabase Storage from the browser
+        const { signedUrl, publicUrl } = result;
+
+        await new Promise<void>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open("PUT", signedUrl);
+          xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+
+          xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) {
+              setProgress(Math.round((e.loaded / e.total) * 100));
+            }
+          };
+
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve();
+            } else {
+              reject(new Error(`Upload failed (${xhr.status})`));
+            }
+          };
+
+          xhr.onerror = () => reject(new Error("Network error during upload"));
+          xhr.send(file);
+        });
+
+        onUploaded(publicUrl);
+      } catch (e) {
+        setErr(e instanceof Error ? e.message : "Upload failed");
+      } finally {
+        setUploading(false);
+        setProgress(0);
+      }
     },
     [folder, onUploaded],
   );
@@ -59,7 +115,7 @@ export function ExamLocalUpload({ folder, accept, label, disabled, onUploaded }:
     [handleFile],
   );
 
-  const isDisabled = disabled || pending;
+  const isDisabled = disabled || uploading;
 
   return (
     <div>
@@ -93,10 +149,13 @@ export function ExamLocalUpload({ folder, accept, label, disabled, onUploaded }:
           }}
         />
 
-        {pending ? (
+        {uploading ? (
           <div className="admin-upload-zone__content">
             <div className="admin-upload-zone__spinner" />
-            <p className="admin-upload-zone__text">Uploading…</p>
+            <p className="admin-upload-zone__text">Uploading… {progress}%</p>
+            <div className="admin-upload-progress">
+              <div className="admin-upload-progress__bar" style={{ width: `${progress}%` }} />
+            </div>
           </div>
         ) : (
           <div className="admin-upload-zone__content">
@@ -107,7 +166,7 @@ export function ExamLocalUpload({ folder, accept, label, disabled, onUploaded }:
               Click to upload or drag and drop
             </p>
             <p className="admin-upload-zone__hint">
-              PNG, JPG up to 5MB
+              {folder === "covers" ? "PNG, JPG up to 8MB" : "MP3, WAV up to 45MB"}
             </p>
           </div>
         )}
