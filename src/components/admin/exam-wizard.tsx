@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Plus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState, useTransition } from "react";
 import { saveExamWizard, type ExamWizardSaveInput, type WizardQuestionInput } from "@/app/admin/actions";
@@ -55,6 +55,7 @@ type DbQuestion = {
 type QuestionDraft = {
   tempId: string;
   module: "listening" | "reading" | "writing" | "speaking";
+  part?: number; // 1-4 for listening, undefined for others
   question_type: string;
   prompt: string;
   options: string[];
@@ -240,12 +241,13 @@ export function ExamWizard({
     setActiveModuleTab(m[0] ?? "listening");
   };
 
-  const addQuestion = (mod: QuestionDraft["module"]) => {
+  const addQuestion = (mod: QuestionDraft["module"], part?: number) => {
     setQuestions((prev) => [
       ...prev,
       {
         tempId: crypto.randomUUID(),
         module: mod,
+        part: mod === "listening" ? (part ?? 1) : undefined,
         question_type: "multiple_choice",
         prompt: "",
         options: ["", "", "", ""],
@@ -254,6 +256,12 @@ export function ExamWizard({
         points: 1,
       },
     ]);
+  };
+
+  /* Expanded/collapsed state for listening parts */
+  const [expandedParts, setExpandedParts] = useState<Record<number, boolean>>({ 1: true, 2: true, 3: true, 4: true });
+  const togglePart = (part: number) => {
+    setExpandedParts((prev) => ({ ...prev, [part]: !prev[part] }));
   };
 
   const removeQuestion = (tempId: string) => {
@@ -331,6 +339,129 @@ export function ExamWizard({
     }
     return counts;
   }, [questions, modules]);
+
+  /* ── Reusable question card renderer ────────────────── */
+  const renderQuestionCard = (q: QuestionDraft, qIdx: number) => (
+    <div key={q.tempId} className="admin-question-card">
+      <div className="admin-question-card__bar">
+        <span style={{ fontWeight: 700, fontSize: "0.85rem", color: "var(--muted)" }}>
+          Q{qIdx + 1}
+        </span>
+        <button
+          type="button"
+          className="admin-icon-btn"
+          onClick={() => removeQuestion(q.tempId)}
+          title="Remove"
+          aria-label="Remove question"
+        >
+          <Trash2 />
+        </button>
+      </div>
+
+      <div className="admin-form-grid admin-form-grid--2" style={{ marginBottom: "0.65rem" }}>
+        <div>
+          <label className="admin-label">Question type</label>
+          <select
+            className="admin-select"
+            value={q.question_type}
+            onChange={(e) => updateQuestion(q.tempId, { question_type: e.target.value })}
+          >
+            {IELTS_QUESTION_TYPES.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="admin-label">Points</label>
+          <input
+            type="number"
+            min={1}
+            className="admin-input"
+            value={q.points}
+            onChange={(e) => updateQuestion(q.tempId, { points: Number(e.target.value) || 1 })}
+          />
+        </div>
+      </div>
+
+      <div>
+        <label className="admin-label">Question text</label>
+        <textarea
+          className="admin-textarea"
+          rows={3}
+          value={q.prompt}
+          onChange={(e) => updateQuestion(q.tempId, { prompt: e.target.value })}
+          placeholder="Enter your question here…"
+        />
+      </div>
+
+      {q.question_type === "true_false_not_given" || q.question_type === "yes_no_not_given" ? (
+        <div style={{ marginTop: "0.65rem" }}>
+          <span className="admin-label">Correct answer</span>
+          <div className="admin-segment" style={{ marginTop: "0.35rem" }}>
+            {(q.question_type === "true_false_not_given"
+              ? (["true", "false", "not_given"] as const)
+              : (["yes", "no", "not_given"] as const)
+            ).map((opt) => (
+              <label key={opt}>
+                <input
+                  type="radio"
+                  name={`tf-${q.tempId}`}
+                  checked={q.correctTriple === opt}
+                  onChange={() => updateQuestion(q.tempId, { correctTriple: opt })}
+                />
+                <span>
+                  {opt.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
+      ) : q.question_type === "multiple_choice" || q.question_type === "multiple_choice_multi" ? (
+        <div style={{ marginTop: "0.65rem" }}>
+          <p className="admin-label">Options (select the correct answer)</p>
+          {q.options.map((opt, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.35rem" }}>
+              <input
+                type="radio"
+                name={`mc-${q.tempId}`}
+                checked={q.correctIndex === i}
+                onChange={() => updateQuestion(q.tempId, { correctIndex: i })}
+                aria-label={`Correct option ${i + 1}`}
+              />
+              <span style={{ width: "1.25rem", fontWeight: 700 }}>{String.fromCharCode(65 + i)}</span>
+              <input
+                className="admin-input"
+                value={opt}
+                onChange={(e) => {
+                  const next = [...q.options];
+                  next[i] = e.target.value;
+                  updateQuestion(q.tempId, { options: next });
+                }}
+                placeholder={`Option ${String.fromCharCode(65 + i)}`}
+              />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div style={{ marginTop: "0.65rem" }}>
+          <label className="admin-label">Acceptable answers (one per line)</label>
+          <textarea
+            className="admin-textarea"
+            rows={3}
+            value={q.options.join("\n")}
+            onChange={(e) =>
+              updateQuestion(q.tempId, {
+                options: e.target.value.split("\n").concat(["", "", "", ""]).slice(0, 8),
+              })
+            }
+            placeholder="For matching or completion, list pairs or acceptable short answers."
+          />
+        </div>
+      )}
+    </div>
+  );
 
   /* ═══════════════════════════════════════════════════════════════════
      Render
@@ -549,7 +680,7 @@ export function ExamWizard({
           <h2>Questions</h2>
           <p>
             Add questions for {surface === "full" ? "each section" : MODULE_LABELS[surface] ?? surface}.
-            Switch between module tabs to manage questions per section.
+            {modules.length > 1 ? " Switch between module tabs below." : ""}
           </p>
 
           {/* Module tabs — only shown for full test */}
@@ -569,62 +700,116 @@ export function ExamWizard({
             </div>
           ) : null}
 
-          {/* Listening audio section */}
-          {(modules.length === 1 ? modules[0] === "listening" : activeModuleTab === "listening") && hasListening ? (
-            <div className="admin-wizard-card" style={{ marginTop: "1rem", background: "var(--bg)" }}>
-              <h3 style={{ margin: "0 0 0.35rem", fontSize: "0.95rem", fontWeight: 800 }}>
-                Listening Audio Files
-              </h3>
-              <p style={{ margin: "0 0 1rem", color: "var(--muted)", fontSize: "0.85rem" }}>
-                Upload MP3/WAV per part or paste a URL. Typical IELTS listening has 4 parts.
-              </p>
-              {Array.from({ length: 4 }, (_, i) => i + 1).map((part) => {
-                const clip = listeningClips.find((c) => c.part === part);
-                return (
-                  <div key={part} className="admin-question-card" style={{ marginBottom: "0.75rem" }}>
-                    <div style={{ fontWeight: 700, fontSize: "0.85rem", marginBottom: "0.5rem" }}>Part {part}</div>
-                    {clip?.url ? (
-                      <audio controls src={clip.url} style={{ width: "100%", maxWidth: "480px", marginBottom: "0.5rem" }} preload="metadata" />
-                    ) : null}
-                    <div className="admin-form-grid admin-form-grid--2">
-                      <div>
-                        <ExamLocalUpload
-                          folder="listening"
-                          accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/webm,audio/ogg,.mp3,.wav,.webm,.ogg"
-                          disabled={pending}
-                          onUploaded={(url) => setListeningPartUrl(part, url)}
-                        />
-                      </div>
-                      <div>
-                        <label className="admin-label" htmlFor={`listen-url-${part}`}>Audio URL</label>
-                        <input
-                          id={`listen-url-${part}`}
-                          className="admin-input"
-                          value={clip?.url ?? ""}
-                          onChange={(e) => setListeningPartUrl(part, e.target.value)}
-                          placeholder="https://…"
-                        />
-                        {clip?.url ? (
-                          <button
-                            type="button"
-                            className="admin-btn-ghost"
-                            style={{ marginTop: "0.5rem", fontSize: "0.78rem" }}
-                            onClick={() => setListeningPartUrl(part, "")}
-                          >
-                            Clear
-                          </button>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : null}
+          {/* ── Listening: part-based layout ─────────── */}
+          {(() => {
+            const isListeningActive = modules.length === 1 ? modules[0] === "listening" : activeModuleTab === "listening";
+            if (!isListeningActive || !hasListening) return null;
 
-          {/* Question list for active module */}
+            return (
+              <div style={{ marginTop: "1rem" }}>
+                <p style={{ color: "var(--muted)", fontSize: "0.85rem", marginBottom: "1rem" }}>
+                  IELTS Listening has 4 parts. Each part has 1 audio recording and ~10 questions.
+                </p>
+
+                {[1, 2, 3, 4].map((part) => {
+                  const clip = listeningClips.find((c) => c.part === part);
+                  const partQuestions = questions.filter((q) => q.module === "listening" && q.part === part);
+                  const isExpanded = expandedParts[part] !== false;
+
+                  return (
+                    <div key={part} className="admin-part-card">
+                      {/* Part header (collapsible) */}
+                      <button
+                        type="button"
+                        className="admin-part-card__header"
+                        onClick={() => togglePart(part)}
+                      >
+                        <div className="admin-part-card__left">
+                          {isExpanded
+                            ? <ChevronDown style={{ width: "1rem", height: "1rem" }} />
+                            : <ChevronRight style={{ width: "1rem", height: "1rem" }} />
+                          }
+                          <span className="admin-part-card__title">Part {part}</span>
+                          <span className="admin-part-card__meta">
+                            {clip?.url ? "✓ Audio" : "No audio"} · {partQuestions.length} Q
+                          </span>
+                        </div>
+                      </button>
+
+                      {isExpanded ? (
+                        <div className="admin-part-card__body">
+                          {/* Audio upload */}
+                          <div className="admin-part-audio">
+                            <span className="admin-label">Audio Recording</span>
+                            {clip?.url ? (
+                              <div style={{ marginTop: "0.5rem", marginBottom: "0.5rem" }}>
+                                <audio controls src={clip.url} style={{ width: "100%", maxWidth: "480px" }} preload="metadata" />
+                                <button
+                                  type="button"
+                                  className="admin-btn-ghost"
+                                  style={{ marginTop: "0.35rem", fontSize: "0.78rem" }}
+                                  onClick={() => setListeningPartUrl(part, "")}
+                                >
+                                  Remove audio
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="admin-form-grid admin-form-grid--2" style={{ marginTop: "0.5rem" }}>
+                                <ExamLocalUpload
+                                  folder="listening"
+                                  accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/webm,audio/ogg,.mp3,.wav,.webm,.ogg"
+                                  disabled={pending}
+                                  onUploaded={(url) => setListeningPartUrl(part, url)}
+                                />
+                                <div>
+                                  <label className="admin-label" htmlFor={`listen-url-${part}`}>Or paste URL</label>
+                                  <input
+                                    id={`listen-url-${part}`}
+                                    className="admin-input"
+                                    value={clip?.url ?? ""}
+                                    onChange={(e) => setListeningPartUrl(part, e.target.value)}
+                                    placeholder="https://…"
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Questions for this part */}
+                          <div style={{ marginTop: "1rem" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+                              <span style={{ fontWeight: 700, fontSize: "0.85rem" }}>
+                                Questions ({partQuestions.length})
+                              </span>
+                              <button
+                                type="button"
+                                className="btn btn-primary btn-topbar-cta"
+                                style={{ fontSize: "0.78rem", padding: "0.35rem 0.7rem" }}
+                                onClick={() => addQuestion("listening", part)}
+                              >
+                                <Plus style={{ width: "0.8rem", height: "0.8rem" }} /> Add
+                              </button>
+                            </div>
+
+                            {partQuestions.length === 0 ? (
+                              <p style={{ color: "var(--muted)", fontSize: "0.85rem" }}>No questions for Part {part} yet.</p>
+                            ) : null}
+
+                            {partQuestions.map((q, qIdx) => renderQuestionCard(q, qIdx))}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+
+          {/* ── Non-listening modules: flat question list ── */}
           {(() => {
             const mod = (modules.length === 1 ? modules[0] : activeModuleTab) as QuestionDraft["module"];
+            if (mod === "listening") return null;
             const modQuestions = questions.filter((q) => q.module === mod);
 
             return (
@@ -649,128 +834,7 @@ export function ExamWizard({
                   </p>
                 ) : null}
 
-                {modQuestions.map((q, qIdx) => (
-                  <div key={q.tempId} className="admin-question-card">
-                    <div className="admin-question-card__bar">
-                      <span style={{ fontWeight: 700, fontSize: "0.85rem", color: "var(--muted)" }}>
-                        Q{qIdx + 1}
-                      </span>
-                      <button
-                        type="button"
-                        className="admin-icon-btn"
-                        onClick={() => removeQuestion(q.tempId)}
-                        title="Remove"
-                        aria-label="Remove question"
-                      >
-                        <Trash2 />
-                      </button>
-                    </div>
-
-                    <div className="admin-form-grid admin-form-grid--2" style={{ marginBottom: "0.65rem" }}>
-                      <div>
-                        <label className="admin-label">Question type</label>
-                        <select
-                          className="admin-select"
-                          value={q.question_type}
-                          onChange={(e) => updateQuestion(q.tempId, { question_type: e.target.value })}
-                        >
-                          {IELTS_QUESTION_TYPES.map((t) => (
-                            <option key={t.value} value={t.value}>
-                              {t.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="admin-label">Points</label>
-                        <input
-                          type="number"
-                          min={1}
-                          className="admin-input"
-                          value={q.points}
-                          onChange={(e) => updateQuestion(q.tempId, { points: Number(e.target.value) || 1 })}
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="admin-label">Question text</label>
-                      <textarea
-                        className="admin-textarea"
-                        rows={3}
-                        value={q.prompt}
-                        onChange={(e) => updateQuestion(q.tempId, { prompt: e.target.value })}
-                        placeholder="Enter your question here…"
-                      />
-                    </div>
-
-                    {/* Answer options based on question type */}
-                    {q.question_type === "true_false_not_given" || q.question_type === "yes_no_not_given" ? (
-                      <div style={{ marginTop: "0.65rem" }}>
-                        <span className="admin-label">Correct answer</span>
-                        <div className="admin-segment" style={{ marginTop: "0.35rem" }}>
-                          {(q.question_type === "true_false_not_given"
-                            ? (["true", "false", "not_given"] as const)
-                            : (["yes", "no", "not_given"] as const)
-                          ).map((opt) => (
-                            <label key={opt}>
-                              <input
-                                type="radio"
-                                name={`tf-${q.tempId}`}
-                                checked={q.correctTriple === opt}
-                                onChange={() => updateQuestion(q.tempId, { correctTriple: opt })}
-                              />
-                              <span>
-                                {opt.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase())}
-                              </span>
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-                    ) : q.question_type === "multiple_choice" || q.question_type === "multiple_choice_multi" ? (
-                      <div style={{ marginTop: "0.65rem" }}>
-                        <p className="admin-label">Options (select the correct answer)</p>
-                        {q.options.map((opt, i) => (
-                          <div key={i} style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.35rem" }}>
-                            <input
-                              type="radio"
-                              name={`mc-${q.tempId}`}
-                              checked={q.correctIndex === i}
-                              onChange={() => updateQuestion(q.tempId, { correctIndex: i })}
-                              aria-label={`Correct option ${i + 1}`}
-                            />
-                            <span style={{ width: "1.25rem", fontWeight: 700 }}>{String.fromCharCode(65 + i)}</span>
-                            <input
-                              className="admin-input"
-                              value={opt}
-                              onChange={(e) => {
-                                const next = [...q.options];
-                                next[i] = e.target.value;
-                                updateQuestion(q.tempId, { options: next });
-                              }}
-                              placeholder={`Option ${String.fromCharCode(65 + i)}`}
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div style={{ marginTop: "0.65rem" }}>
-                        <label className="admin-label">Acceptable answers (one per line)</label>
-                        <textarea
-                          className="admin-textarea"
-                          rows={3}
-                          value={q.options.join("\n")}
-                          onChange={(e) =>
-                            updateQuestion(q.tempId, {
-                              options: e.target.value.split("\n").concat(["", "", "", ""]).slice(0, 8),
-                            })
-                          }
-                          placeholder="For matching or completion, list pairs or acceptable short answers."
-                        />
-                      </div>
-                    )}
-                  </div>
-                ))}
+                {modQuestions.map((q, qIdx) => renderQuestionCard(q, qIdx))}
               </div>
             );
           })()}

@@ -961,3 +961,60 @@
   font-weight: 600;
   color: var(--text);
 }
+
+/* ——— Part cards (Listening parts) ——— */
+.admin-part-card {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  margin-bottom: 0.75rem;
+  background: var(--surface);
+}
+
+.admin-part-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.85rem 1.15rem;
+  border: none;
+  background: var(--bg);
+  cursor: pointer;
+  font: inherit;
+  color: var(--text);
+  transition: background 0.15s ease;
+}
+
+.admin-part-card__header:hover {
+  background: color-mix(in srgb, var(--primary) 3%, var(--bg));
+}
+
+.admin-part-card__left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.admin-part-card__title {
+  font-weight: 800;
+  font-size: 0.95rem;
+}
+
+.admin-part-card__meta {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--muted);
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary) 8%, var(--bg));
+}
+
+.admin-part-card__body {
+  padding: 1rem 1.15rem 1.25rem;
+  border-top: 1px solid var(--border);
+}
+
+.admin-part-audio {
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
