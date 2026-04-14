@@ -574,7 +574,7 @@
 
 .ep-nav-panel__toggle {
   position: absolute;
-  right: 220px;
+  right: 205px;
   top: 50%;
   transform: translateY(-50%);
   width: 30px;
@@ -598,7 +598,7 @@
   box-shadow: 0 2px 12px rgba(0,0,0,0.15);
 }
 .ep-nav-panel__toggle--collapsed {
-  right: 0;
+  right: -15px;
 }
 
 .ep-nav-panel__title {

@@ -82,44 +82,54 @@ function useCountdown(totalSeconds: number, onEnd: () => void) {
    ═══════════════════════════════════════════════════════════════════ */
 
 type PartInfo = {
-  part: number;
+  part: number;         // Part number within the module (1-based)
+  module: string;       // "listening" | "reading" | "writing" | "speaking"
   questions: ExamQuestion[];
-  startIndex: number;
+  startIndex: number;   // Global question index offset
 };
 
+const MODULE_PART_COUNTS: Record<string, number> = {
+  listening: 4,
+  reading: 3,
+};
+
+const MODULE_ORDER = ["listening", "reading", "writing", "speaking"];
+
 function groupByPart(questions: ExamQuestion[], modules: string[]): PartInfo[] {
-  const isListening = modules.includes("listening");
-  const isReading = modules.includes("reading") && !isListening;
+  const ordered = MODULE_ORDER.filter((m) => modules.includes(m));
+  const parts: PartInfo[] = [];
+  let runningIdx = 0;
 
-  // Part-based modules: listening (4 parts), reading (3 parts)
-  const partCount = isListening ? 4 : isReading ? 3 : 0;
+  for (const mod of ordered) {
+    const modQuestions = questions.filter((q) => q.module === mod);
+    const partCount = MODULE_PART_COUNTS[mod];
 
-  if (partCount > 0) {
-    const partMap: Record<number, ExamQuestion[]> = {};
-    for (let i = 1; i <= partCount; i++) partMap[i] = [];
+    if (partCount) {
+      // Part-based module: decode part from sort_order
+      const partMap: Record<number, ExamQuestion[]> = {};
+      for (let i = 1; i <= partCount; i++) partMap[i] = [];
 
-    for (const q of questions) {
-      const decodedPart = q.sort_order >= 100 ? Math.floor(q.sort_order / 100) : 1;
-      const p = Math.max(1, Math.min(partCount, decodedPart));
-      if (!partMap[p]) partMap[p] = [];
-      partMap[p].push(q);
+      for (const q of modQuestions) {
+        const decoded = q.sort_order >= 100 ? Math.floor(q.sort_order / 100) : 1;
+        const p = Math.max(1, Math.min(partCount, decoded));
+        partMap[p].push(q);
+      }
+
+      for (let p = 1; p <= partCount; p++) {
+        parts.push({ part: p, module: mod, questions: partMap[p], startIndex: runningIdx });
+        runningIdx += partMap[p].length;
+      }
+    } else {
+      // Non-part module: single section
+      parts.push({ part: 1, module: mod, questions: modQuestions, startIndex: runningIdx });
+      runningIdx += modQuestions.length;
     }
-
-    const parts: PartInfo[] = [];
-    let runningIdx = 0;
-    for (let p = 1; p <= partCount; p++) {
-      const pQuestions = partMap[p] ?? [];
-      parts.push({ part: p, questions: pQuestions, startIndex: runningIdx });
-      runningIdx += pQuestions.length;
-    }
-    return parts;
   }
 
-  // Non-part modules: single part
-  if (questions.length === 0) {
-    return [{ part: 1, questions: [], startIndex: 0 }];
+  if (parts.length === 0) {
+    return [{ part: 1, module: ordered[0] ?? "reading", questions: [], startIndex: 0 }];
   }
-  return [{ part: 1, questions, startIndex: 0 }];
+  return parts;
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -152,9 +162,10 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
   const { display: timeDisplay, pct: timePct, isLow: timeIsLow, minutes: minsLeft } = useCountdown(totalSeconds, handleTimeEnd);
 
   const parts = useMemo(() => groupByPart(questions, exam.modules), [questions, exam.modules]);
-  const currentPartInfo = parts.find((p) => p.part === activePart) ?? parts[0];
+  const currentPartInfo = parts[activePart - 1] ?? parts[0];
   const answeredCount = Object.keys(answers).length;
-  const isReading = exam.modules.includes("reading") && !exam.modules.includes("listening");
+  const isReading = currentPartInfo.module === "reading";
+  const isListening = currentPartInfo.module === "listening";
 
   // Get audio for a specific part
   const getAudioForPart = (partNum: number) => {
@@ -388,11 +399,11 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
             {/* LEFT: Passage */}
             <div className="ep-reading-split__passage">
               <div className="ep-reading-split__passage-inner">
-                <p className="ep-reading-split__part-label ep-slide-up">PART {activePart}</p>
-                <h2 className="ep-reading-split__title ep-slide-up">Reading Passage {activePart}</h2>
+                <p className="ep-reading-split__part-label ep-slide-up">PART {currentPartInfo.part}</p>
+                <h2 className="ep-reading-split__title ep-slide-up">Reading Passage {currentPartInfo.part}</h2>
                 {(() => {
                   const passages = exam.structure_json?.reading_passages ?? [];
-                  const passage = passages.find((p) => p.part === activePart);
+                  const passage = passages.find((p) => p.part === currentPartInfo.part);
                   if (!passage) return <p style={{ color: "var(--muted)" }}>No passage text available.</p>;
                   return (
                     <>
@@ -430,30 +441,30 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
           /* ── Listening / other: single-column ── */
           <div className="ep-content" ref={contentRef}>
             <div className="ep-content__inner">
-              <h2 className="ep-part-title ep-slide-up">Part {activePart}</h2>
+              <h2 className="ep-part-title ep-slide-up">{currentPartInfo.module === "writing" ? "Writing" : currentPartInfo.module === "speaking" ? "Speaking" : `Part ${currentPartInfo.part}`}</h2>
 
               {/* Audio player for this part (listening) */}
-              {getAudioForPart(activePart) ? (
+              {isListening && getAudioForPart(currentPartInfo.part) ? (
                 <div className="ep-listen-bar ep-slide-up">
                   <span className="ep-listen-bar__label">
                     Questions {currentPartInfo.startIndex + 1}–{currentPartInfo.startIndex + currentPartInfo.questions.length}
                   </span>
-                  <button className="ep-listen-bar__btn" onClick={() => toggleAudio(activePart)} type="button">
-                    {playingPart === activePart ? <Pause size={14} /> : <Play size={14} />}
-                    {playingPart === activePart ? "Pause" : "Listen from here"}
+                  <button className="ep-listen-bar__btn" onClick={() => toggleAudio(currentPartInfo.part)} type="button">
+                    {playingPart === currentPartInfo.part ? <Pause size={14} /> : <Play size={14} />}
+                    {playingPart === currentPartInfo.part ? "Pause" : "Listen from here"}
                   </button>
                   <audio
-                    ref={(el) => { audioRefs.current[activePart] = el; }}
-                    src={getAudioForPart(activePart)!.url}
+                    ref={(el) => { audioRefs.current[currentPartInfo.part] = el; }}
+                    src={getAudioForPart(currentPartInfo.part)!.url}
                     preload="auto"
                     onTimeUpdate={(e) => {
                       const a = e.currentTarget;
-                      if (a.duration) setAudioProgress((prev) => ({ ...prev, [activePart]: (a.currentTime / a.duration) * 100 }));
+                      if (a.duration) setAudioProgress((prev) => ({ ...prev, [currentPartInfo.part]: (a.currentTime / a.duration) * 100 }));
                     }}
                     onEnded={() => setPlayingPart(null)}
                   />
                   <div className="ep-listen-bar__progress">
-                    <div className="ep-listen-bar__progress-fill" style={{ width: `${audioProgress[activePart] ?? 0}%` }} />
+                    <div className="ep-listen-bar__progress-fill" style={{ width: `${audioProgress[currentPartInfo.part] ?? 0}%` }} />
                   </div>
                 </div>
               ) : (
@@ -522,19 +533,24 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
 
       {/* Bottom part tabs */}
       <nav className="ep-parts">
-        {parts.map((p) => {
-          const isActive = p.part === activePart;
+        {parts.map((p, idx) => {
+          const tabIdx = idx + 1;
+          const isActive = tabIdx === activePart;
           const answered = answeredInPart(p.questions);
-          const hasAudio = !!getAudioForPart(p.part);
+          const hasAudio = p.module === "listening" && !!getAudioForPart(p.part);
+          const tabLabel = p.module === "reading" ? `Passage ${p.part}`
+            : p.module === "writing" ? "Writing"
+            : p.module === "speaking" ? "Speaking"
+            : `Part ${p.part}`;
           return (
             <button
-              key={p.part}
+              key={`${p.module}-${p.part}`}
               className={`ep-parts__tab${isActive ? " ep-parts__tab--active" : ""}`}
-              onClick={() => goToPart(p.part)}
+              onClick={() => goToPart(tabIdx)}
               type="button"
             >
               <span className="ep-parts__label">
-                {isReading ? `Passage ${p.part}` : `Part ${p.part}`}
+                {tabLabel}
                 {hasAudio && playingPart === p.part ? <Volume2 size={11} className="ep-parts__audio-icon" /> : null}
               </span>
               {isActive ? (
