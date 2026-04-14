@@ -14,10 +14,68 @@ const jakarta = Plus_Jakarta_Sans({
   weight: ["500", "600", "700", "800"],
 });
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://ielts-pro.vercel.app";
+
 export const metadata: Metadata = {
-  title: "IELTS Pro — Full-Length Mock Tests",
+  title: {
+    default: "IELTS Pro — Full-Length Mock Tests & Band Score Analytics",
+    template: "%s | IELTS Pro",
+  },
   description:
-    "Master the IELTS exam with full mock tests, band analytics, and personalised preparation trusted by 50,000+ students.",
+    "Master the IELTS exam with full mock tests, AI speaking evaluation, band analytics, and personalised preparation trusted by 50,000+ students worldwide.",
+  keywords: [
+    "IELTS",
+    "IELTS mock test",
+    "IELTS practice test",
+    "IELTS preparation",
+    "IELTS listening",
+    "IELTS reading",
+    "IELTS writing",
+    "IELTS speaking",
+    "band score",
+    "IELTS online",
+    "IELTS Academic",
+    "IELTS General Training",
+  ],
+  metadataBase: new URL(SITE_URL),
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: SITE_URL,
+    siteName: "IELTS Pro",
+    title: "IELTS Pro — Full-Length Mock Tests & Band Score Analytics",
+    description:
+      "Master the IELTS exam with full mock tests, AI speaking evaluation, band analytics, and personalised preparation.",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "IELTS Pro — Practice Smarter, Score Higher",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "IELTS Pro — Full-Length Mock Tests",
+    description:
+      "Practice with realistic IELTS simulations and track your band score progress.",
+    images: ["/og-image.png"],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
 };
 
 export default function RootLayout({
