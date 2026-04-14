@@ -181,6 +181,39 @@
   margin: 0 0 1.5rem;
 }
 
+/* ——— Reading Passage ——— */
+.ep-passage {
+  margin-bottom: 1.5rem;
+  padding: 1.25rem 1.5rem;
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.ep-passage__title {
+  margin: 0 0 0.75rem;
+  font-family: var(--font-display), sans-serif;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.ep-passage__img {
+  max-width: 100%;
+  border-radius: 10px;
+  margin-bottom: 0.75rem;
+  border: 1px solid var(--border);
+}
+
+.ep-passage__text {
+  font-size: 0.93rem;
+  line-height: 1.85;
+  color: var(--text);
+  white-space: pre-wrap;
+}
+
 /* ——— Listen bar ——— */
 .ep-listen-bar {
   display: flex;

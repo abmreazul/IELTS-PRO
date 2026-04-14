@@ -26,7 +26,7 @@ export default async function TakeMockExamPage({
   const supabase = await createClient();
   const { data: exam } = await supabase
     .from("mock_exams")
-    .select("id, title, slug, modules, duration_minutes, listening_audio_json, is_published")
+    .select("id, title, slug, modules, duration_minutes, listening_audio_json, structure_json, is_published")
     .eq("slug", slug)
     .eq("is_published", true)
     .single();
@@ -119,6 +119,7 @@ export default async function TakeMockExamPage({
     modules: exam.modules,
     duration_minutes: exam.duration_minutes,
     listening_audio_json: exam.listening_audio_json as ExamData["listening_audio_json"],
+    structure_json: exam.structure_json as ExamData["structure_json"],
   };
 
   return <ExamPlayer exam={examData} questions={questions} attemptId={attempt.id} />;

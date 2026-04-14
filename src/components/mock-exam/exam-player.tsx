@@ -27,6 +27,7 @@ export type ExamData = {
   modules: string[];
   duration_minutes: number;
   listening_audio_json?: { part: number; url: string; title?: string }[] | null;
+  structure_json?: { reading_passages?: { part: number; title: string; text: string; image_url?: string }[] } | null;
 };
 
 type Props = {
@@ -88,21 +89,25 @@ type PartInfo = {
 
 function groupByPart(questions: ExamQuestion[], modules: string[]): PartInfo[] {
   const isListening = modules.includes("listening");
+  const isReading = modules.includes("reading") && !isListening;
 
-  if (isListening) {
-    // Decode part from sort_order: Part N has sort_order in range [N*100, (N+1)*100)
-    const partMap: Record<number, ExamQuestion[]> = { 1: [], 2: [], 3: [], 4: [] };
+  // Part-based modules: listening (4 parts), reading (3 parts)
+  const partCount = isListening ? 4 : isReading ? 3 : 0;
+
+  if (partCount > 0) {
+    const partMap: Record<number, ExamQuestion[]> = {};
+    for (let i = 1; i <= partCount; i++) partMap[i] = [];
+
     for (const q of questions) {
       const decodedPart = q.sort_order >= 100 ? Math.floor(q.sort_order / 100) : 1;
-      const p = Math.max(1, Math.min(4, decodedPart));
+      const p = Math.max(1, Math.min(partCount, decodedPart));
       if (!partMap[p]) partMap[p] = [];
       partMap[p].push(q);
     }
 
-    // Always show 4 parts for listening
     const parts: PartInfo[] = [];
     let runningIdx = 0;
-    for (let p = 1; p <= 4; p++) {
+    for (let p = 1; p <= partCount; p++) {
       const pQuestions = partMap[p] ?? [];
       parts.push({ part: p, questions: pQuestions, startIndex: runningIdx });
       runningIdx += pQuestions.length;
@@ -110,7 +115,7 @@ function groupByPart(questions: ExamQuestion[], modules: string[]): PartInfo[] {
     return parts;
   }
 
-  // Non-listening: single part with all questions
+  // Non-part modules: single part
   if (questions.length === 0) {
     return [{ part: 1, questions: [], startIndex: 0 }];
   }
@@ -148,6 +153,7 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
   const parts = useMemo(() => groupByPart(questions, exam.modules), [questions, exam.modules]);
   const currentPartInfo = parts.find((p) => p.part === activePart) ?? parts[0];
   const answeredCount = Object.keys(answers).length;
+  const isReading = exam.modules.includes("reading") && !exam.modules.includes("listening");
 
   // Get audio for a specific part
   const getAudioForPart = (partNum: number) => {
@@ -377,9 +383,27 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
         {/* LEFT: scrollable questions */}
         <div className="ep-content" ref={contentRef}>
           <div className="ep-content__inner">
-            <h2 className="ep-part-title ep-slide-up">Part {activePart}</h2>
+            <h2 className="ep-part-title ep-slide-up">
+              {isReading ? `Passage ${activePart}` : `Part ${activePart}`}
+            </h2>
 
-            {/* Audio player for this part */}
+            {/* Reading passage text */}
+            {isReading && (() => {
+              const passages = exam.structure_json?.reading_passages ?? [];
+              const passage = passages.find((p) => p.part === activePart);
+              if (!passage) return null;
+              return (
+                <div className="ep-passage ep-slide-up">
+                  {passage.title ? <h3 className="ep-passage__title">{passage.title}</h3> : null}
+                  {passage.image_url ? (
+                    <img src={passage.image_url} alt="" className="ep-passage__img" />
+                  ) : null}
+                  <div className="ep-passage__text">{passage.text}</div>
+                </div>
+              );
+            })()}
+
+            {/* Audio player for this part (listening) */}
             {getAudioForPart(activePart) ? (
               <div className="ep-listen-bar ep-slide-up">
                 <span className="ep-listen-bar__label">
@@ -404,6 +428,10 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
                   <div className="ep-listen-bar__progress-fill" style={{ width: `${audioProgress[activePart] ?? 0}%` }} />
                 </div>
               </div>
+            ) : !isReading ? (
+              <p className="ep-part-range ep-slide-up">
+                Questions {currentPartInfo.startIndex + 1}–{currentPartInfo.startIndex + currentPartInfo.questions.length}
+              </p>
             ) : (
               <p className="ep-part-range ep-slide-up">
                 Questions {currentPartInfo.startIndex + 1}–{currentPartInfo.startIndex + currentPartInfo.questions.length}

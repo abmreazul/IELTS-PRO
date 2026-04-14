@@ -258,17 +258,21 @@ export async function saveExamWizard(
 
   const qs = input.questions ?? [];
   if (qs.length > 0) {
-    // Encode part into sort_order: listening Part N → sort_order N*100+i
+    // Encode part into sort_order: Part N → sort_order N*100+i
+    // Works for listening (4 parts) and reading (3 parts)
     // Other modules: sort_order = i
-    const partCounters: Record<number, number> = {};
+    const partCounters: Record<string, Record<number, number>> = {};
     let flatIdx = 0;
     const rows = qs.map((q) => {
       let sort_order: number;
-      if (q.module === "listening" && q.part && q.part >= 1) {
-        const p = q.part;
-        partCounters[p] = (partCounters[p] ?? 0);
-        sort_order = p * 100 + partCounters[p];
-        partCounters[p]++;
+      const hasPart = (q.module === "listening" || q.module === "reading") && q.part && q.part >= 1;
+      if (hasPart) {
+        const key = q.module;
+        const p = q.part!;
+        if (!partCounters[key]) partCounters[key] = {};
+        partCounters[key][p] = partCounters[key][p] ?? 0;
+        sort_order = p * 100 + partCounters[key][p];
+        partCounters[key][p]++;
       } else {
         sort_order = flatIdx++;
       }

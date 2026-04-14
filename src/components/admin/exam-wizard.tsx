@@ -41,6 +41,7 @@ export type ExamWizardInitialExam = {
 };
 
 type ListeningClip = { part: number; url: string; title: string };
+type ReadingPassage = { part: number; title: string; text: string; image_url: string };
 
 type DbQuestion = {
   id: string;
@@ -123,7 +124,7 @@ function dbQuestionToDraft(q: DbQuestion): QuestionDraft {
     if (co.kind === "triple" && typeof co.value === "string") correctTriple = co.value;
     if (co.kind === "rubric" && typeof co.value === "string") correctText = co.value;
   }
-  // Decode part from sort_order: listening Part N = sort_order in [N*100, (N+1)*100)
+  // Decode part from sort_order: Part N = sort_order in [N*100, (N+1)*100)
   let part: number | undefined = undefined;
   const mod = (["listening", "reading", "writing", "speaking"].includes(q.module)
     ? q.module
@@ -131,6 +132,9 @@ function dbQuestionToDraft(q: DbQuestion): QuestionDraft {
   if (mod === "listening") {
     part = q.sort_order >= 100 ? Math.floor(q.sort_order / 100) : 1;
     part = Math.max(1, Math.min(4, part));
+  } else if (mod === "reading") {
+    part = q.sort_order >= 100 ? Math.floor(q.sort_order / 100) : 1;
+    part = Math.max(1, Math.min(3, part));
   }
   return {
     tempId: q.id,
@@ -238,10 +242,32 @@ export function ExamWizard({
     parseListeningClips(initialExam?.listening_audio_json),
   );
 
+  // Reading passages (stored in structure_json)
+  const [readingPassages, setReadingPassages] = useState<ReadingPassage[]>(() => {
+    const sj = initialExam?.structure_json;
+    if (sj && typeof sj === "object" && "reading_passages" in (sj as Record<string, unknown>)) {
+      const rp = (sj as Record<string, unknown>).reading_passages;
+      if (Array.isArray(rp)) {
+        return rp.map((p: Record<string, unknown>) => ({
+          part: Number(p.part) || 1,
+          title: String(p.title ?? ""),
+          text: String(p.text ?? ""),
+          image_url: String(p.image_url ?? ""),
+        }));
+      }
+    }
+    return [
+      { part: 1, title: "", text: "", image_url: "" },
+      { part: 2, title: "", text: "", image_url: "" },
+      { part: 3, title: "", text: "", image_url: "" },
+    ];
+  });
+
   /* Active module tab for the Questions step (for "full" exams only) */
   const [activeModuleTab, setActiveModuleTab] = useState<string>(modules[0] ?? "listening");
 
   const hasListening = modules.includes("listening");
+  const hasReading = modules.includes("reading");
 
   const setListeningPartUrl = useCallback((part: number, url: string) => {
     const t = url.trim();
@@ -253,6 +279,12 @@ export function ExamWizard({
       const rest = prev.filter((c) => c.part !== part);
       return [...rest, { part, url: t, title: `Part ${part}` }].sort((a, b) => a.part - b.part);
     });
+  }, []);
+
+  const updateReadingPassage = useCallback((part: number, patch: Partial<ReadingPassage>) => {
+    setReadingPassages((prev) =>
+      prev.map((p) => (p.part === part ? { ...p, ...patch } : p)),
+    );
   }, []);
 
   const handleSurface = (s: Surface) => {
@@ -269,7 +301,7 @@ export function ExamWizard({
       {
         tempId: crypto.randomUUID(),
         module: mod,
-        part: mod === "listening" ? (part ?? 1) : undefined,
+        part: (mod === "listening" || mod === "reading") ? (part ?? 1) : undefined,
         question_type: "multiple_choice",
         prompt: "",
         options: ["", "", "", ""],
@@ -321,7 +353,7 @@ export function ExamWizard({
       currency: currency.trim() || "USD",
       cover_image_url: coverUrl.trim() || null,
       is_published: published,
-      structure_json: structure,
+      structure_json: { reading_passages: hasReading ? readingPassages : [], sections: structure },
       scoring_json: DEFAULT_SCORING,
       listening_audio_json: hasListening ? listeningClips : [],
       questions: questions.map(toWizardQuestion),
@@ -800,7 +832,7 @@ export function ExamWizard({
 
                           {/* Questions for this part */}
                           <div style={{ marginTop: "1rem" }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem", position: "sticky", top: 0, background: "var(--surface)", zIndex: 2, padding: "0.5rem 0" }}>
                               <span style={{ fontWeight: 700, fontSize: "0.85rem" }}>
                                 Questions ({partQuestions.length})
                               </span>
@@ -829,15 +861,113 @@ export function ExamWizard({
             );
           })()}
 
-          {/* ── Non-listening modules: flat question list ── */}
+          {/* ── Reading: part-based layout (3 passages) ─── */}
           {(() => {
             const mod = (modules.length === 1 ? modules[0] : activeModuleTab) as QuestionDraft["module"];
-            if (mod === "listening") return null;
+            if (mod !== "reading") return null;
+
+            return (
+              <div style={{ marginTop: "1.25rem" }}>
+                <p style={{ color: "var(--muted)", fontSize: "0.9rem", marginBottom: "1rem" }}>
+                  IELTS Reading has 3 passages. Each passage has a text and ~13 questions.
+                </p>
+
+                {[1, 2, 3].map((part) => {
+                  const passage = readingPassages.find((p) => p.part === part) ?? { part, title: "", text: "", image_url: "" };
+                  const partQuestions = questions.filter((q) => q.module === "reading" && q.part === part);
+                  const isExpanded = expandedParts[part] !== false;
+
+                  return (
+                    <div key={part} className="admin-part-card">
+                      <button
+                        type="button"
+                        className="admin-part-card__header"
+                        onClick={() => togglePart(part)}
+                      >
+                        <div className="admin-part-card__left">
+                          <span style={{ transition: "transform 0.2s", display: "inline-block", transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)" }}>
+                            <ChevronRight style={{ width: "1rem", height: "1rem" }} />
+                          </span>
+                          <span className="admin-part-card__title">Passage {part}</span>
+                          <span className="admin-part-card__meta">
+                            {passage.title ? `"${passage.title}"` : "No title"} · {partQuestions.length} Q
+                          </span>
+                        </div>
+                      </button>
+
+                      {isExpanded ? (
+                        <div className="admin-part-card__body">
+                          {/* Passage fields */}
+                          <div style={{ marginBottom: "1rem" }}>
+                            <label className="admin-label">Passage title</label>
+                            <input
+                              className="admin-input"
+                              value={passage.title}
+                              onChange={(e) => updateReadingPassage(part, { title: e.target.value })}
+                              placeholder={`Passage ${part} title…`}
+                            />
+                          </div>
+                          <div style={{ marginBottom: "1rem" }}>
+                            <label className="admin-label">Passage text</label>
+                            <textarea
+                              className="admin-textarea"
+                              rows={8}
+                              value={passage.text}
+                              onChange={(e) => updateReadingPassage(part, { text: e.target.value })}
+                              placeholder="Paste the full passage text here…"
+                            />
+                          </div>
+                          <div style={{ marginBottom: "1rem" }}>
+                            <label className="admin-label">Passage image URL (optional)</label>
+                            <input
+                              className="admin-input"
+                              value={passage.image_url}
+                              onChange={(e) => updateReadingPassage(part, { image_url: e.target.value })}
+                              placeholder="https://…"
+                            />
+                            {passage.image_url ? (
+                              <img src={passage.image_url} alt="" style={{ marginTop: "0.5rem", maxWidth: "200px", borderRadius: "8px", border: "1px solid var(--border)" }} />
+                            ) : null}
+                          </div>
+
+                          {/* Questions for this passage */}
+                          <div>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.65rem", position: "sticky", top: 0, background: "var(--surface)", zIndex: 2, padding: "0.5rem 0" }}>
+                              <span style={{ fontWeight: 700, fontSize: "0.88rem" }}>
+                                Questions ({partQuestions.length})
+                              </span>
+                              <button
+                                type="button"
+                                className="btn btn-primary btn-topbar-cta"
+                                style={{ fontSize: "0.78rem", padding: "0.35rem 0.75rem" }}
+                                onClick={() => addQuestion("reading", part)}
+                              >
+                                <Plus style={{ width: "0.85rem", height: "0.85rem" }} /> Add Question
+                              </button>
+                            </div>
+                            {partQuestions.length === 0 ? (
+                              <p style={{ color: "var(--muted)", fontSize: "0.85rem" }}>No questions for Passage {part} yet.</p>
+                            ) : null}
+                            {partQuestions.map((q, qIdx) => renderQuestionCard(q, qIdx))}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+
+          {/* ── Other modules: flat question list ── */}
+          {(() => {
+            const mod = (modules.length === 1 ? modules[0] : activeModuleTab) as QuestionDraft["module"];
+            if (mod === "listening" || mod === "reading") return null;
             const modQuestions = questions.filter((q) => q.module === mod);
 
             return (
               <div style={{ marginTop: "1.25rem" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem", position: "sticky", top: 0, background: "var(--surface)", zIndex: 2, padding: "0.5rem 0" }}>
                   <span style={{ fontWeight: 700, fontSize: "0.95rem" }}>
                     {MODULE_LABELS[mod]} Questions ({modQuestions.length})
                   </span>
