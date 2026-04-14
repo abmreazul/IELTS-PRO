@@ -726,41 +726,68 @@ img {
 }
 
 .feature-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 1.5rem 1.35rem;
+  position: relative;
+  border-radius: 18px;
+  overflow: hidden;
+  min-height: 280px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
   box-shadow: var(--shadow-sm);
-  transition: box-shadow 0.25s ease;
+  transition: box-shadow 0.3s ease;
 }
 
 .feature-card:hover {
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.25);
 }
 
-.feature-card__icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  background: var(--primary-soft);
-  color: var(--primary);
-  display: grid;
-  place-items: center;
-  margin-bottom: 1rem;
+.feature-card__img {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.feature-card__img img {
+  transition: transform 0.5s ease;
+}
+
+.feature-card:hover .feature-card__img img {
+  transform: scale(1.06);
+}
+
+.feature-card__overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.72) 0%,
+    rgba(0, 0, 0, 0.45) 50%,
+    rgba(0, 0, 0, 0.15) 100%
+  );
+  z-index: 1;
+}
+
+.feature-card__content {
+  position: relative;
+  z-index: 2;
+  padding: 1.5rem 1.35rem;
 }
 
 .feature-card h3 {
   margin: 0;
-  font-size: 1.05rem;
-  font-weight: 700;
+  font-size: 1.15rem;
+  font-weight: 800;
   font-family: var(--font-display), sans-serif;
+  color: #ffffff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 .feature-card p {
-  margin: 0.5rem 0 0;
-  font-size: 0.9375rem;
-  color: var(--muted);
-  line-height: 1.65;
+  margin: 0.45rem 0 0;
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.85);
+  line-height: 1.6;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 /* ——— Steps ——— */

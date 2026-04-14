@@ -12,32 +12,32 @@ const features = [
   {
     title: "Real-Time Practice",
     text: "Timed sections mirror official pacing so you build stamina and accuracy under pressure.",
-    icon: "clock",
+    image: "https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=600&q=80",
   },
   {
     title: "AI Speaking Evaluation",
     text: "Structured prompts with automated feedback on fluency, coherence, and lexical range.",
-    icon: "mic",
+    image: "https://images.unsplash.com/photo-1589903308904-1010c2294adc?w=600&q=80",
   },
   {
     title: "Band Score Analytics",
     text: "See skill-level breakdowns after every mock and track improvement over time.",
-    icon: "chart",
+    image: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=600&q=80",
   },
   {
     title: "Full-Length Mock Tests",
     text: "Complete Academic and General Training simulations in one uninterrupted session.",
-    icon: "doc",
+    image: "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?w=600&q=80",
   },
   {
     title: "Expert-Crafted Content",
     text: "Questions aligned to IELTS task types, difficulty bands, and recent exam trends.",
-    icon: "pen",
+    image: "https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=600&q=80",
   },
   {
     title: "Personal Study Paths",
     text: "Prioritised next steps based on your weakest areas and target band.",
-    icon: "path",
+    image: "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=600&q=80",
   },
 ] as const;
 
@@ -106,53 +106,6 @@ const testimonials = [
   },
 ] as const;
 
-function FeatureIcon({ name }: { name: (typeof features)[number]["icon"] }) {
-  const common = { width: 22, height: 22, fill: "none", stroke: "currentColor", strokeWidth: 1.7 };
-  switch (name) {
-    case "clock":
-      return (
-        <svg {...common} viewBox="0 0 24 24">
-          <circle cx="12" cy="12" r="9" />
-          <path d="M12 7v6l4 2" strokeLinecap="round" />
-        </svg>
-      );
-    case "mic":
-      return (
-        <svg {...common} viewBox="0 0 24 24">
-          <path d="M12 14a3 3 0 003-3V6a3 3 0 10-6 0v5a3 3 0 003 3z" />
-          <path d="M8 11v1a4 4 0 008 0v-1M12 18v3M9 21h6" strokeLinecap="round" />
-        </svg>
-      );
-    case "chart":
-      return (
-        <svg {...common} viewBox="0 0 24 24">
-          <path d="M4 19V5M8 19v-6M12 19V9M16 19v-4M20 19v-9" strokeLinecap="round" />
-        </svg>
-      );
-    case "doc":
-      return (
-        <svg {...common} viewBox="0 0 24 24">
-          <path d="M7 4h7l5 5v13a1 1 0 01-1 1H7a1 1 0 01-1-1V5a1 1 0 011-1z" />
-          <path d="M14 4v5h5M9 12h6M9 16h6" strokeLinecap="round" />
-        </svg>
-      );
-    case "pen":
-      return (
-        <svg {...common} viewBox="0 0 24 24">
-          <path d="M12 20h7M16.5 3.5l4 4L8 20H4v-4L16.5 3.5z" strokeLinejoin="round" />
-        </svg>
-      );
-    case "path":
-      return (
-        <svg {...common} viewBox="0 0 24 24">
-          <path d="M4 19c3-6 5-9 8-9s4 3 8 9" strokeLinecap="round" />
-          <circle cx="12" cy="7" r="2.5" />
-        </svg>
-      );
-    default:
-      return null;
-  }
-}
 
 export function HomePage() {
   const [billing, setBilling] = useState<"monthly" | "yearly">("monthly");
@@ -286,11 +239,20 @@ export function HomePage() {
                 custom={i}
                 whileHover={{ y: -6, transition: { duration: 0.25 } }}
               >
-                <div className="feature-card__icon">
-                  <FeatureIcon name={f.icon} />
+                <div className="feature-card__img">
+                  <Image
+                    src={f.image}
+                    alt={f.title}
+                    fill
+                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                    style={{ objectFit: "cover" }}
+                  />
+                  <div className="feature-card__overlay" />
                 </div>
-                <h3>{f.title}</h3>
-                <p>{f.text}</p>
+                <div className="feature-card__content">
+                  <h3>{f.title}</h3>
+                  <p>{f.text}</p>
+                </div>
               </motion.article>
             ))}
           </div>
