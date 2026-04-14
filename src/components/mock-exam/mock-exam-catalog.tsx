@@ -113,17 +113,13 @@ export function ExamCard({ exam, latestAttempt, entitled, isLoggedIn }: ExamCard
                 Retake
               </Link>
             </>
-          ) : entitled ? (
-            <Link href={`/mock-exam/${exam.slug}/take`} className="btn btn-topbar-cta btn-primary">
-              Start
-            </Link>
           ) : isLoggedIn ? (
-            <button type="button" className="btn btn-topbar-cta btn-primary" disabled>
-              Purchase and start
-            </button>
+            <Link href={`/mock-exam/${exam.slug}/take`} className="btn btn-topbar-cta btn-primary">
+              Start Exam
+            </Link>
           ) : (
             <Link href="/sign-in" className="btn btn-topbar-cta btn-primary">
-              Sign in to purchase
+              Sign in to start
             </Link>
           )}
         </div>

@@ -1,8 +1,12 @@
-import Link from "next/link";
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
+import { createClient, getAuthUser } from "@/lib/supabase/server";
+import { createServiceRoleClient } from "@/lib/supabase/admin";
+import { ExamPlayer, type ExamData, type ExamQuestion } from "@/components/mock-exam/exam-player";
+import "./exam-player.css";
 
 export const metadata: Metadata = {
-  title: "Take mock exam | IELTS Pro",
+  title: "Take Exam",
 };
 
 export default async function TakeMockExamPage({
@@ -11,26 +15,111 @@ export default async function TakeMockExamPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  return (
-    <main className="page" style={{ padding: "3rem 1.5rem" }}>
-      <div className="container" style={{ maxWidth: "36rem" }}>
-        <h1
-          style={{
-            fontFamily: "var(--font-display), var(--font-sans), sans-serif",
-            fontSize: "1.75rem",
-            fontWeight: 800,
-          }}
-        >
-          Exam session
-        </h1>
-        <p style={{ color: "var(--muted)", marginTop: "0.75rem", lineHeight: 1.6 }}>
-          The timed exam experience for <strong>{slug}</strong> is coming soon. You can still
-          browse and purchase exams from the catalog.
-        </p>
-        <Link href="/mock-exam" className="btn btn-primary btn-topbar-cta" style={{ marginTop: "1.5rem" }}>
-          Back to mock exams
-        </Link>
-      </div>
-    </main>
-  );
+
+  // Require sign-in
+  const { user, error: authErr } = await getAuthUser();
+  if (authErr || !user) {
+    redirect(`/sign-in?next=/mock-exam/${slug}/take`);
+  }
+
+  // Fetch exam
+  const supabase = await createClient();
+  const { data: exam } = await supabase
+    .from("mock_exams")
+    .select("id, title, slug, modules, duration_minutes, listening_audio_json, is_published")
+    .eq("slug", slug)
+    .eq("is_published", true)
+    .single();
+
+  if (!exam) {
+    return (
+      <main className="page" style={{ padding: "3rem 1.5rem" }}>
+        <div className="container" style={{ maxWidth: "36rem", textAlign: "center" }}>
+          <h1 style={{ fontFamily: "var(--font-display), sans-serif", fontSize: "1.5rem", fontWeight: 800 }}>
+            Exam not found
+          </h1>
+          <p style={{ color: "var(--muted)", marginTop: "0.75rem" }}>
+            This exam doesn&apos;t exist or isn&apos;t published yet.
+          </p>
+          <a href="/mock-exam" className="btn btn-primary btn-topbar-cta" style={{ marginTop: "1.5rem" }}>
+            Browse exams
+          </a>
+        </div>
+      </main>
+    );
+  }
+
+  // Fetch questions
+  const admin = createServiceRoleClient();
+  const { data: questionsRaw } = await admin
+    .from("exam_questions")
+    .select("id, module, question_type, prompt, options_json, correct_json, points, sort_order")
+    .eq("exam_id", exam.id)
+    .order("sort_order");
+
+  const questions: ExamQuestion[] = (questionsRaw ?? []).map((q) => ({
+    id: q.id,
+    module: q.module,
+    question_type: q.question_type,
+    prompt: q.prompt,
+    options_json: q.options_json,
+    correct_json: null, // Don't send correct answers to client!
+    points: q.points,
+    sort_order: q.sort_order,
+  }));
+
+  if (questions.length === 0) {
+    return (
+      <main className="page" style={{ padding: "3rem 1.5rem" }}>
+        <div className="container" style={{ maxWidth: "36rem", textAlign: "center" }}>
+          <h1 style={{ fontFamily: "var(--font-display), sans-serif", fontSize: "1.5rem", fontWeight: 800 }}>
+            No questions yet
+          </h1>
+          <p style={{ color: "var(--muted)", marginTop: "0.75rem" }}>
+            This exam has no questions added. Please try again later.
+          </p>
+          <a href="/mock-exam" className="btn btn-primary btn-topbar-cta" style={{ marginTop: "1.5rem" }}>
+            Browse exams
+          </a>
+        </div>
+      </main>
+    );
+  }
+
+  // Create attempt
+  const { data: attempt, error: attemptErr } = await admin
+    .from("mock_attempts")
+    .insert({
+      user_id: user.id,
+      exam_id: exam.id,
+      status: "in_progress",
+    })
+    .select("id")
+    .single();
+
+  if (attemptErr || !attempt) {
+    return (
+      <main className="page" style={{ padding: "3rem 1.5rem" }}>
+        <div className="container" style={{ maxWidth: "36rem", textAlign: "center" }}>
+          <h1 style={{ fontFamily: "var(--font-display), sans-serif", fontSize: "1.5rem", fontWeight: 800 }}>
+            Error
+          </h1>
+          <p style={{ color: "var(--muted)", marginTop: "0.75rem" }}>
+            Could not start exam session. Please try again.
+          </p>
+        </div>
+      </main>
+    );
+  }
+
+  const examData: ExamData = {
+    id: exam.id,
+    title: exam.title,
+    slug: exam.slug,
+    modules: exam.modules,
+    duration_minutes: exam.duration_minutes,
+    listening_audio_json: exam.listening_audio_json as ExamData["listening_audio_json"],
+  };
+
+  return <ExamPlayer exam={examData} questions={questions} attemptId={attempt.id} />;
 }
