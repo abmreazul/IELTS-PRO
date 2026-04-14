@@ -141,6 +141,7 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
   const [audioProgress, setAudioProgress] = useState<Record<number, number>>({});
 
   const contentRef = useRef<HTMLDivElement>(null);
+  const [navCollapsed, setNavCollapsed] = useState(false);
 
   const totalSeconds = exam.duration_minutes * 60;
   const handleTimeEnd = useCallback(() => {
@@ -471,7 +472,15 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
         )}
 
         {/* RIGHT: question navigator panel */}
-        <aside className="ep-nav-panel">
+        <aside className={`ep-nav-panel${navCollapsed ? " ep-nav-panel--collapsed" : ""}`}>
+          <button
+            className="ep-nav-panel__toggle"
+            onClick={() => setNavCollapsed((c) => !c)}
+            type="button"
+            title={navCollapsed ? "Show questions panel" : "Hide questions panel"}
+          >
+            {navCollapsed ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
+          </button>
           <h3 className="ep-nav-panel__title">Questions</h3>
           <div className="ep-nav-panel__grid">
             {currentPartInfo.questions.map((q, i) => {
