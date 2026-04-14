@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { submitExamAttempt } from "@/app/(site)/mock-exam/actions";
-import { Flag, ChevronLeft, ChevronRight, Clock, Send, Volume2, Pause, Play } from "lucide-react";
+import { Clock, Send, Volume2, Pause, Play, ChevronLeft, ChevronRight } from "lucide-react";
 
 /* ═══════════════════════════════════════════════════════════════════
    Types
@@ -44,6 +44,8 @@ const MODULE_LABELS: Record<string, string> = {
   speaking: "Speaking",
 };
 
+const QUESTIONS_PER_PART = 10;
+
 /* ═══════════════════════════════════════════════════════════════════
    Timer Hook
    ═══════════════════════════════════════════════════════════════════ */
@@ -60,10 +62,7 @@ function useCountdown(totalSeconds: number, onEnd: () => void) {
     }
     const id = setInterval(() => {
       setRemaining((r) => {
-        if (r <= 1) {
-          clearInterval(id);
-          return 0;
-        }
+        if (r <= 1) { clearInterval(id); return 0; }
         return r - 1;
       });
     }, 1000);
@@ -74,9 +73,32 @@ function useCountdown(totalSeconds: number, onEnd: () => void) {
   const seconds = remaining % 60;
   const display = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
   const pct = totalSeconds > 0 ? (remaining / totalSeconds) * 100 : 0;
-  const isLow = remaining < 300; // last 5 minutes
+  const isLow = remaining < 300;
 
-  return { remaining, display, pct, isLow };
+  return { remaining, display, pct, isLow, minutes };
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Helpers
+   ═══════════════════════════════════════════════════════════════════ */
+
+type PartInfo = {
+  part: number;
+  questions: ExamQuestion[];
+  startIndex: number; // global index of first question in this part
+};
+
+function groupByPart(questions: ExamQuestion[]): PartInfo[] {
+  const parts: PartInfo[] = [];
+  const totalParts = Math.max(1, Math.ceil(questions.length / QUESTIONS_PER_PART));
+  for (let p = 0; p < totalParts; p++) {
+    parts.push({
+      part: p + 1,
+      questions: questions.slice(p * QUESTIONS_PER_PART, (p + 1) * QUESTIONS_PER_PART),
+      startIndex: p * QUESTIONS_PER_PART,
+    });
+  }
+  return parts;
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -85,80 +107,53 @@ function useCountdown(totalSeconds: number, onEnd: () => void) {
 
 export function ExamPlayer({ exam, questions, attemptId }: Props) {
   const router = useRouter();
-  const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<AnswerMap>({});
-  const [flagged, setFlagged] = useState<Set<string>>(new Set());
+  const [activePart, setActivePart] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [result, setResult] = useState<{ overallBand: number; moduleBands: Record<string, number> } | null>(null);
-  const [showNav, setShowNav] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
-  // Audio state for listening
+  // Audio
   const audioRef = useRef<HTMLAudioElement>(null);
   const [audioPlaying, setAudioPlaying] = useState(false);
   const [audioProgress, setAudioProgress] = useState(0);
 
-  const totalSeconds = exam.duration_minutes * 60;
+  const questionAreaRef = useRef<HTMLDivElement>(null);
 
+  const totalSeconds = exam.duration_minutes * 60;
   const handleTimeEnd = useCallback(() => {
-    if (!submitted) {
-      handleSubmit();
-    }
+    if (!submitted) handleSubmit();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [submitted]);
 
-  const { display: timeDisplay, pct: timePct, isLow: timeIsLow } = useCountdown(totalSeconds, handleTimeEnd);
+  const { display: timeDisplay, pct: timePct, isLow: timeIsLow, minutes: minsLeft } = useCountdown(totalSeconds, handleTimeEnd);
 
-  const currentQuestion = questions[currentIndex];
-  const options = Array.isArray(currentQuestion?.options_json) ? (currentQuestion.options_json as string[]) : [];
+  const parts = useMemo(() => groupByPart(questions), [questions]);
+  const currentPartInfo = parts.find((p) => p.part === activePart) ?? parts[0];
   const answeredCount = Object.keys(answers).length;
 
-  // Current module
-  const currentModule = currentQuestion?.module ?? "reading";
-
-  // Audio for current listening part
+  // Audio for current part (listening)
   const listeningAudio = useMemo(() => {
-    if (currentModule !== "listening" || !exam.listening_audio_json) return null;
-    // Find the audio for the current question's part
-    // Questions are in order, so we can determine part from sort_order
-    const partIndex = Math.floor(currentIndex / 10); // ~10 questions per part
-    const part = partIndex + 1;
-    return exam.listening_audio_json.find((a) => a.part === part) ?? exam.listening_audio_json[0] ?? null;
-  }, [currentModule, currentIndex, exam.listening_audio_json]);
+    if (!exam.listening_audio_json) return null;
+    return exam.listening_audio_json.find((a) => a.part === activePart) ?? null;
+  }, [activePart, exam.listening_audio_json]);
 
-  // Set answer
   const setAnswer = (questionId: string, value: string | number) => {
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
   };
 
-  // Toggle flag
-  const toggleFlag = (questionId: string) => {
-    setFlagged((prev) => {
-      const next = new Set(prev);
-      if (next.has(questionId)) next.delete(questionId);
-      else next.add(questionId);
-      return next;
-    });
+  const goToPart = (part: number) => {
+    setActivePart(part);
+    questionAreaRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // Navigate
-  const goTo = (index: number) => {
-    if (index >= 0 && index < questions.length) {
-      setCurrentIndex(index);
-      setShowNav(false);
-    }
-  };
-
-  // Submit
   const handleSubmit = async () => {
     if (submitting || submitted) return;
     setSubmitting(true);
     setShowConfirm(false);
-
     const res = await submitExamAttempt(attemptId, answers);
     setSubmitting(false);
-
     if (res.ok) {
       setSubmitted(true);
       setResult({ overallBand: res.overallBand, moduleBands: res.moduleBands });
@@ -167,19 +162,18 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
     }
   };
 
-  // Audio controls
   const toggleAudio = () => {
     const audio = audioRef.current;
     if (!audio) return;
-    if (audioPlaying) {
-      audio.pause();
-    } else {
-      audio.play();
-    }
+    if (audioPlaying) audio.pause(); else audio.play();
     setAudioPlaying(!audioPlaying);
   };
 
-  /* ── Results screen ────────────────── */
+  // Count answered per part
+  const answeredInPart = (partQuestions: ExamQuestion[]) =>
+    partQuestions.filter((q) => answers[q.id] !== undefined).length;
+
+  /* ── Results screen ────────────── */
   if (submitted && result) {
     return (
       <div className="ep-results">
@@ -187,12 +181,10 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
           <div className="ep-results__badge">✓</div>
           <h1 className="ep-results__title">Exam Completed!</h1>
           <p className="ep-results__sub">{exam.title}</p>
-
           <div className="ep-results__band-main">
             <span className="ep-results__band-label">Overall Band Score</span>
             <span className="ep-results__band-value">{result.overallBand.toFixed(1)}</span>
           </div>
-
           <div className="ep-results__modules">
             {Object.entries(result.moduleBands).map(([mod, band]) => (
               <div key={mod} className="ep-results__module">
@@ -201,25 +193,11 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
               </div>
             ))}
           </div>
-
           <div className="ep-results__stats">
-            <div>
-              <span>Questions Answered</span>
-              <strong>{answeredCount} / {questions.length}</strong>
-            </div>
-            <div>
-              <span>Correct</span>
-              <strong>
-                {Math.round(result.overallBand / 9 * questions.length)} / {questions.length}
-              </strong>
-            </div>
+            <div><span>Questions Answered</span><strong>{answeredCount} / {questions.length}</strong></div>
           </div>
-
           <div className="ep-results__actions">
-            <button
-              className="btn btn-primary btn-topbar-cta"
-              onClick={() => router.push("/mock-exam")}
-            >
+            <button className="btn btn-primary btn-topbar-cta" onClick={() => router.push("/mock-exam")}>
               Back to Exams
             </button>
           </div>
@@ -228,45 +206,160 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
     );
   }
 
-  /* ── Main exam UI ────────────────── */
+  /* ── Render a single question ────────────── */
+  const renderQuestion = (q: ExamQuestion, globalIdx: number) => {
+    const options = Array.isArray(q.options_json) ? (q.options_json as string[]) : [];
+
+    return (
+      <div key={q.id} className="ep-q" id={`q-${globalIdx + 1}`}>
+        {/* MCQ */}
+        {(q.question_type === "multiple_choice" || q.question_type === "multiple_choice_multi") && options.length > 0 ? (
+          <>
+            <p className="ep-q__text">
+              <strong>{globalIdx + 1}.</strong> {q.prompt}
+            </p>
+            <div className="ep-q__opts">
+              {options.map((opt, i) => {
+                const selected = answers[q.id] === i;
+                return (
+                  <label key={i} className={`ep-q__radio${selected ? " ep-q__radio--sel" : ""}`}>
+                    <input
+                      type="radio"
+                      name={`q-${q.id}`}
+                      checked={selected}
+                      onChange={() => setAnswer(q.id, i)}
+                    />
+                    <span className="ep-q__letter">{String.fromCharCode(65 + i)}</span>
+                    <span>{opt}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </>
+        ) : null}
+
+        {/* True/False/Not Given */}
+        {(q.question_type === "true_false_not_given" || q.question_type === "yes_no_not_given") ? (
+          <>
+            <p className="ep-q__text">
+              <strong>{globalIdx + 1}.</strong> {q.prompt}
+            </p>
+            <div className="ep-q__opts ep-q__opts--inline">
+              {(q.question_type === "true_false_not_given"
+                ? ["true", "false", "not_given"]
+                : ["yes", "no", "not_given"]
+              ).map((opt) => {
+                const selected = answers[q.id] === opt;
+                const label = opt.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase());
+                return (
+                  <label key={opt} className={`ep-q__radio${selected ? " ep-q__radio--sel" : ""}`}>
+                    <input type="radio" name={`q-${q.id}`} checked={selected} onChange={() => setAnswer(q.id, opt)} />
+                    <span>{label}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </>
+        ) : null}
+
+        {/* Fill-in / Completion / Short answer / Matching */}
+        {(q.question_type === "completion" || q.question_type === "short_answer" ||
+          q.question_type === "fill_in_blank" || q.question_type === "sentence_completion" ||
+          q.question_type === "matching_headings" || q.question_type === "matching_information" ||
+          q.question_type === "matching_features" || q.question_type === "sentence_endings" ||
+          q.question_type === "map_diagram_labeling" || q.question_type === "matching") ? (
+          <div className="ep-q__fill-row">
+            <p className="ep-q__text">
+              <strong>{globalIdx + 1}.</strong> {q.prompt}
+            </p>
+            <div className="ep-q__fill-inline">
+              <span className="ep-q__fill-badge">{globalIdx + 1}</span>
+              <input
+                className="ep-q__fill-input"
+                type="text"
+                placeholder="Type answer…"
+                value={String(answers[q.id] ?? "")}
+                onChange={(e) => setAnswer(q.id, e.target.value)}
+              />
+            </div>
+          </div>
+        ) : null}
+
+        {/* Essay */}
+        {q.question_type === "essay" ? (
+          <>
+            <p className="ep-q__text"><strong>{globalIdx + 1}.</strong> {q.prompt}</p>
+            <textarea
+              className="ep-q__essay"
+              rows={10}
+              placeholder="Write your response here…"
+              value={String(answers[q.id] ?? "")}
+              onChange={(e) => setAnswer(q.id, e.target.value)}
+            />
+          </>
+        ) : null}
+
+        {/* Speaking prompt */}
+        {q.question_type === "speaking_prompt" ? (
+          <>
+            <p className="ep-q__text"><strong>{globalIdx + 1}.</strong> {q.prompt}</p>
+            <p className="ep-q__speaking-note">🎤 Speaking prompt — respond verbally in a real exam.</p>
+          </>
+        ) : null}
+      </div>
+    );
+  };
+
+  /* ── Main exam UI ────────────── */
   return (
     <div className="ep">
-      {/* ── Top bar ────────────────── */}
-      <header className="ep-header">
-        <div className="ep-header__left">
-          <h1 className="ep-header__title">{exam.title}</h1>
-          <span className="ep-header__module">{MODULE_LABELS[currentModule]}</span>
+      {/* ── Top bar ──────────── */}
+      <header className="ep-top">
+        <div className="ep-top__left">
+          <span className="ep-top__logo">IELTS Pro</span>
         </div>
-        <div className="ep-header__center">
-          <div className={`ep-timer${timeIsLow ? " ep-timer--low" : ""}`}>
-            <Clock size={16} />
-            <span>{timeDisplay}</span>
-          </div>
-          <div className="ep-timer-bar">
-            <div className="ep-timer-bar__fill" style={{ width: `${timePct}%` }} />
-          </div>
-        </div>
-        <div className="ep-header__right">
-          <span className="ep-header__progress">
-            Q {currentIndex + 1} / {questions.length}
+        <div className="ep-top__center">
+          <Clock size={15} />
+          <span className="ep-top__remaining">
+            <strong>{minsLeft}</strong> minutes remaining
           </span>
-          <button
-            className="ep-header__nav-btn"
-            onClick={() => setShowNav(!showNav)}
-          >
-            {showNav ? "Hide" : "Navigator"}
-          </button>
-          <button
-            className="btn btn-primary btn-topbar-cta ep-submit-btn"
-            onClick={() => setShowConfirm(true)}
-            disabled={submitting}
-          >
-            <Send size={14} /> Submit
+        </div>
+        <div className="ep-top__right">
+          <button className="ep-top__submit" onClick={() => setShowConfirm(true)} disabled={submitting}>
+            Submit <Send size={13} />
           </button>
         </div>
       </header>
 
-      {/* ── Confirm modal ────────────────── */}
+      {/* ── Timer bar ──────────── */}
+      <div className="ep-timerbar">
+        <span className={`ep-timerbar__time${timeIsLow ? " ep-timerbar__time--low" : ""}`}>
+          {timeDisplay}
+        </span>
+        <div className="ep-timerbar__track">
+          <div className="ep-timerbar__fill" style={{ width: `${timePct}%` }} />
+        </div>
+        {listeningAudio ? (
+          <div className="ep-timerbar__audio">
+            <button className="ep-timerbar__play" onClick={toggleAudio} type="button">
+              {audioPlaying ? <Pause size={14} /> : <Play size={14} />}
+            </button>
+            <Volume2 size={14} />
+            <audio
+              ref={audioRef}
+              src={listeningAudio.url}
+              preload="auto"
+              onTimeUpdate={() => {
+                const a = audioRef.current;
+                if (a && a.duration) setAudioProgress((a.currentTime / a.duration) * 100);
+              }}
+              onEnded={() => setAudioPlaying(false)}
+            />
+          </div>
+        ) : null}
+      </div>
+
+      {/* ── Confirm modal ──────────── */}
       {showConfirm ? (
         <div className="ep-modal-backdrop" onClick={() => setShowConfirm(false)}>
           <div className="ep-modal" onClick={(e) => e.stopPropagation()}>
@@ -274,18 +367,12 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
             <p>
               You have answered <strong>{answeredCount}</strong> out of <strong>{questions.length}</strong> questions.
               {answeredCount < questions.length ? (
-                <> <strong>{questions.length - answeredCount}</strong> questions are unanswered and will be marked wrong.</>
+                <> <strong>{questions.length - answeredCount}</strong> unanswered questions will be marked wrong.</>
               ) : null}
             </p>
             <div className="ep-modal__actions">
-              <button className="btn btn-outline" onClick={() => setShowConfirm(false)}>
-                Continue Exam
-              </button>
-              <button
-                className="btn btn-primary btn-topbar-cta"
-                onClick={handleSubmit}
-                disabled={submitting}
-              >
+              <button className="btn btn-outline" onClick={() => setShowConfirm(false)}>Continue Exam</button>
+              <button className="btn btn-primary btn-topbar-cta" onClick={handleSubmit} disabled={submitting}>
                 {submitting ? "Submitting…" : "Confirm Submit"}
               </button>
             </div>
@@ -293,190 +380,87 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
         </div>
       ) : null}
 
-      {/* ── Body ────────────────── */}
-      <div className="ep-body">
-        {/* Question area */}
-        <div className="ep-question-area">
-          {/* Listening audio */}
-          {currentModule === "listening" && listeningAudio ? (
-            <div className="ep-audio-bar">
-              <button className="ep-audio-btn" onClick={toggleAudio} type="button">
-                {audioPlaying ? <Pause size={18} /> : <Play size={18} />}
+      {/* ── Question content area ──────────── */}
+      <div className="ep-content" ref={questionAreaRef}>
+        <div className="ep-content__inner">
+          <h2 className="ep-part-title">Part {activePart}</h2>
+
+          {/* Audio player for this part */}
+          {listeningAudio ? (
+            <div className="ep-listen-bar">
+              <span className="ep-listen-bar__label">
+                Questions {currentPartInfo.startIndex + 1}-{currentPartInfo.startIndex + currentPartInfo.questions.length}
+              </span>
+              <button className="ep-listen-bar__btn" onClick={toggleAudio} type="button">
+                {audioPlaying ? <Pause size={14} /> : <Play size={14} />}
+                Listen from here
               </button>
-              <div className="ep-audio-info">
-                <span className="ep-audio-title">
-                  <Volume2 size={14} /> {listeningAudio.title || `Part ${listeningAudio.part}`}
-                </span>
-                <div className="ep-audio-progress">
-                  <div className="ep-audio-progress__bar" style={{ width: `${audioProgress}%` }} />
-                </div>
-              </div>
-              <audio
-                ref={audioRef}
-                src={listeningAudio.url}
-                preload="auto"
-                onTimeUpdate={() => {
-                  const a = audioRef.current;
-                  if (a && a.duration) {
-                    setAudioProgress((a.currentTime / a.duration) * 100);
-                  }
-                }}
-                onEnded={() => setAudioPlaying(false)}
-              />
             </div>
-          ) : null}
+          ) : (
+            <p className="ep-part-range">
+              Questions {currentPartInfo.startIndex + 1}-{currentPartInfo.startIndex + currentPartInfo.questions.length}
+            </p>
+          )}
 
-          {/* Question */}
-          <div className="ep-question">
-            <span className="ep-question__num">Question {currentIndex + 1}</span>
-            <p className="ep-question__prompt">{currentQuestion?.prompt || "No question text."}</p>
-
-            {/* MCQ options */}
-            {(currentQuestion?.question_type === "multiple_choice" ||
-              currentQuestion?.question_type === "multiple_choice_multi") && options.length > 0 ? (
-              <div className="ep-options">
-                {options.map((opt, i) => {
-                  const selected = answers[currentQuestion.id] === i;
-                  return (
-                    <button
-                      key={i}
-                      type="button"
-                      className={`ep-option${selected ? " ep-option--selected" : ""}`}
-                      onClick={() => setAnswer(currentQuestion.id, i)}
-                    >
-                      <span className="ep-option__letter">{String.fromCharCode(65 + i)}</span>
-                      <span className="ep-option__text">{opt}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            ) : null}
-
-            {/* True / False / Not Given */}
-            {(currentQuestion?.question_type === "true_false_not_given" ||
-              currentQuestion?.question_type === "yes_no_not_given") ? (
-              <div className="ep-options">
-                {(currentQuestion.question_type === "true_false_not_given"
-                  ? ["true", "false", "not_given"]
-                  : ["yes", "no", "not_given"]
-                ).map((opt) => {
-                  const selected = answers[currentQuestion.id] === opt;
-                  const label = opt.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase());
-                  return (
-                    <button
-                      key={opt}
-                      type="button"
-                      className={`ep-option${selected ? " ep-option--selected" : ""}`}
-                      onClick={() => setAnswer(currentQuestion.id, opt)}
-                    >
-                      <span className="ep-option__text">{label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            ) : null}
-
-            {/* Fill-in / Completion / Short answer / Matching / Diagram labeling */}
-            {(currentQuestion?.question_type === "completion" ||
-              currentQuestion?.question_type === "short_answer" ||
-              currentQuestion?.question_type === "fill_in_blank" ||
-              currentQuestion?.question_type === "sentence_completion" ||
-              currentQuestion?.question_type === "matching_headings" ||
-              currentQuestion?.question_type === "matching_information" ||
-              currentQuestion?.question_type === "matching_features" ||
-              currentQuestion?.question_type === "sentence_endings" ||
-              currentQuestion?.question_type === "map_diagram_labeling" ||
-              currentQuestion?.question_type === "matching") ? (
-              <div className="ep-fill">
-                <input
-                  className="ep-fill__input"
-                  type="text"
-                  placeholder="Type your answer…"
-                  value={String(answers[currentQuestion.id] ?? "")}
-                  onChange={(e) => setAnswer(currentQuestion.id, e.target.value)}
-                />
-              </div>
-            ) : null}
-
-            {/* Essay / Writing */}
-            {currentQuestion?.question_type === "essay" ? (
-              <div className="ep-fill">
-                <textarea
-                  className="ep-fill__input"
-                  rows={12}
-                  placeholder="Write your response here…"
-                  value={String(answers[currentQuestion.id] ?? "")}
-                  onChange={(e) => setAnswer(currentQuestion.id, e.target.value)}
-                  style={{ resize: "vertical", minHeight: "200px" }}
-                />
-              </div>
-            ) : null}
-
-            {/* Speaking prompt — display only */}
-            {currentQuestion?.question_type === "speaking_prompt" ? (
-              <div className="ep-speaking-note">
-                <p>🎤 This is a speaking prompt. In a real exam, you would respond verbally.</p>
-              </div>
-            ) : null}
-          </div>
-
-          {/* Bottom nav */}
-          <div className="ep-bottom-nav">
-            <button
-              className="ep-nav-btn"
-              onClick={() => goTo(currentIndex - 1)}
-              disabled={currentIndex === 0}
-            >
-              <ChevronLeft size={18} /> Previous
-            </button>
-
-            <button
-              className={`ep-flag-btn${flagged.has(currentQuestion?.id) ? " ep-flag-btn--active" : ""}`}
-              onClick={() => currentQuestion && toggleFlag(currentQuestion.id)}
-              type="button"
-            >
-              <Flag size={16} /> {flagged.has(currentQuestion?.id) ? "Flagged" : "Flag"}
-            </button>
-
-            <button
-              className="ep-nav-btn"
-              onClick={() => goTo(currentIndex + 1)}
-              disabled={currentIndex === questions.length - 1}
-            >
-              Next <ChevronRight size={18} />
-            </button>
+          {/* All questions in this part */}
+          <div className="ep-q-list">
+            {currentPartInfo.questions.map((q, i) =>
+              renderQuestion(q, currentPartInfo.startIndex + i)
+            )}
           </div>
         </div>
 
-        {/* Question navigator panel */}
-        <aside className={`ep-navigator${showNav ? " ep-navigator--visible" : ""}`}>
-          <h3 className="ep-navigator__title">Questions</h3>
-          <div className="ep-navigator__grid">
-            {questions.map((q, i) => {
-              let cls = "ep-nav-dot";
-              if (i === currentIndex) cls += " ep-nav-dot--current";
-              else if (answers[q.id] !== undefined) cls += " ep-nav-dot--answered";
-              if (flagged.has(q.id)) cls += " ep-nav-dot--flagged";
-              return (
-                <button
-                  key={q.id}
-                  className={cls}
-                  onClick={() => goTo(i)}
-                  type="button"
-                >
-                  {i + 1}
-                </button>
-              );
-            })}
-          </div>
-          <div className="ep-navigator__legend">
-            <span><span className="ep-legend-dot ep-legend-dot--current" /> Current</span>
-            <span><span className="ep-legend-dot ep-legend-dot--answered" /> Answered</span>
-            <span><span className="ep-legend-dot ep-legend-dot--flagged" /> Flagged</span>
-            <span><span className="ep-legend-dot" /> Unanswered</span>
-          </div>
-        </aside>
+        {/* Page nav arrows */}
+        <div className="ep-page-nav">
+          <button
+            className="ep-page-nav__btn"
+            disabled={activePart <= 1}
+            onClick={() => goToPart(activePart - 1)}
+          >
+            <ChevronLeft size={20} />
+          </button>
+          <button
+            className="ep-page-nav__btn"
+            disabled={activePart >= parts.length}
+            onClick={() => goToPart(activePart + 1)}
+          >
+            <ChevronRight size={20} />
+          </button>
+        </div>
       </div>
+
+      {/* ── Bottom part tabs ──────────── */}
+      <nav className="ep-parts">
+        {parts.map((p) => {
+          const isActive = p.part === activePart;
+          const answered = answeredInPart(p.questions);
+          return (
+            <button
+              key={p.part}
+              className={`ep-parts__tab${isActive ? " ep-parts__tab--active" : ""}`}
+              onClick={() => goToPart(p.part)}
+              type="button"
+            >
+              <span className="ep-parts__label">Part {p.part}</span>
+              {isActive ? (
+                <span className="ep-parts__nums">
+                  {p.questions.map((_, i) => {
+                    const gIdx = p.startIndex + i + 1;
+                    const isAnswered = answers[p.questions[i].id] !== undefined;
+                    return (
+                      <span key={gIdx} className={`ep-parts__dot${isAnswered ? " ep-parts__dot--done" : ""}`}>
+                        {gIdx}
+                      </span>
+                    );
+                  })}
+                </span>
+              ) : (
+                <span className="ep-parts__count">{answered} of {p.questions.length} questions</span>
+              )}
+            </button>
+          );
+        })}
+      </nav>
     </div>
   );
 }
