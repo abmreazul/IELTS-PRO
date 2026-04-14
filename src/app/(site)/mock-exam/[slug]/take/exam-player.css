@@ -266,6 +266,75 @@
   padding: 0 1.75rem;
 }
 
+/* ——— Writing area ——— */
+.ep-writing-min-words {
+  margin: 1rem 0 0;
+  padding: 0.65rem 1rem;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--primary) 6%, var(--bg));
+  border: 1px solid color-mix(in srgb, var(--primary) 15%, var(--border));
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+.ep-writing-area {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.ep-writing-area__input {
+  flex: 1;
+  min-height: 400px;
+  width: 100%;
+  padding: 1.25rem 1.5rem;
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  background: var(--bg);
+  font-family: var(--font-body), 'Georgia', serif;
+  font-size: 0.95rem;
+  line-height: 1.85;
+  color: var(--text);
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  box-sizing: border-box;
+}
+.ep-writing-area__input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 12%, transparent);
+}
+.ep-writing-area__input::placeholder {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.ep-writing-area__footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 0.6rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--primary) 4%, var(--surface));
+  border: 1px solid var(--border);
+}
+
+.ep-writing-area__count {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--muted);
+  transition: color 0.2s;
+}
+.ep-writing-area__count--ok {
+  color: #16a34a;
+}
+
+.ep-writing-area__target {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
 /* ——— Listen bar ——— */
 .ep-listen-bar {
   display: flex;

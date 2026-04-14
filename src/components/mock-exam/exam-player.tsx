@@ -27,7 +27,10 @@ export type ExamData = {
   modules: string[];
   duration_minutes: number;
   listening_audio_json?: { part: number; url: string; title?: string }[] | null;
-  structure_json?: { reading_passages?: { part: number; title: string; text: string; image_url?: string }[] } | null;
+  structure_json?: {
+    reading_passages?: { part: number; title: string; text: string; image_url?: string }[];
+    writing_tasks?: { part: number; prompt: string; image_url?: string; min_words?: number }[];
+  } | null;
 };
 
 type Props = {
@@ -91,6 +94,7 @@ type PartInfo = {
 const MODULE_PART_COUNTS: Record<string, number> = {
   listening: 4,
   reading: 3,
+  writing: 2,
 };
 
 const MODULE_ORDER = ["listening", "reading", "writing", "speaking"];
@@ -166,6 +170,7 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
   const answeredCount = Object.keys(answers).length;
   const isReading = currentPartInfo.module === "reading";
   const isListening = currentPartInfo.module === "listening";
+  const isWriting = currentPartInfo.module === "writing";
 
   // Get audio for a specific part
   const getAudioForPart = (partNum: number) => {
@@ -437,11 +442,86 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
               </div>
             </div>
           </div>
+        ) : isWriting ? (
+          /* ── Writing: split-pane (task/image left, textarea right) ── */
+          <div className="ep-reading-split">
+            {/* LEFT: Task prompt + image */}
+            <div className="ep-reading-split__passage">
+              <div className="ep-reading-split__passage-inner">
+                <p className="ep-reading-split__part-label ep-slide-up">WRITING TASK {currentPartInfo.part}</p>
+                <h2 className="ep-reading-split__title ep-slide-up">
+                  {currentPartInfo.part === 1 ? "Writing Task 1" : "Writing Task 2"}
+                </h2>
+                {(() => {
+                  const tasks = exam.structure_json?.writing_tasks ?? [];
+                  const task = tasks.find((t) => t.part === currentPartInfo.part);
+                  if (!task) return <p style={{ color: "var(--muted)" }}>No task prompt available.</p>;
+                  return (
+                    <>
+                      {task.image_url ? (
+                        <img src={task.image_url} alt="Writing task visual" className="ep-reading-split__img ep-slide-up" />
+                      ) : null}
+                      <div className="ep-reading-split__text ep-slide-up" style={{ lineHeight: "1.8" }}>
+                        {task.prompt}
+                      </div>
+                      {task.min_words ? (
+                        <p className="ep-writing-min-words ep-slide-up">
+                          Write at least <strong>{task.min_words}</strong> words.
+                        </p>
+                      ) : null}
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+
+            {/* DIVIDER */}
+            <div className="ep-reading-split__divider" />
+
+            {/* RIGHT: Textarea + Word counter */}
+            <div className="ep-reading-split__questions" ref={contentRef}>
+              <div className="ep-reading-split__questions-inner">
+                {currentPartInfo.questions.length > 0 ? (
+                  currentPartInfo.questions.map((q) => {
+                    const text = String(answers[q.id] ?? "");
+                    const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
+                    const task = (exam.structure_json?.writing_tasks ?? []).find((t) => t.part === currentPartInfo.part);
+                    const minWords = task?.min_words ?? (currentPartInfo.part === 1 ? 150 : 250);
+                    return (
+                      <div key={q.id} className="ep-writing-area ep-slide-up">
+                        <textarea
+                          className="ep-writing-area__input"
+                          placeholder={`Write your ${currentPartInfo.part === 1 ? "report" : "essay"} here…`}
+                          value={text}
+                          onChange={(e) => setAnswer(q.id, e.target.value)}
+                          rows={20}
+                        />
+                        <div className="ep-writing-area__footer">
+                          <span className={`ep-writing-area__count${wordCount >= minWords ? " ep-writing-area__count--ok" : ""}`}>
+                            {wordCount} {wordCount === 1 ? "word" : "words"}
+                          </span>
+                          <span className="ep-writing-area__target">
+                            Target: {minWords}+ words
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="ep-writing-area ep-slide-up">
+                    <p style={{ color: "var(--muted)", marginBottom: "1rem" }}>
+                      No questions assigned to this task yet. Add a writing question in admin.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         ) : (
           /* ── Listening / other: single-column ── */
           <div className="ep-content" ref={contentRef}>
             <div className="ep-content__inner">
-              <h2 className="ep-part-title ep-slide-up">{currentPartInfo.module === "writing" ? "Writing" : currentPartInfo.module === "speaking" ? "Speaking" : `Part ${currentPartInfo.part}`}</h2>
+              <h2 className="ep-part-title ep-slide-up">{currentPartInfo.module === "speaking" ? "Speaking" : `Part ${currentPartInfo.part}`}</h2>
 
               {/* Audio player for this part (listening) */}
               {isListening && getAudioForPart(currentPartInfo.part) ? (
@@ -539,7 +619,7 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
           const answered = answeredInPart(p.questions);
           const hasAudio = p.module === "listening" && !!getAudioForPart(p.part);
           const tabLabel = p.module === "reading" ? `Passage ${p.part}`
-            : p.module === "writing" ? "Writing"
+            : p.module === "writing" ? `Task ${p.part}`
             : p.module === "speaking" ? "Speaking"
             : `Part ${p.part}`;
           return (

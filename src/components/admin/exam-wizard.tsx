@@ -42,6 +42,7 @@ export type ExamWizardInitialExam = {
 
 type ListeningClip = { part: number; url: string; title: string };
 type ReadingPassage = { part: number; title: string; text: string; image_url: string };
+type WritingTask = { part: number; prompt: string; image_url: string; min_words: number };
 
 type DbQuestion = {
   id: string;
@@ -57,7 +58,7 @@ type DbQuestion = {
 type QuestionDraft = {
   tempId: string;
   module: "listening" | "reading" | "writing" | "speaking";
-  part?: number; // 1-4 for listening, undefined for others
+  part?: number; // 1-4 for listening, 1-3 for reading, 1-2 for writing
   question_type: string;
   prompt: string;
   options: string[];
@@ -135,6 +136,9 @@ function dbQuestionToDraft(q: DbQuestion): QuestionDraft {
   } else if (mod === "reading") {
     part = q.sort_order >= 100 ? Math.floor(q.sort_order / 100) : 1;
     part = Math.max(1, Math.min(3, part));
+  } else if (mod === "writing") {
+    part = q.sort_order >= 100 ? Math.floor(q.sort_order / 100) : 1;
+    part = Math.max(1, Math.min(2, part));
   }
   return {
     tempId: q.id,
@@ -263,11 +267,32 @@ export function ExamWizard({
     ];
   });
 
+  // Writing tasks (stored in structure_json)
+  const [writingTasks, setWritingTasks] = useState<WritingTask[]>(() => {
+    const sj = initialExam?.structure_json;
+    if (sj && typeof sj === "object" && "writing_tasks" in (sj as Record<string, unknown>)) {
+      const wt = (sj as Record<string, unknown>).writing_tasks;
+      if (Array.isArray(wt)) {
+        return wt.map((t: Record<string, unknown>) => ({
+          part: Number(t.part) || 1,
+          prompt: String(t.prompt ?? ""),
+          image_url: String(t.image_url ?? ""),
+          min_words: Number(t.min_words) || 150,
+        }));
+      }
+    }
+    return [
+      { part: 1, prompt: "", image_url: "", min_words: 150 },
+      { part: 2, prompt: "", image_url: "", min_words: 250 },
+    ];
+  });
+
   /* Active module tab for the Questions step (for "full" exams only) */
   const [activeModuleTab, setActiveModuleTab] = useState<string>(modules[0] ?? "listening");
 
   const hasListening = modules.includes("listening");
   const hasReading = modules.includes("reading");
+  const hasWriting = modules.includes("writing");
 
   const setListeningPartUrl = useCallback((part: number, url: string) => {
     const t = url.trim();
@@ -301,7 +326,7 @@ export function ExamWizard({
       {
         tempId: crypto.randomUUID(),
         module: mod,
-        part: (mod === "listening" || mod === "reading") ? (part ?? 1) : undefined,
+        part: (mod === "listening" || mod === "reading" || mod === "writing") ? (part ?? 1) : undefined,
         question_type: "multiple_choice",
         prompt: "",
         options: ["", "", "", ""],
@@ -353,7 +378,11 @@ export function ExamWizard({
       currency: currency.trim() || "USD",
       cover_image_url: coverUrl.trim() || null,
       is_published: published,
-      structure_json: { reading_passages: hasReading ? readingPassages : [], sections: structure },
+      structure_json: {
+        reading_passages: hasReading ? readingPassages : [],
+        writing_tasks: hasWriting ? writingTasks : [],
+        sections: structure,
+      },
       scoring_json: DEFAULT_SCORING,
       listening_audio_json: hasListening ? listeningClips : [],
       questions: questions.map(toWizardQuestion),
@@ -959,10 +988,108 @@ export function ExamWizard({
             );
           })()}
 
-          {/* ── Other modules: flat question list ── */}
+          {/* ── Writing module: 2-part layout ── */}
           {(() => {
             const mod = (modules.length === 1 ? modules[0] : activeModuleTab) as QuestionDraft["module"];
-            if (mod === "listening" || mod === "reading") return null;
+            if (mod !== "writing") return null;
+
+            return (
+              <div style={{ marginTop: "1.25rem" }}>
+                {[1, 2].map((part) => {
+                  const task = writingTasks.find((t) => t.part === part) ?? { part, prompt: "", image_url: "", min_words: part === 1 ? 150 : 250 };
+                  const partQuestions = questions.filter((q) => q.module === "writing" && q.part === part);
+                  const isExpanded = expandedParts[part + 10] !== false; // offset to not conflict with listening
+
+                  return (
+                    <div key={part} style={{ marginBottom: "1.25rem", border: "1px solid var(--border)", borderRadius: "12px", overflow: "hidden" }}>
+                      {/* Task header */}
+                      <button
+                        type="button"
+                        onClick={() => setExpandedParts((prev) => ({ ...prev, [part + 10]: !(prev[part + 10] !== false) }))}
+                        style={{
+                          width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center",
+                          padding: "0.85rem 1rem", background: "color-mix(in srgb, var(--primary) 6%, var(--surface))",
+                          border: "none", cursor: "pointer", fontWeight: 700, fontSize: "0.95rem", color: "var(--text)",
+                        }}
+                      >
+                        <span>Writing Task {part} {part === 1 ? "(Report)" : "(Essay)"}</span>
+                        <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
+                          {partQuestions.length} question{partQuestions.length !== 1 ? "s" : ""} · Min {task.min_words} words
+                        </span>
+                      </button>
+
+                      {isExpanded ? (
+                        <div style={{ padding: "1rem" }}>
+                          {/* Task prompt */}
+                          <label style={{ display: "block", marginBottom: "0.4rem", fontWeight: 600, fontSize: "0.85rem" }}>
+                            Task Prompt
+                          </label>
+                          <textarea
+                            rows={4}
+                            value={task.prompt}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setWritingTasks((prev) => prev.map((t) => t.part === part ? { ...t, prompt: val } : t));
+                            }}
+                            placeholder={part === 1 ? "Describe the chart/graph/table below…" : "Write an essay on the following topic…"}
+                            style={{ width: "100%", padding: "0.65rem", border: "1px solid var(--border)", borderRadius: "8px", fontSize: "0.9rem", resize: "vertical", boxSizing: "border-box" }}
+                          />
+
+                          {/* Image URL */}
+                          <label style={{ display: "block", marginTop: "0.75rem", marginBottom: "0.4rem", fontWeight: 600, fontSize: "0.85rem" }}>
+                            Image URL {part === 1 ? "(chart/graph)" : "(optional)"}
+                          </label>
+                          <input
+                            type="url"
+                            value={task.image_url}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setWritingTasks((prev) => prev.map((t) => t.part === part ? { ...t, image_url: val } : t));
+                            }}
+                            placeholder="https://example.com/chart.png"
+                            style={{ width: "100%", padding: "0.55rem 0.65rem", border: "1px solid var(--border)", borderRadius: "8px", fontSize: "0.9rem", boxSizing: "border-box" }}
+                          />
+
+                          {/* Min words */}
+                          <label style={{ display: "block", marginTop: "0.75rem", marginBottom: "0.4rem", fontWeight: 600, fontSize: "0.85rem" }}>
+                            Minimum Words
+                          </label>
+                          <input
+                            type="number"
+                            value={task.min_words}
+                            onChange={(e) => {
+                              const val = Math.max(0, Number(e.target.value) || 0);
+                              setWritingTasks((prev) => prev.map((t) => t.part === part ? { ...t, min_words: val } : t));
+                            }}
+                            style={{ width: "120px", padding: "0.55rem 0.65rem", border: "1px solid var(--border)", borderRadius: "8px", fontSize: "0.9rem" }}
+                          />
+
+                          {/* Questions */}
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "1rem", marginBottom: "0.5rem", position: "sticky", top: 0, background: "var(--surface)", zIndex: 2, padding: "0.5rem 0" }}>
+                            <span style={{ fontWeight: 600, fontSize: "0.85rem" }}>Questions ({partQuestions.length})</span>
+                            <button
+                              type="button"
+                              className="btn btn-primary btn-topbar-cta"
+                              style={{ fontSize: "0.78rem", padding: "0.35rem 0.7rem" }}
+                              onClick={() => addQuestion("writing", part)}
+                            >
+                              <Plus style={{ width: "0.85rem", height: "0.85rem" }} /> Add Question
+                            </button>
+                          </div>
+                          {partQuestions.map((q, qIdx) => renderQuestionCard(q, qIdx))}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+
+          {/* ── Speaking / other: flat question list ── */}
+          {(() => {
+            const mod = (modules.length === 1 ? modules[0] : activeModuleTab) as QuestionDraft["module"];
+            if (mod === "listening" || mod === "reading" || mod === "writing") return null;
             const modQuestions = questions.filter((q) => q.module === mod);
 
             return (

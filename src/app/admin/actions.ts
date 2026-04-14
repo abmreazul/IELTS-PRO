@@ -265,7 +265,7 @@ export async function saveExamWizard(
     let flatIdx = 0;
     const rows = qs.map((q) => {
       let sort_order: number;
-      const hasPart = (q.module === "listening" || q.module === "reading") && q.part && q.part >= 1;
+      const hasPart = (q.module === "listening" || q.module === "reading" || q.module === "writing") && q.part && q.part >= 1;
       if (hasPart) {
         const key = q.module;
         const p = q.part!;
