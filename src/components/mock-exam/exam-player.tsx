@@ -380,72 +380,95 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
 
       {/* Main body: questions left + navigator right */}
       <div className="ep-body">
-        {/* LEFT: scrollable questions */}
-        <div className="ep-content" ref={contentRef}>
-          <div className="ep-content__inner">
-            <h2 className="ep-part-title ep-slide-up">
-              {isReading ? `Passage ${activePart}` : `Part ${activePart}`}
-            </h2>
+        {/* LEFT: scrollable content */}
+        {isReading ? (
+          /* ── Reading: split-pane (passage left, questions right) ── */
+          <div className="ep-reading-split">
+            {/* LEFT: Passage */}
+            <div className="ep-reading-split__passage">
+              <div className="ep-reading-split__passage-inner">
+                <p className="ep-reading-split__part-label ep-slide-up">PART {activePart}</p>
+                <h2 className="ep-reading-split__title ep-slide-up">Reading Passage {activePart}</h2>
+                {(() => {
+                  const passages = exam.structure_json?.reading_passages ?? [];
+                  const passage = passages.find((p) => p.part === activePart);
+                  if (!passage) return <p style={{ color: "var(--muted)" }}>No passage text available.</p>;
+                  return (
+                    <>
+                      {passage.image_url ? (
+                        <img src={passage.image_url} alt="" className="ep-reading-split__img ep-slide-up" />
+                      ) : null}
+                      {passage.title ? (
+                        <h3 className="ep-reading-split__passage-title ep-slide-up">{passage.title}</h3>
+                      ) : null}
+                      <div className="ep-reading-split__text ep-slide-up">{passage.text}</div>
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
 
-            {/* Reading passage text */}
-            {isReading && (() => {
-              const passages = exam.structure_json?.reading_passages ?? [];
-              const passage = passages.find((p) => p.part === activePart);
-              if (!passage) return null;
-              return (
-                <div className="ep-passage ep-slide-up">
-                  {passage.title ? <h3 className="ep-passage__title">{passage.title}</h3> : null}
-                  {passage.image_url ? (
-                    <img src={passage.image_url} alt="" className="ep-passage__img" />
-                  ) : null}
-                  <div className="ep-passage__text">{passage.text}</div>
-                </div>
-              );
-            })()}
+            {/* DIVIDER */}
+            <div className="ep-reading-split__divider" />
 
-            {/* Audio player for this part (listening) */}
-            {getAudioForPart(activePart) ? (
-              <div className="ep-listen-bar ep-slide-up">
-                <span className="ep-listen-bar__label">
+            {/* RIGHT: Questions */}
+            <div className="ep-reading-split__questions" ref={contentRef}>
+              <div className="ep-reading-split__questions-inner">
+                <p className="ep-part-range ep-slide-up" style={{ marginTop: 0 }}>
                   Questions {currentPartInfo.startIndex + 1}–{currentPartInfo.startIndex + currentPartInfo.questions.length}
-                </span>
-                <button className="ep-listen-bar__btn" onClick={() => toggleAudio(activePart)} type="button">
-                  {playingPart === activePart ? <Pause size={14} /> : <Play size={14} />}
-                  {playingPart === activePart ? "Pause" : "Listen from here"}
-                </button>
-                <audio
-                  ref={(el) => { audioRefs.current[activePart] = el; }}
-                  src={getAudioForPart(activePart)!.url}
-                  preload="auto"
-                  onTimeUpdate={(e) => {
-                    const a = e.currentTarget;
-                    if (a.duration) setAudioProgress((prev) => ({ ...prev, [activePart]: (a.currentTime / a.duration) * 100 }));
-                  }}
-                  onEnded={() => setPlayingPart(null)}
-                />
-                {/* Audio progress */}
-                <div className="ep-listen-bar__progress">
-                  <div className="ep-listen-bar__progress-fill" style={{ width: `${audioProgress[activePart] ?? 0}%` }} />
+                </p>
+                <div className="ep-q-list">
+                  {currentPartInfo.questions.map((q, i) =>
+                    renderQuestion(q, currentPartInfo.startIndex + i)
+                  )}
                 </div>
               </div>
-            ) : !isReading ? (
-              <p className="ep-part-range ep-slide-up">
-                Questions {currentPartInfo.startIndex + 1}–{currentPartInfo.startIndex + currentPartInfo.questions.length}
-              </p>
-            ) : (
-              <p className="ep-part-range ep-slide-up">
-                Questions {currentPartInfo.startIndex + 1}–{currentPartInfo.startIndex + currentPartInfo.questions.length}
-              </p>
-            )}
-
-            {/* Questions */}
-            <div className="ep-q-list">
-              {currentPartInfo.questions.map((q, i) =>
-                renderQuestion(q, currentPartInfo.startIndex + i)
-              )}
             </div>
           </div>
-        </div>
+        ) : (
+          /* ── Listening / other: single-column ── */
+          <div className="ep-content" ref={contentRef}>
+            <div className="ep-content__inner">
+              <h2 className="ep-part-title ep-slide-up">Part {activePart}</h2>
+
+              {/* Audio player for this part (listening) */}
+              {getAudioForPart(activePart) ? (
+                <div className="ep-listen-bar ep-slide-up">
+                  <span className="ep-listen-bar__label">
+                    Questions {currentPartInfo.startIndex + 1}–{currentPartInfo.startIndex + currentPartInfo.questions.length}
+                  </span>
+                  <button className="ep-listen-bar__btn" onClick={() => toggleAudio(activePart)} type="button">
+                    {playingPart === activePart ? <Pause size={14} /> : <Play size={14} />}
+                    {playingPart === activePart ? "Pause" : "Listen from here"}
+                  </button>
+                  <audio
+                    ref={(el) => { audioRefs.current[activePart] = el; }}
+                    src={getAudioForPart(activePart)!.url}
+                    preload="auto"
+                    onTimeUpdate={(e) => {
+                      const a = e.currentTarget;
+                      if (a.duration) setAudioProgress((prev) => ({ ...prev, [activePart]: (a.currentTime / a.duration) * 100 }));
+                    }}
+                    onEnded={() => setPlayingPart(null)}
+                  />
+                  <div className="ep-listen-bar__progress">
+                    <div className="ep-listen-bar__progress-fill" style={{ width: `${audioProgress[activePart] ?? 0}%` }} />
+                  </div>
+                </div>
+              ) : (
+                <p className="ep-part-range ep-slide-up">
+                  Questions {currentPartInfo.startIndex + 1}–{currentPartInfo.startIndex + currentPartInfo.questions.length}
+                </p>
+              )}
+
+              <div className="ep-q-list">
+                {currentPartInfo.questions.map((q, i) =>
+                  renderQuestion(q, currentPartInfo.startIndex + i)
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* RIGHT: question navigator panel */}
         <aside className="ep-nav-panel">
@@ -500,7 +523,7 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
               type="button"
             >
               <span className="ep-parts__label">
-                Part {p.part}
+                {isReading ? `Passage ${p.part}` : `Part ${p.part}`}
                 {hasAudio && playingPart === p.part ? <Volume2 size={11} className="ep-parts__audio-icon" /> : null}
               </span>
               {isActive ? (
