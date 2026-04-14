@@ -61,6 +61,7 @@ type QuestionDraft = {
   options: string[];
   correctIndex: number;
   correctTriple: string;
+  correctText: string; // for fill-in/completion/short-answer/matching
   points: number;
 };
 
@@ -113,11 +114,13 @@ function dbQuestionToDraft(q: DbQuestion): QuestionDraft {
   const opts = isMcq ? [...rawOpts, "", "", "", ""].slice(0, 4) : rawOpts.length > 0 ? rawOpts : ["", "", "", ""];
   let correctIndex = 0;
   let correctTriple = "";
+  let correctText = "";
   const c = q.correct_json;
   if (c && typeof c === "object" && "kind" in c) {
     const co = c as unknown as { kind?: string; index?: number; value?: string };
     if (co.kind === "index" && typeof co.index === "number") correctIndex = co.index;
     if (co.kind === "triple" && typeof co.value === "string") correctTriple = co.value;
+    if (co.kind === "rubric" && typeof co.value === "string") correctText = co.value;
   }
   return {
     tempId: q.id,
@@ -129,13 +132,20 @@ function dbQuestionToDraft(q: DbQuestion): QuestionDraft {
     options: opts,
     correctIndex,
     correctTriple,
+    correctText,
     points: q.points ?? 1,
   };
 }
 
+const TEXT_ANSWER_TYPES = new Set([
+  "completion", "short_answer", "fill_in_blank", "sentence_completion",
+  "matching_headings", "matching_information", "matching_features",
+  "sentence_endings", "map_diagram_labeling", "matching",
+]);
+
 function toWizardQuestion(q: QuestionDraft): WizardQuestionInput {
   let options_json: unknown = q.options.map((s) => s.trim()).filter(Boolean);
-  let correct_json: unknown = { kind: "rubric", value: "" };
+  let correct_json: unknown = { kind: "rubric", value: q.correctText.trim() };
 
   if (q.question_type === "true_false_not_given") {
     options_json = ["True", "False", "Not Given"];
@@ -145,6 +155,8 @@ function toWizardQuestion(q: QuestionDraft): WizardQuestionInput {
     correct_json = { kind: "triple", value: q.correctTriple || "not_given" };
   } else if (q.question_type === "multiple_choice" || q.question_type === "multiple_choice_multi") {
     correct_json = { kind: "index", index: Math.max(0, q.correctIndex) };
+  } else if (TEXT_ANSWER_TYPES.has(q.question_type)) {
+    correct_json = { kind: "rubric", value: q.correctText.trim() };
   }
 
   return {
@@ -253,6 +265,7 @@ export function ExamWizard({
         options: ["", "", "", ""],
         correctIndex: 0,
         correctTriple: "true",
+        correctText: "",
         points: 1,
       },
     ]);
@@ -446,18 +459,18 @@ export function ExamWizard({
         </div>
       ) : (
         <div style={{ marginTop: "0.65rem" }}>
-          <label className="admin-label">Acceptable answers (one per line)</label>
-          <textarea
-            className="admin-textarea"
-            rows={3}
-            value={q.options.join("\n")}
-            onChange={(e) =>
-              updateQuestion(q.tempId, {
-                options: e.target.value.split("\n").concat(["", "", "", ""]).slice(0, 8),
-              })
-            }
-            placeholder="For matching or completion, list pairs or acceptable short answers."
+          <label className="admin-label">Correct answer</label>
+          <input
+            className="admin-input"
+            value={q.correctText}
+            onChange={(e) => updateQuestion(q.tempId, { correctText: e.target.value })}
+            placeholder="The exact correct answer (case-insensitive matching)"
           />
+          {q.question_type === "completion" || q.question_type === "sentence_endings" || q.question_type === "matching_headings" || q.question_type === "matching_information" || q.question_type === "matching_features" ? (
+            <p style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.35rem" }}>
+              💡 For form completion, enter the expected word(s). Students type their answer and it&apos;s matched case-insensitively.
+            </p>
+          ) : null}
         </div>
       )}
     </div>

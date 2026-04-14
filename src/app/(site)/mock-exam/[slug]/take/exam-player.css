@@ -320,6 +320,26 @@
   border-color: var(--primary);
 }
 
+textarea.ep-fill__input {
+  line-height: 1.7;
+}
+
+/* ——— Speaking note ——— */
+.ep-speaking-note {
+  padding: 1.25rem;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--primary) 6%, var(--bg));
+  border: 1px solid color-mix(in srgb, var(--primary) 15%, var(--border));
+  max-width: 36rem;
+}
+
+.ep-speaking-note p {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
 /* ——— Bottom nav ——— */
 .ep-bottom-nav {
   display: flex;

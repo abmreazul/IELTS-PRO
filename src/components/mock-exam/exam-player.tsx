@@ -376,10 +376,16 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
               </div>
             ) : null}
 
-            {/* Short answer / fill-in */}
-            {(currentQuestion?.question_type === "fill_in_blank" ||
-              currentQuestion?.question_type === "sentence_completion" ||
+            {/* Fill-in / Completion / Short answer / Matching / Diagram labeling */}
+            {(currentQuestion?.question_type === "completion" ||
               currentQuestion?.question_type === "short_answer" ||
+              currentQuestion?.question_type === "fill_in_blank" ||
+              currentQuestion?.question_type === "sentence_completion" ||
+              currentQuestion?.question_type === "matching_headings" ||
+              currentQuestion?.question_type === "matching_information" ||
+              currentQuestion?.question_type === "matching_features" ||
+              currentQuestion?.question_type === "sentence_endings" ||
+              currentQuestion?.question_type === "map_diagram_labeling" ||
               currentQuestion?.question_type === "matching") ? (
               <div className="ep-fill">
                 <input
@@ -388,8 +394,28 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
                   placeholder="Type your answer…"
                   value={String(answers[currentQuestion.id] ?? "")}
                   onChange={(e) => setAnswer(currentQuestion.id, e.target.value)}
-                  autoFocus
                 />
+              </div>
+            ) : null}
+
+            {/* Essay / Writing */}
+            {currentQuestion?.question_type === "essay" ? (
+              <div className="ep-fill">
+                <textarea
+                  className="ep-fill__input"
+                  rows={12}
+                  placeholder="Write your response here…"
+                  value={String(answers[currentQuestion.id] ?? "")}
+                  onChange={(e) => setAnswer(currentQuestion.id, e.target.value)}
+                  style={{ resize: "vertical", minHeight: "200px" }}
+                />
+              </div>
+            ) : null}
+
+            {/* Speaking prompt — display only */}
+            {currentQuestion?.question_type === "speaking_prompt" ? (
+              <div className="ep-speaking-note">
+                <p>🎤 This is a speaking prompt. In a real exam, you would respond verbally.</p>
               </div>
             ) : null}
           </div>
