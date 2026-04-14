@@ -108,6 +108,7 @@ const MODULE_SET = new Set(["listening", "reading", "writing", "speaking"]);
 
 export type WizardQuestionInput = {
   module: string;
+  part?: number; // 1-4 for listening
   question_type: string;
   prompt: string;
   options_json: unknown;
@@ -257,16 +258,31 @@ export async function saveExamWizard(
 
   const qs = input.questions ?? [];
   if (qs.length > 0) {
-    const rows = qs.map((q, i) => ({
-      exam_id: examId,
-      sort_order: i,
-      module: MODULE_SET.has(q.module) ? q.module : "reading",
-      question_type: String(q.question_type || "multiple_choice").slice(0, 120),
-      prompt: String(q.prompt ?? "").slice(0, 20000),
-      options_json: q.options_json ?? [],
-      correct_json: q.correct_json ?? null,
-      points: Math.max(0, Math.round(Number(q.points) || 0)) || 1,
-    }));
+    // Encode part into sort_order: listening Part N → sort_order N*100+i
+    // Other modules: sort_order = i
+    const partCounters: Record<number, number> = {};
+    let flatIdx = 0;
+    const rows = qs.map((q) => {
+      let sort_order: number;
+      if (q.module === "listening" && q.part && q.part >= 1) {
+        const p = q.part;
+        partCounters[p] = (partCounters[p] ?? 0);
+        sort_order = p * 100 + partCounters[p];
+        partCounters[p]++;
+      } else {
+        sort_order = flatIdx++;
+      }
+      return {
+        exam_id: examId,
+        sort_order,
+        module: MODULE_SET.has(q.module) ? q.module : "reading",
+        question_type: String(q.question_type || "multiple_choice").slice(0, 120),
+        prompt: String(q.prompt ?? "").slice(0, 20000),
+        options_json: q.options_json ?? [],
+        correct_json: q.correct_json ?? null,
+        points: Math.max(0, Math.round(Number(q.points) || 0)) || 1,
+      };
+    });
     const { error: qErr } = await admin.from("exam_questions").insert(rows);
     if (qErr) {
       return { ok: false, message: qErr.message };

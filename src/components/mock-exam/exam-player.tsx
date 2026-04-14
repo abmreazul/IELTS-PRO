@@ -44,8 +44,6 @@ const MODULE_LABELS: Record<string, string> = {
   speaking: "Speaking",
 };
 
-const QUESTIONS_PER_PART = 10;
-
 /* ═══════════════════════════════════════════════════════════════════
    Timer Hook
    ═══════════════════════════════════════════════════════════════════ */
@@ -88,17 +86,35 @@ type PartInfo = {
   startIndex: number;
 };
 
-function groupByPart(questions: ExamQuestion[]): PartInfo[] {
-  const parts: PartInfo[] = [];
-  const totalParts = Math.max(1, Math.ceil(questions.length / QUESTIONS_PER_PART));
-  for (let p = 0; p < totalParts; p++) {
-    parts.push({
-      part: p + 1,
-      questions: questions.slice(p * QUESTIONS_PER_PART, (p + 1) * QUESTIONS_PER_PART),
-      startIndex: p * QUESTIONS_PER_PART,
-    });
+function groupByPart(questions: ExamQuestion[], modules: string[]): PartInfo[] {
+  const isListening = modules.includes("listening");
+
+  if (isListening) {
+    // Decode part from sort_order: Part N has sort_order in range [N*100, (N+1)*100)
+    const partMap: Record<number, ExamQuestion[]> = { 1: [], 2: [], 3: [], 4: [] };
+    for (const q of questions) {
+      const decodedPart = q.sort_order >= 100 ? Math.floor(q.sort_order / 100) : 1;
+      const p = Math.max(1, Math.min(4, decodedPart));
+      if (!partMap[p]) partMap[p] = [];
+      partMap[p].push(q);
+    }
+
+    // Always show 4 parts for listening
+    const parts: PartInfo[] = [];
+    let runningIdx = 0;
+    for (let p = 1; p <= 4; p++) {
+      const pQuestions = partMap[p] ?? [];
+      parts.push({ part: p, questions: pQuestions, startIndex: runningIdx });
+      runningIdx += pQuestions.length;
+    }
+    return parts;
   }
-  return parts;
+
+  // Non-listening: single part with all questions
+  if (questions.length === 0) {
+    return [{ part: 1, questions: [], startIndex: 0 }];
+  }
+  return [{ part: 1, questions, startIndex: 0 }];
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -129,7 +145,7 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
 
   const { display: timeDisplay, pct: timePct, isLow: timeIsLow, minutes: minsLeft } = useCountdown(totalSeconds, handleTimeEnd);
 
-  const parts = useMemo(() => groupByPart(questions), [questions]);
+  const parts = useMemo(() => groupByPart(questions, exam.modules), [questions, exam.modules]);
   const currentPartInfo = parts.find((p) => p.part === activePart) ?? parts[0];
   const answeredCount = Object.keys(answers).length;
 
@@ -259,11 +275,11 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
         {(q.question_type === "true_false_not_given" || q.question_type === "yes_no_not_given") ? (
           <>
             <p className="ep-q__text"><strong>{globalIdx + 1}.</strong> {q.prompt}</p>
-            <div className="ep-q__opts ep-q__opts--inline">
+            <div className="ep-q__tf-group">
               {(q.question_type === "true_false_not_given" ? ["true", "false", "not_given"] : ["yes", "no", "not_given"]).map((opt) => {
                 const selected = answers[q.id] === opt;
                 return (
-                  <label key={opt} className={`ep-q__radio${selected ? " ep-q__radio--sel" : ""}`}>
+                  <label key={opt} className={`ep-q__tf${selected ? " ep-q__tf--sel" : ""}`}>
                     <input type="radio" name={`q-${q.id}`} checked={selected} onChange={() => setAnswer(q.id, opt)} />
                     <span>{opt.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase())}</span>
                   </label>
@@ -279,7 +295,6 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
           <div className="ep-q__fill-row">
             <p className="ep-q__text"><strong>{globalIdx + 1}.</strong> {q.prompt}</p>
             <div className="ep-q__fill-inline">
-              <span className="ep-q__fill-badge">{globalIdx + 1}</span>
               <input
                 className="ep-q__fill-input"
                 type="text"

@@ -50,6 +50,7 @@ type DbQuestion = {
   options_json: unknown;
   correct_json: unknown;
   points: number;
+  sort_order: number;
 };
 
 type QuestionDraft = {
@@ -122,11 +123,19 @@ function dbQuestionToDraft(q: DbQuestion): QuestionDraft {
     if (co.kind === "triple" && typeof co.value === "string") correctTriple = co.value;
     if (co.kind === "rubric" && typeof co.value === "string") correctText = co.value;
   }
+  // Decode part from sort_order: listening Part N = sort_order in [N*100, (N+1)*100)
+  let part: number | undefined = undefined;
+  const mod = (["listening", "reading", "writing", "speaking"].includes(q.module)
+    ? q.module
+    : "reading") as QuestionDraft["module"];
+  if (mod === "listening") {
+    part = q.sort_order >= 100 ? Math.floor(q.sort_order / 100) : 1;
+    part = Math.max(1, Math.min(4, part));
+  }
   return {
     tempId: q.id,
-    module: (["listening", "reading", "writing", "speaking"].includes(q.module)
-      ? q.module
-      : "reading") as QuestionDraft["module"],
+    module: mod,
+    part,
     question_type: q.question_type || "multiple_choice",
     prompt: q.prompt || "",
     options: opts,
@@ -161,6 +170,7 @@ function toWizardQuestion(q: QuestionDraft): WizardQuestionInput {
 
   return {
     module: q.module,
+    part: q.part,
     question_type: q.question_type,
     prompt: q.prompt,
     options_json,

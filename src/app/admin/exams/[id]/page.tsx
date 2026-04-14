@@ -23,7 +23,7 @@ export default async function AdminEditExamPage({ params }: { params: Promise<{ 
       .order("sort_order", { ascending: true }),
     admin
       .from("exam_questions")
-      .select("id, module, question_type, prompt, options_json, correct_json, points")
+      .select("id, module, question_type, prompt, options_json, correct_json, points, sort_order")
       .eq("exam_id", id)
       .order("sort_order", { ascending: true }),
   ]);
@@ -61,7 +61,7 @@ export default async function AdminEditExamPage({ params }: { params: Promise<{ 
       categories={categories}
       initialExam={initialExam}
       initialQuestions={
-        (questionRows ?? []).map((q) => ({
+        (questionRows ?? []).map((q, i) => ({
           id: q.id,
           module: q.module,
           question_type: q.question_type,
@@ -69,6 +69,7 @@ export default async function AdminEditExamPage({ params }: { params: Promise<{ 
           options_json: q.options_json,
           correct_json: q.correct_json,
           points: q.points,
+          sort_order: q.sort_order ?? i,
         }))
       }
     />
