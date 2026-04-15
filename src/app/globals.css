@@ -5,6 +5,39 @@
   --bg: #f8fafc;
   --bg-alt: #f1f5f9;
   --surface: #ffffff;
+  --aurora-bg:
+    radial-gradient(
+      ellipse 86% 72% at 14% 10%,
+      rgba(134, 168, 255, 0.28) 0%,
+      transparent 58%
+    ),
+    radial-gradient(
+      ellipse 84% 70% at 88% 18%,
+      rgba(255, 210, 176, 0.24) 0%,
+      transparent 54%
+    ),
+    radial-gradient(
+      ellipse 70% 62% at 52% 76%,
+      rgba(183, 236, 255, 0.18) 0%,
+      transparent 52%
+    ),
+    linear-gradient(180deg, #f8fbff 0%, #f8fafc 48%, #fdf8f6 100%);
+  --hero-bg:
+    radial-gradient(
+      ellipse 126% 96% at 12% -8%,
+      rgba(134, 168, 255, 0.32) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse 88% 74% at 94% 18%,
+      rgba(255, 210, 176, 0.28) 0%,
+      transparent 50%
+    ),
+    radial-gradient(
+      ellipse 80% 68% at 55% 92%,
+      rgba(183, 236, 255, 0.18) 0%,
+      transparent 54%
+    );
   --text: #1a1a1a;
   --muted: #4b5563;
   --border: #e2e8f0;
@@ -26,6 +59,8 @@
   --bg: #121212;
   --bg-alt: #18181b;
   --surface: #1a1a1a;
+  --aurora-bg: none;
+  --hero-bg: none;
   --text: #f4f4f5;
   --muted: #a1a1aa;
   --border: #27272a;
@@ -51,7 +86,8 @@ html {
 body {
   margin: 0;
   min-height: 100vh;
-  background: var(--bg);
+  background-color: var(--bg);
+  background-image: var(--aurora-bg);
   color: var(--text);
   font-family: var(--font-sans), system-ui, sans-serif;
   font-size: 16px;
@@ -530,17 +566,8 @@ img {
 .hero {
   padding: clamp(3rem, 8vw, 5.5rem) 0 clamp(3rem, 6vw, 4.5rem);
   background:
-    radial-gradient(
-      ellipse 130% 95% at 12% -8%,
-      color-mix(in srgb, var(--primary) 11%, var(--surface)) 0%,
-      transparent 58%
-    ),
-    radial-gradient(
-      ellipse 80% 70% at 92% 18%,
-      color-mix(in srgb, var(--primary) 7%, var(--surface)) 0%,
-      transparent 48%
-    ),
-    var(--bg);
+    var(--hero-bg),
+    transparent;
 }
 
 .dark .hero {
