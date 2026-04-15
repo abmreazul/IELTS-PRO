@@ -564,10 +564,12 @@ img {
 
 /* ——— Hero ——— */
 .hero {
+  position: relative;
   padding: clamp(3rem, 8vw, 5.5rem) 0 clamp(3rem, 6vw, 4.5rem);
   background:
     var(--hero-bg),
     transparent;
+  overflow: clip;
 }
 
 .dark .hero {
@@ -583,6 +585,35 @@ img {
       transparent 45%
     ),
     var(--bg);
+}
+
+.hero::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: clamp(88px, 13vw, 148px);
+  pointer-events: none;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(248, 250, 252, 0) 0%,
+      rgba(248, 250, 252, 0.52) 42%,
+      rgba(248, 250, 252, 0.9) 72%,
+      var(--bg) 100%
+    );
+}
+
+.dark .hero::after {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(18, 18, 18, 0) 0%,
+      rgba(18, 18, 18, 0.24) 42%,
+      rgba(18, 18, 18, 0.62) 72%,
+      var(--bg) 100%
+    );
 }
 
 .hero-grid {
