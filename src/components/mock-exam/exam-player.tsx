@@ -32,7 +32,7 @@ export type ExamData = {
   slug: string;
   modules: string[];
   duration_minutes: number;
-  listening_audio_json?: { part: number; url: string; title?: string }[] | null;
+  listening_audio_json?: { url: string; title?: string } | { part: number; url: string; title?: string }[] | null;
   structure_json?: {
     exam_meta?: { test_variant?: "academic" | "general" };
     reading_passages?: { part: number; title: string; text: string; image_url?: string }[];
@@ -103,6 +103,12 @@ type PartInfo = {
   startIndex: number;   // Global question index offset
 };
 
+type ListeningClip = { part: number; url: string; title: string };
+type ListeningAudioSource =
+  | { mode: "none" }
+  | { mode: "master"; asset: { url: string; title: string } }
+  | { mode: "legacy"; clips: ListeningClip[] };
+
 const MODULE_PART_COUNTS: Record<string, number> = {
   listening: 4,
   reading: 3,
@@ -148,6 +154,30 @@ function groupByPart(questions: ExamQuestion[], modules: string[]): PartInfo[] {
   return parts;
 }
 
+function parseListeningAudioSource(raw: ExamData["listening_audio_json"]): ListeningAudioSource {
+  if (!raw) return { mode: "none" };
+  if (Array.isArray(raw)) {
+    const clips = raw
+      .map((row) => ({
+        part: Math.max(1, Math.min(4, Math.floor(Number(row?.part)) || 1)),
+        url: String(row?.url ?? "").trim(),
+        title: String(row?.title ?? "").trim() || `Part ${Math.max(1, Math.min(4, Math.floor(Number(row?.part)) || 1))}`,
+      }))
+      .filter((row) => row.url)
+      .sort((a, b) => a.part - b.part);
+    return clips.length > 0 ? { mode: "legacy", clips } : { mode: "none" };
+  }
+  const url = String(raw.url ?? "").trim();
+  if (!url) return { mode: "none" };
+  return {
+    mode: "master",
+    asset: {
+      url,
+      title: String(raw.title ?? "").trim() || "IELTS Listening Paper",
+    },
+  };
+}
+
 /* ═══════════════════════════════════════════════════════════════════
    ExamPlayer
    ═══════════════════════════════════════════════════════════════════ */
@@ -161,11 +191,18 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
   const [result, setResult] = useState<SubmitResult | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
 
-  // Audio — one ref per part
+  // Audio
+  const masterAudioRef = useRef<HTMLAudioElement | null>(null);
   const audioRefs = useRef<Record<number, HTMLAudioElement | null>>({});
   const [playingPart, setPlayingPart] = useState<number | null>(null);
   const [audioProgress, setAudioProgress] = useState<Record<number, number>>({});
   const [pendingAutoplayPart, setPendingAutoplayPart] = useState<number | null>(null);
+  const [listeningStarted, setListeningStarted] = useState(false);
+  const [completedListeningParts, setCompletedListeningParts] = useState<number[]>([]);
+  const [masterAudioPlaying, setMasterAudioPlaying] = useState(false);
+  const [masterAudioProgress, setMasterAudioProgress] = useState(0);
+  const [masterAudioEnded, setMasterAudioEnded] = useState(false);
+  const [furthestListeningPart, setFurthestListeningPart] = useState(1);
 
   const contentRef = useRef<HTMLDivElement>(null);
   const [navCollapsed, setNavCollapsed] = useState(false);
@@ -186,11 +223,16 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
   const isWriting = currentPartInfo.module === "writing";
   const readingVariant = coerceTestVariant(exam.structure_json?.exam_meta?.test_variant);
   const readingSectionLabel = getReadingSectionLabel(readingVariant);
+  const listeningAudioSource = useMemo(
+    () => parseListeningAudioSource(exam.listening_audio_json),
+    [exam.listening_audio_json],
+  );
+  const isMasterListeningAudio = listeningAudioSource.mode === "master";
 
   // Get audio for a specific part
   const getAudioForPart = (partNum: number) => {
-    if (!exam.listening_audio_json) return null;
-    return exam.listening_audio_json.find((a) => a.part === partNum) ?? null;
+    if (listeningAudioSource.mode !== "legacy") return null;
+    return listeningAudioSource.clips.find((a) => a.part === partNum) ?? null;
   };
 
   const listeningTabIndices = useMemo(
@@ -199,13 +241,23 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
       .filter(({ part }) => part.module === "listening"),
     [parts],
   );
+  const listeningPartNumbers = useMemo(
+    () => listeningTabIndices.map(({ part }) => part.part),
+    [listeningTabIndices],
+  );
+  const listeningFinished = isMasterListeningAudio
+    ? masterAudioEnded
+    : listeningPartNumbers.length > 0
+      && listeningPartNumbers.every((partNum) => completedListeningParts.includes(partNum));
 
   const stopListeningAudio = useCallback(() => {
+    masterAudioRef.current?.pause();
     for (const audio of Object.values(audioRefs.current)) {
       audio?.pause();
     }
     setPlayingPart(null);
     setPendingAutoplayPart(null);
+    setMasterAudioPlaying(false);
   }, []);
 
   const getNextListeningTab = useCallback((partNum: number) => {
@@ -214,13 +266,50 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
     return listeningTabIndices.find(({ idx }) => idx === current.idx + 1) ?? null;
   }, [listeningTabIndices]);
 
+  const canNavigateToPart = useCallback((targetPartIndex: number) => {
+    const targetPart = parts[targetPartIndex - 1];
+    if (!targetPart) return false;
+
+    const currentModule = currentPartInfo.module;
+    const targetModule = targetPart.module;
+
+    if (currentModule === "listening" && listeningStarted && !listeningFinished) {
+      if (targetModule !== "listening") return false;
+      if (isMasterListeningAudio) {
+        return targetPart.part >= currentPartInfo.part && targetPart.part <= furthestListeningPart + 1;
+      }
+      return targetPartIndex === activePart;
+    }
+
+    if (listeningFinished && targetModule === "listening" && targetPartIndex !== activePart) {
+      return false;
+    }
+
+    if (!listeningStarted && targetModule === "listening") {
+      return targetPart.part === 1;
+    }
+
+    return true;
+  }, [activePart, currentPartInfo.module, currentPartInfo.part, furthestListeningPart, isMasterListeningAudio, listeningFinished, listeningStarted, parts]);
+
   const setAnswer = (questionId: string, value: string | number) => {
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
   };
 
   const goToPart = (part: number) => {
-    stopListeningAudio();
+    if (!canNavigateToPart(part)) return;
+    const targetPart = parts[part - 1];
+    const shouldKeepMasterAudioPlaying =
+      isMasterListeningAudio &&
+      currentPartInfo.module === "listening" &&
+      targetPart?.module === "listening";
+    if (!shouldKeepMasterAudioPlaying) {
+      stopListeningAudio();
+    }
     setActivePart(part);
+    if (isMasterListeningAudio && targetPart?.module === "listening") {
+      setFurthestListeningPart((prev) => Math.max(prev, targetPart.part));
+    }
     contentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -250,8 +339,29 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
   };
 
   const toggleAudio = async (partNum: number) => {
+    if (isMasterListeningAudio) {
+      const audio = masterAudioRef.current;
+      if (!audio || currentPartInfo.module !== "listening" || masterAudioEnded) return;
+      if (masterAudioPlaying) {
+        audio.pause();
+        setMasterAudioPlaying(false);
+      } else {
+        try {
+          setListeningStarted(true);
+          setFurthestListeningPart((prev) => Math.max(prev, currentPartInfo.part));
+          await audio.play();
+          setMasterAudioPlaying(true);
+        } catch {
+          setMasterAudioPlaying(false);
+        }
+      }
+      return;
+    }
+
     const audio = audioRefs.current[partNum];
     if (!audio) return;
+    if (completedListeningParts.includes(partNum)) return;
+    if (partNum !== currentPartInfo.part || currentPartInfo.module !== "listening") return;
 
     // If another part's audio is playing, pause it first
     if (playingPart !== null && playingPart !== partNum) {
@@ -264,6 +374,7 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
       setPendingAutoplayPart(null);
     } else {
       try {
+        setListeningStarted(true);
         await audio.play();
         setPlayingPart(partNum);
       } catch {
@@ -273,6 +384,7 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
   };
 
   useEffect(() => {
+    if (isMasterListeningAudio) return;
     if (!pendingAutoplayPart || currentPartInfo.module !== "listening" || currentPartInfo.part !== pendingAutoplayPart) {
       return;
     }
@@ -288,7 +400,7 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
       .catch(() => {
         setPlayingPart(null);
       });
-  }, [currentPartInfo.module, currentPartInfo.part, pendingAutoplayPart]);
+  }, [currentPartInfo.module, currentPartInfo.part, isMasterListeningAudio, pendingAutoplayPart]);
 
   useEffect(() => stopListeningAudio, [stopListeningAudio]);
 
@@ -615,10 +727,19 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
                       if (a.duration) setAudioProgress((prev) => ({ ...prev, [currentPartInfo.part]: (a.currentTime / a.duration) * 100 }));
                     }}
                     onEnded={() => {
+                      setCompletedListeningParts((prev) =>
+                        prev.includes(currentPartInfo.part) ? prev : [...prev, currentPartInfo.part],
+                      );
+
                       const nextListeningTab = getNextListeningTab(currentPartInfo.part);
                       if (!nextListeningTab) {
                         setPlayingPart(null);
                         setPendingAutoplayPart(null);
+                        const nextOverallPart = parts[activePart];
+                        if (nextOverallPart) {
+                          setActivePart(activePart + 1);
+                          contentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+                        }
                         return;
                       }
 
@@ -629,6 +750,48 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
                   />
                   <div className="ep-listen-bar__progress">
                     <div className="ep-listen-bar__progress-fill" style={{ width: `${audioProgress[currentPartInfo.part] ?? 0}%` }} />
+                  </div>
+                </div>
+              ) : isListening && listeningAudioSource.mode === "master" ? (
+                <div className="ep-listen-bar ep-slide-up">
+                  <span className="ep-listen-bar__label">
+                    {listeningAudioSource.asset.title}
+                  </span>
+                  <span className="ep-listen-bar__meta">
+                    Part {currentPartInfo.part} of 4
+                    <span className="ep-listen-bar__meta-divider">•</span>
+                    Questions {currentPartInfo.startIndex + 1}–{currentPartInfo.startIndex + currentPartInfo.questions.length}
+                  </span>
+                  <button className="ep-listen-bar__btn" onClick={() => void toggleAudio(currentPartInfo.part)} type="button">
+                    {masterAudioPlaying ? <Pause size={14} /> : <Play size={14} />}
+                    {masterAudioPlaying ? "Pause paper" : "Start paper"}
+                  </button>
+                  <audio
+                    ref={masterAudioRef}
+                    src={listeningAudioSource.asset.url}
+                    preload="auto"
+                    onTimeUpdate={(e) => {
+                      const audio = e.currentTarget;
+                      if (audio.duration) {
+                        setMasterAudioProgress((audio.currentTime / audio.duration) * 100);
+                      }
+                    }}
+                    onEnded={() => {
+                      setMasterAudioPlaying(false);
+                      setMasterAudioEnded(true);
+                      const lastListeningPart = listeningTabIndices[listeningTabIndices.length - 1];
+                      if (lastListeningPart) {
+                        setFurthestListeningPart(lastListeningPart.part.part);
+                        const nextOverallPart = parts[lastListeningPart.idx];
+                        if (nextOverallPart) {
+                          setActivePart(lastListeningPart.idx + 1);
+                          contentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+                        }
+                      }
+                    }}
+                  />
+                  <div className="ep-listen-bar__progress">
+                    <div className="ep-listen-bar__progress-fill" style={{ width: `${masterAudioProgress}%` }} />
                   </div>
                 </div>
               ) : (
@@ -687,10 +850,10 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
 
       {/* Page nav arrows */}
       <div className="ep-page-nav">
-        <button className="ep-page-nav__btn" disabled={activePart <= 1} onClick={() => goToPart(activePart - 1)}>
+        <button className="ep-page-nav__btn" disabled={activePart <= 1 || !canNavigateToPart(activePart - 1)} onClick={() => goToPart(activePart - 1)}>
           <ChevronLeft size={20} />
         </button>
-        <button className="ep-page-nav__btn" disabled={activePart >= parts.length} onClick={() => goToPart(activePart + 1)}>
+        <button className="ep-page-nav__btn" disabled={activePart >= parts.length || !canNavigateToPart(activePart + 1)} onClick={() => goToPart(activePart + 1)}>
           <ChevronRight size={20} />
         </button>
       </div>
@@ -701,7 +864,8 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
           const tabIdx = idx + 1;
           const isActive = tabIdx === activePart;
           const answered = answeredInPart(p.questions);
-          const hasAudio = p.module === "listening" && !!getAudioForPart(p.part);
+          const hasAudio = p.module === "listening" && (listeningAudioSource.mode === "master" || !!getAudioForPart(p.part));
+          const isDisabled = !canNavigateToPart(tabIdx);
           const tabLabel = p.module === "reading" ? `Passage ${p.part}`
             : p.module === "writing" ? `Task ${p.part}`
             : p.module === "speaking" ? "Speaking"
@@ -709,13 +873,14 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
           return (
             <button
               key={`${p.module}-${p.part}`}
-              className={`ep-parts__tab${isActive ? " ep-parts__tab--active" : ""}`}
+              className={`ep-parts__tab${isActive ? " ep-parts__tab--active" : ""}${isDisabled ? " ep-parts__tab--disabled" : ""}`}
               onClick={() => goToPart(tabIdx)}
               type="button"
+              disabled={isDisabled}
             >
               <span className="ep-parts__label">
                 {tabLabel}
-                {hasAudio && playingPart === p.part ? <Volume2 size={11} className="ep-parts__audio-icon" /> : null}
+                {hasAudio && ((isMasterListeningAudio && masterAudioPlaying) || playingPart === p.part) ? <Volume2 size={11} className="ep-parts__audio-icon" /> : null}
               </span>
               {isActive ? (
                 <span className="ep-parts__nums">

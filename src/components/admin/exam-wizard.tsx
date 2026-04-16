@@ -48,6 +48,7 @@ export type ExamWizardInitialExam = {
 };
 
 type ListeningClip = { part: number; url: string; title: string };
+type ListeningAudioAsset = { url: string; title: string };
 type ReadingPassage = { part: number; title: string; text: string; image_url: string };
 type WritingTask = { part: number; prompt: string; image_url: string; min_words: number };
 
@@ -134,6 +135,17 @@ function parseListeningClips(raw: unknown): ListeningClip[] {
   }
   out.sort((a, b) => a.part - b.part);
   return out;
+}
+
+function parseListeningAudioAsset(raw: unknown): ListeningAudioAsset | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const value = raw as Record<string, unknown>;
+  const url = String(value.url ?? "").trim();
+  if (!url) return null;
+  return {
+    url,
+    title: String(value.title ?? "").trim() || "IELTS Listening Paper",
+  };
 }
 
 function dbQuestionToDraft(q: DbQuestion): QuestionDraft {
@@ -293,8 +305,11 @@ export function ExamWizard({
     initialQuestions.length ? initialQuestions.map(dbQuestionToDraft) : [],
   );
 
-  const [listeningClips, setListeningClips] = useState<ListeningClip[]>(() =>
+  const [legacyListeningClips] = useState<ListeningClip[]>(() =>
     parseListeningClips(initialExam?.listening_audio_json),
+  );
+  const [listeningAudio, setListeningAudio] = useState<ListeningAudioAsset | null>(() =>
+    parseListeningAudioAsset(initialExam?.listening_audio_json),
   );
 
   // Reading passages (stored in structure_json)
@@ -371,16 +386,13 @@ export function ExamWizard({
     [generatedWritingQuestions, questions],
   );
 
-  const setListeningPartUrl = useCallback((part: number, url: string) => {
-    const t = url.trim();
-    if (!t) {
-      setListeningClips((prev) => prev.filter((c) => c.part !== part));
+  const setListeningAudioUrl = useCallback((url: string) => {
+    const trimmed = url.trim();
+    if (!trimmed) {
+      setListeningAudio(null);
       return;
     }
-    setListeningClips((prev) => {
-      const rest = prev.filter((c) => c.part !== part);
-      return [...rest, { part, url: t, title: `Part ${part}` }].sort((a, b) => a.part - b.part);
-    });
+    setListeningAudio({ url: trimmed, title: "IELTS Listening Paper" });
   }, []);
 
   const updateReadingPassage = useCallback((part: number, patch: Partial<ReadingPassage>) => {
@@ -467,7 +479,9 @@ export function ExamWizard({
         sections: structure,
       },
       scoring_json: DEFAULT_SCORING,
-      listening_audio_json: hasListening ? listeningClips : [],
+      listening_audio_json: hasListening
+        ? (listeningAudio?.url ? listeningAudio : legacyListeningClips)
+        : null,
       questions: payloadQuestions.map(toWizardQuestion),
     };
   };
@@ -935,11 +949,70 @@ export function ExamWizard({
             return (
               <div style={{ marginTop: "1rem" }}>
                 <p style={{ color: "var(--muted)", fontSize: "0.85rem", marginBottom: "1rem" }}>
-                  IELTS Listening has 4 parts. Each part has 1 audio recording and ~10 questions.
+                  IELTS Listening uses one master audio recording. Keep the 4 parts below only for question grouping.
                 </p>
 
+                <div className="admin-part-card" style={{ marginBottom: "1rem" }}>
+                  <div className="admin-part-card__body">
+                    <div className="admin-part-audio">
+                      <span className="admin-label">Listening Audio Recording</span>
+                      <p style={{ color: "var(--muted)", fontSize: "0.82rem", margin: "0.35rem 0 0.75rem" }}>
+                        Upload one full listening paper audio file. The 4 parts below are only for assigning questions.
+                      </p>
+                      {listeningAudio?.url ? (
+                        <div style={{ marginBottom: "0.5rem" }}>
+                          <audio controls src={listeningAudio.url} style={{ width: "100%", maxWidth: "560px" }} preload="metadata" />
+                          <button
+                            type="button"
+                            className="admin-btn-ghost"
+                            style={{ marginTop: "0.35rem", fontSize: "0.78rem" }}
+                            onClick={() => setListeningAudio(null)}
+                          >
+                            Remove audio
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="admin-form-grid admin-form-grid--2" style={{ marginTop: "0.5rem" }}>
+                          <ExamLocalUpload
+                            folder="listening"
+                            accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/webm,audio/ogg,.mp3,.wav,.webm,.ogg"
+                            disabled={pending}
+                            onUploaded={(url) => setListeningAudioUrl(url)}
+                          />
+                          <div>
+                            <label className="admin-label" htmlFor="listen-master-url">Or paste URL</label>
+                            <input
+                              id="listen-master-url"
+                              className="admin-input"
+                              value={listeningAudio?.url ?? ""}
+                              onChange={(e) => setListeningAudioUrl(e.target.value)}
+                              placeholder="https://…"
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {!listeningAudio?.url && legacyListeningClips.length > 0 ? (
+                        <div
+                          style={{
+                            marginTop: "0.85rem",
+                            padding: "0.85rem 1rem",
+                            borderRadius: "12px",
+                            border: "1px solid color-mix(in srgb, #f59e0b 35%, var(--border))",
+                            background: "color-mix(in srgb, #f59e0b 10%, var(--surface))",
+                            color: "var(--text)",
+                            fontSize: "0.82rem",
+                            lineHeight: 1.6,
+                          }}
+                        >
+                          This exam still has legacy part-by-part listening audio saved. Upload one master listening file here to replace that older setup.
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+
                 {[1, 2, 3, 4].map((part) => {
-                  const clip = listeningClips.find((c) => c.part === part);
                   const partQuestions = questions.filter((q) => q.module === "listening" && q.part === part);
                   const isExpanded = expandedParts[part] !== false;
 
@@ -958,50 +1031,13 @@ export function ExamWizard({
                           }
                           <span className="admin-part-card__title">Part {part}</span>
                           <span className="admin-part-card__meta">
-                            {clip?.url ? "✓ Audio" : "No audio"} · {partQuestions.length} Q
+                            {partQuestions.length} Q
                           </span>
                         </div>
                       </button>
 
                       {isExpanded ? (
                         <div className="admin-part-card__body">
-                          {/* Audio upload */}
-                          <div className="admin-part-audio">
-                            <span className="admin-label">Audio Recording</span>
-                            {clip?.url ? (
-                              <div style={{ marginTop: "0.5rem", marginBottom: "0.5rem" }}>
-                                <audio controls src={clip.url} style={{ width: "100%", maxWidth: "480px" }} preload="metadata" />
-                                <button
-                                  type="button"
-                                  className="admin-btn-ghost"
-                                  style={{ marginTop: "0.35rem", fontSize: "0.78rem" }}
-                                  onClick={() => setListeningPartUrl(part, "")}
-                                >
-                                  Remove audio
-                                </button>
-                              </div>
-                            ) : (
-                              <div className="admin-form-grid admin-form-grid--2" style={{ marginTop: "0.5rem" }}>
-                                <ExamLocalUpload
-                                  folder="listening"
-                                  accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/webm,audio/ogg,.mp3,.wav,.webm,.ogg"
-                                  disabled={pending}
-                                  onUploaded={(url) => setListeningPartUrl(part, url)}
-                                />
-                                <div>
-                                  <label className="admin-label" htmlFor={`listen-url-${part}`}>Or paste URL</label>
-                                  <input
-                                    id={`listen-url-${part}`}
-                                    className="admin-input"
-                                    value={clip?.url ?? ""}
-                                    onChange={(e) => setListeningPartUrl(part, e.target.value)}
-                                    placeholder="https://…"
-                                  />
-                                </div>
-                              </div>
-                            )}
-                          </div>
-
                           {/* Questions for this part */}
                           <div style={{ marginTop: "1rem" }}>
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem", position: "sticky", top: 0, background: "var(--surface)", zIndex: 2, padding: "0.5rem 0" }}>
@@ -1359,7 +1395,11 @@ export function ExamWizard({
             <div style={{ marginTop: "1rem" }}>
               <span className="admin-review-label">Listening audio</span>
               <span className="admin-review-value" style={{ marginLeft: "0.5rem" }}>
-                {listeningClips.filter((c) => c.url).length} / 4 parts uploaded
+                {listeningAudio?.url
+                  ? "1 master audio file uploaded"
+                  : legacyListeningClips.length > 0
+                    ? `${legacyListeningClips.filter((clip) => clip.url).length} legacy part files saved`
+                    : "No listening audio uploaded"}
               </span>
             </div>
           ) : null}

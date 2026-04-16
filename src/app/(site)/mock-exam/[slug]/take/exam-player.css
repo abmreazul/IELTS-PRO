@@ -850,6 +850,17 @@
   background: color-mix(in srgb, var(--primary) 4%, var(--surface));
 }
 
+.ep-parts__tab:disabled,
+.ep-parts__tab--disabled {
+  opacity: 0.42;
+  cursor: default;
+}
+
+.ep-parts__tab:disabled:hover,
+.ep-parts__tab--disabled:hover {
+  background: transparent;
+}
+
 .ep-parts__tab--active {
   background: var(--primary);
   color: #fff;

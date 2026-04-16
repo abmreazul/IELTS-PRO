@@ -145,6 +145,7 @@ export type ExamWizardSaveInput = {
 };
 
 type SanitizedListeningClip = { part: number; url: string; title: string };
+type SanitizedListeningAudio = { url: string; title: string } | SanitizedListeningClip[] | null;
 type ReadingPassage = { part: number; title: string; text: string; image_url: string };
 type WritingTask = { part: number; prompt: string; image_url: string; min_words: number };
 
@@ -264,7 +265,7 @@ function getObjectiveAnswerError(question: WizardQuestionInput): string | null {
 
 function validateListeningForPublish(
   questions: WizardQuestionInput[],
-  listeningAudio: SanitizedListeningClip[],
+  listeningAudio: SanitizedListeningAudio,
 ): string | null {
   const listeningQuestions = questions.filter((question) => question.module === "listening");
   if (listeningQuestions.length !== 40) {
@@ -294,17 +295,24 @@ function validateListeningForPublish(
     }
   }
 
-  const audioParts = new Set<number>();
-  for (const clip of listeningAudio) {
-    if (clip.part < 1 || clip.part > 4) {
-      return "Listening audio can only be attached to Parts 1 through 4.";
-    }
-    audioParts.add(clip.part);
+  if (!listeningAudio) {
+    return "Published Listening exams need one full listening audio recording.";
   }
-  for (const part of [1, 2, 3, 4]) {
-    if (!audioParts.has(part)) {
-      return `Listening Part ${part} is missing its audio recording.`;
+
+  if (Array.isArray(listeningAudio)) {
+    const audioParts = new Set<number>();
+    for (const clip of listeningAudio) {
+      if (clip.part < 1 || clip.part > 4) {
+        return "Listening audio can only be attached to Parts 1 through 4.";
+      }
+      audioParts.add(clip.part);
     }
+    for (const part of [1, 2, 3, 4]) {
+      if (!audioParts.has(part)) {
+        return `Listening Part ${part} is missing its audio recording.`;
+      }
+    }
+    return null;
   }
 
   return null;
@@ -414,7 +422,7 @@ function validateWritingForPublish(
 
 function validatePublishRules(
   input: ExamWizardSaveInput,
-  listeningAudio: SanitizedListeningClip[],
+  listeningAudio: SanitizedListeningAudio,
 ): string | null {
   const questions = input.questions ?? [];
   for (const question of questions) {
@@ -772,8 +780,19 @@ export async function uploadExamMedia(
   return { ok: true, url: data.publicUrl };
 }
 
-function sanitizeListeningAudioJson(raw: unknown): { part: number; url: string; title: string }[] {
-  if (!Array.isArray(raw)) return [];
+function sanitizeListeningAudioJson(raw: unknown): SanitizedListeningAudio {
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    const value = raw as Record<string, unknown>;
+    const url = String(value.url ?? "").trim().slice(0, 2000);
+    if (url) {
+      return {
+        url,
+        title: String(value.title ?? "").trim().slice(0, 200) || "IELTS Listening Paper",
+      };
+    }
+  }
+
+  if (!Array.isArray(raw)) return null;
   const out: { part: number; url: string; title: string }[] = [];
   for (const row of raw) {
     if (!row || typeof row !== "object") continue;
@@ -785,7 +804,7 @@ function sanitizeListeningAudioJson(raw: unknown): { part: number; url: string; 
     out.push({ part, url, title });
   }
   out.sort((a, b) => a.part - b.part);
-  return out;
+  return out.length > 0 ? out : null;
 }
 
 function parseExamForm(formData: FormData) {
