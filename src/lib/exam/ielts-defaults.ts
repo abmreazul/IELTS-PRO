@@ -8,6 +8,8 @@ export type SectionStructure = {
   enabled: boolean;
 };
 
+export type TestVariant = "academic" | "general";
+
 export const DEFAULT_FULL_STRUCTURE: SectionStructure[] = [
   { module: "listening", label: "Listening", parts: 4, questions: 40, enabled: true },
   { module: "reading", label: "Reading", parts: 3, questions: 40, enabled: true },
@@ -58,7 +60,6 @@ export const DEFAULT_SCORING: ScoringConfig = {
 /** IELTS-style question types for the builder (extensible). */
 export const IELTS_QUESTION_TYPES: { value: string; label: string; hint?: string }[] = [
   { value: "multiple_choice", label: "Multiple choice" },
-  { value: "multiple_choice_multi", label: "Multiple choice (select two)" },
   { value: "true_false_not_given", label: "True / False / Not Given" },
   { value: "yes_no_not_given", label: "Yes / No / Not Given" },
   { value: "matching_headings", label: "Matching headings" },
@@ -71,6 +72,28 @@ export const IELTS_QUESTION_TYPES: { value: string; label: string; hint?: string
   { value: "essay", label: "Writing task (essay / report)" },
   { value: "speaking_prompt", label: "Speaking prompt (cue card / discussion)" },
 ];
+
+export const SUPPORTED_QUESTION_TYPE_VALUES = new Set([
+  ...IELTS_QUESTION_TYPES.map((type) => type.value),
+  "fill_in_blank",
+  "sentence_completion",
+  "matching",
+]);
+
+export function coerceTestVariant(raw: unknown): TestVariant {
+  return raw === "general" ? "general" : "academic";
+}
+
+export function getReadingSectionLabel(variant: TestVariant): "Passage" | "Section" {
+  return variant === "general" ? "Section" : "Passage";
+}
+
+export function getReadingIntro(variant: TestVariant): string {
+  if (variant === "general") {
+    return "IELTS General Training Reading has 3 sections and 40 questions. Sections 1 and 2 usually use shorter practical texts, while Section 3 is the longest passage.";
+  }
+  return "IELTS Academic Reading has 3 passages and 40 questions. Each passage needs complete source text before publishing.";
+}
 
 export function structureForModules(modules: string[]): SectionStructure[] {
   const all = DEFAULT_FULL_STRUCTURE;

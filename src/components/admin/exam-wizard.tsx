@@ -7,9 +7,13 @@ import { useCallback, useEffect, useMemo, useState, useTransition } from "react"
 import { saveExamWizard, type ExamWizardSaveInput, type WizardQuestionInput } from "@/app/admin/actions";
 import { ExamLocalUpload } from "@/components/admin/exam-local-upload";
 import {
+  coerceTestVariant,
   DEFAULT_SCORING,
+  getReadingIntro,
+  getReadingSectionLabel,
   type ScoringConfig,
   type SectionStructure,
+  type TestVariant,
   IELTS_QUESTION_TYPES,
   structureForModules,
 } from "@/lib/exam/ielts-defaults";
@@ -69,7 +73,6 @@ type QuestionDraft = {
 };
 
 type Surface = "full" | "listening" | "reading" | "writing" | "speaking";
-type TestVariant = "academic" | "general";
 
 /* ═══════════════════════════════════════════════════════════════════
    Helpers
@@ -108,10 +111,7 @@ function parseTestVariant(raw: unknown): TestVariant {
   if (raw && typeof raw === "object" && "exam_meta" in (raw as Record<string, unknown>)) {
     const meta = (raw as { exam_meta?: unknown }).exam_meta;
     if (meta && typeof meta === "object" && "test_variant" in (meta as Record<string, unknown>)) {
-      const variant = (meta as { test_variant?: unknown }).test_variant;
-      if (variant === "academic" || variant === "general") {
-        return variant;
-      }
+      return coerceTestVariant((meta as { test_variant?: unknown }).test_variant);
     }
   }
   return "academic";
@@ -135,7 +135,8 @@ function parseListeningClips(raw: unknown): ListeningClip[] {
 
 function dbQuestionToDraft(q: DbQuestion): QuestionDraft {
   const rawOpts = Array.isArray(q.options_json) ? (q.options_json as string[]).map(String) : [];
-  const isMcq = q.question_type === "multiple_choice" || q.question_type === "multiple_choice_multi";
+  const normalizedType = q.question_type === "multiple_choice_multi" ? "multiple_choice" : q.question_type;
+  const isMcq = normalizedType === "multiple_choice";
   const opts = isMcq ? [...rawOpts, "", "", "", ""].slice(0, 4) : rawOpts.length > 0 ? rawOpts : ["", "", "", ""];
   let correctIndex = 0;
   let correctTriple = "";
@@ -166,7 +167,7 @@ function dbQuestionToDraft(q: DbQuestion): QuestionDraft {
     tempId: q.id,
     module: mod,
     part,
-    question_type: q.question_type || "multiple_choice",
+    question_type: normalizedType || "multiple_choice",
     prompt: q.prompt || "",
     options: opts,
     correctIndex,
@@ -192,7 +193,7 @@ function toWizardQuestion(q: QuestionDraft): WizardQuestionInput {
   } else if (q.question_type === "yes_no_not_given") {
     options_json = ["Yes", "No", "Not Given"];
     correct_json = { kind: "triple", value: q.correctTriple || "not_given" };
-  } else if (q.question_type === "multiple_choice" || q.question_type === "multiple_choice_multi") {
+  } else if (q.question_type === "multiple_choice") {
     correct_json = { kind: "index", index: Math.max(0, q.correctIndex) };
   } else if (TEXT_ANSWER_TYPES.has(q.question_type)) {
     correct_json = { kind: "rubric", value: q.correctText.trim() };
@@ -277,6 +278,8 @@ export function ExamWizard({
     () => categories.find((c) => c.id === categoryId) ?? null,
     [categories, categoryId],
   );
+  const readingSectionLabel = getReadingSectionLabel(testVariant);
+  const readingIntro = getReadingIntro(testVariant);
 
   useEffect(() => {
     if (isSlugManual) return;
@@ -409,7 +412,7 @@ export function ExamWizard({
       questions: questions.filter((q) => q.module === s.module).length,
       enabled: modules.includes(s.module),
     }));
-    const qCount = questions.length || 1;
+    const qCount = questions.length;
 
     return {
       id: examId,
@@ -553,7 +556,7 @@ export function ExamWizard({
             ))}
           </div>
         </div>
-      ) : q.question_type === "multiple_choice" || q.question_type === "multiple_choice_multi" ? (
+      ) : q.question_type === "multiple_choice" ? (
         <div style={{ marginTop: "0.65rem" }}>
           <p className="admin-label">Options (select the correct answer)</p>
           {q.options.map((opt, i) => (
@@ -1008,9 +1011,35 @@ export function ExamWizard({
 
             return (
               <div style={{ marginTop: "1.25rem" }}>
-                <p style={{ color: "var(--muted)", fontSize: "0.9rem", marginBottom: "1rem" }}>
-                  IELTS Reading has 3 passages. Each passage has a text and ~13 questions.
-                </p>
+                <div
+                  style={{
+                    display: "grid",
+                    gap: "1rem",
+                    gridTemplateColumns: "minmax(220px, 320px) minmax(0, 1fr)",
+                    alignItems: "start",
+                    marginBottom: "1rem",
+                  }}
+                >
+                  <div>
+                    <span className="admin-label">Reading format</span>
+                    <div className="admin-segment" style={{ marginTop: "0.35rem" }}>
+                      {(["academic", "general"] as const).map((variant) => (
+                        <label key={variant}>
+                          <input
+                            type="radio"
+                            name="reading-variant"
+                            checked={testVariant === variant}
+                            onChange={() => setTestVariant(variant)}
+                          />
+                          <span>{variant === "academic" ? "Academic" : "General Training"}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <p style={{ color: "var(--muted)", fontSize: "0.9rem", margin: 0 }}>
+                    {readingIntro}
+                  </p>
+                </div>
 
                 {[1, 2, 3].map((part) => {
                   const passage = readingPassages.find((p) => p.part === part) ?? { part, title: "", text: "", image_url: "" };
@@ -1028,7 +1057,7 @@ export function ExamWizard({
                           <span style={{ transition: "transform 0.2s", display: "inline-block", transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)" }}>
                             <ChevronRight style={{ width: "1rem", height: "1rem" }} />
                           </span>
-                          <span className="admin-part-card__title">Passage {part}</span>
+                          <span className="admin-part-card__title">{readingSectionLabel} {part}</span>
                           <span className="admin-part-card__meta">
                             {passage.title ? `"${passage.title}"` : "No title"} · {partQuestions.length} Q
                           </span>
@@ -1039,26 +1068,26 @@ export function ExamWizard({
                         <div className="admin-part-card__body">
                           {/* Passage fields */}
                           <div style={{ marginBottom: "1rem" }}>
-                            <label className="admin-label">Passage title</label>
+                            <label className="admin-label">{readingSectionLabel} title</label>
                             <input
                               className="admin-input"
                               value={passage.title}
                               onChange={(e) => updateReadingPassage(part, { title: e.target.value })}
-                              placeholder={`Passage ${part} title…`}
+                              placeholder={`${readingSectionLabel} ${part} title…`}
                             />
                           </div>
                           <div style={{ marginBottom: "1rem" }}>
-                            <label className="admin-label">Passage text</label>
+                            <label className="admin-label">{readingSectionLabel} text</label>
                             <textarea
                               className="admin-textarea"
                               rows={8}
                               value={passage.text}
                               onChange={(e) => updateReadingPassage(part, { text: e.target.value })}
-                              placeholder="Paste the full passage text here…"
+                              placeholder={testVariant === "general" ? "Paste the full General Training reading section text here…" : "Paste the full academic reading passage here…"}
                             />
                           </div>
                           <div style={{ marginBottom: "1rem" }}>
-                            <label className="admin-label">Passage image URL (optional)</label>
+                            <label className="admin-label">{readingSectionLabel} image URL (optional)</label>
                             <input
                               className="admin-input"
                               value={passage.image_url}
@@ -1086,7 +1115,7 @@ export function ExamWizard({
                               </button>
                             </div>
                             {partQuestions.length === 0 ? (
-                              <p style={{ color: "var(--muted)", fontSize: "0.85rem" }}>No questions for Passage {part} yet.</p>
+                              <p style={{ color: "var(--muted)", fontSize: "0.85rem" }}>No questions for {readingSectionLabel} {part} yet.</p>
                             ) : null}
                             {partQuestions.map((q, qIdx) => renderQuestionCard(q, qIdx))}
                           </div>

@@ -4,6 +4,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getAuthUser } from "@/lib/supabase/server";
 import { isAdminEmail } from "@/lib/auth/admin";
+import {
+  coerceTestVariant,
+  getReadingSectionLabel,
+  SUPPORTED_QUESTION_TYPE_VALUES,
+  type TestVariant,
+} from "@/lib/exam/ielts-defaults";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
 
 async function requireAdmin() {
@@ -138,6 +144,225 @@ export type ExamWizardSaveInput = {
   questions: WizardQuestionInput[];
 };
 
+type SanitizedListeningClip = { part: number; url: string; title: string };
+type ReadingPassage = { part: number; title: string; text: string; image_url: string };
+
+function parseExamMeta(structure_json: unknown): { testVariant: TestVariant; readingPassages: ReadingPassage[] } {
+  let testVariant: TestVariant = "academic";
+  let readingPassages: ReadingPassage[] = [];
+
+  if (!structure_json || typeof structure_json !== "object") {
+    return { testVariant, readingPassages };
+  }
+
+  const structure = structure_json as Record<string, unknown>;
+  if (structure.exam_meta && typeof structure.exam_meta === "object") {
+    const meta = structure.exam_meta as Record<string, unknown>;
+    testVariant = coerceTestVariant(meta.test_variant);
+  }
+
+  if (Array.isArray(structure.reading_passages)) {
+    readingPassages = structure.reading_passages
+      .map((row) => {
+        if (!row || typeof row !== "object") return null;
+        const passage = row as Record<string, unknown>;
+        return {
+          part: Math.max(1, Math.min(3, Math.floor(Number(passage.part)) || 1)),
+          title: String(passage.title ?? "").trim(),
+          text: String(passage.text ?? "").trim(),
+          image_url: String(passage.image_url ?? "").trim(),
+        };
+      })
+      .filter((row): row is ReadingPassage => Boolean(row));
+  }
+
+  return { testVariant, readingPassages };
+}
+
+function getObjectiveAnswerError(question: WizardQuestionInput): string | null {
+  const prompt = String(question.prompt ?? "").trim();
+  if (!prompt) {
+    return "Every published listening and reading question must include question text.";
+  }
+
+  if (question.question_type === "multiple_choice") {
+    const options = Array.isArray(question.options_json)
+      ? question.options_json.map((option) => String(option ?? "").trim()).filter(Boolean)
+      : [];
+    const correct = question.correct_json && typeof question.correct_json === "object"
+      ? (question.correct_json as { kind?: string; index?: unknown })
+      : null;
+    const index = typeof correct?.index === "number" ? correct.index : Number(correct?.index);
+    if (options.length < 2) {
+      return "Multiple-choice listening and reading questions need at least 2 answer options.";
+    }
+    if (correct?.kind !== "index" || !Number.isInteger(index) || index < 0 || index >= options.length) {
+      return "Multiple-choice listening and reading questions need one valid correct answer.";
+    }
+    return null;
+  }
+
+  if (question.question_type === "true_false_not_given" || question.question_type === "yes_no_not_given") {
+    const allowed = question.question_type === "true_false_not_given"
+      ? new Set(["true", "false", "not_given"])
+      : new Set(["yes", "no", "not_given"]);
+    const correct = question.correct_json && typeof question.correct_json === "object"
+      ? (question.correct_json as { kind?: string; value?: unknown })
+      : null;
+    const value = String(correct?.value ?? "").trim();
+    if (correct?.kind !== "triple" || !allowed.has(value)) {
+      return `${question.question_type === "true_false_not_given" ? "True / False / Not Given" : "Yes / No / Not Given"} questions need one valid correct answer.`;
+    }
+    return null;
+  }
+
+  const textTypes = new Set([
+    "completion",
+    "short_answer",
+    "fill_in_blank",
+    "sentence_completion",
+    "matching_headings",
+    "matching_information",
+    "matching_features",
+    "sentence_endings",
+    "map_diagram_labeling",
+    "matching",
+  ]);
+  if (textTypes.has(question.question_type)) {
+    const correct = question.correct_json && typeof question.correct_json === "object"
+      ? (question.correct_json as { kind?: string; value?: unknown })
+      : null;
+    const value = String(correct?.value ?? "").trim();
+    if (correct?.kind !== "rubric" || !value) {
+      return "Completion and matching listening/reading questions need an expected answer or answer key before publishing.";
+    }
+  }
+
+  return null;
+}
+
+function validateListeningForPublish(
+  questions: WizardQuestionInput[],
+  listeningAudio: SanitizedListeningClip[],
+): string | null {
+  const listeningQuestions = questions.filter((question) => question.module === "listening");
+  if (listeningQuestions.length !== 40) {
+    return "Published Listening exams must contain exactly 40 questions across 4 parts.";
+  }
+
+  const counts = new Map<number, number>([
+    [1, 0],
+    [2, 0],
+    [3, 0],
+    [4, 0],
+  ]);
+
+  for (const question of listeningQuestions) {
+    const part = Number(question.part);
+    if (!Number.isInteger(part) || part < 1 || part > 4) {
+      return "Every published Listening question must be assigned to Part 1, 2, 3, or 4.";
+    }
+    counts.set(part, (counts.get(part) ?? 0) + 1);
+    const answerError = getObjectiveAnswerError(question);
+    if (answerError) return answerError;
+  }
+
+  for (const part of [1, 2, 3, 4]) {
+    if ((counts.get(part) ?? 0) !== 10) {
+      return `Listening Part ${part} must contain exactly 10 questions before publishing.`;
+    }
+  }
+
+  const audioParts = new Set<number>();
+  for (const clip of listeningAudio) {
+    if (clip.part < 1 || clip.part > 4) {
+      return "Listening audio can only be attached to Parts 1 through 4.";
+    }
+    audioParts.add(clip.part);
+  }
+  for (const part of [1, 2, 3, 4]) {
+    if (!audioParts.has(part)) {
+      return `Listening Part ${part} is missing its audio recording.`;
+    }
+  }
+
+  return null;
+}
+
+function validateReadingForPublish(
+  questions: WizardQuestionInput[],
+  readingPassages: ReadingPassage[],
+  testVariant: TestVariant,
+): string | null {
+  const label = getReadingSectionLabel(testVariant);
+  const variantLabel = testVariant === "academic" ? "Academic" : "General Training";
+  const readingQuestions = questions.filter((question) => question.module === "reading");
+
+  if (readingQuestions.length !== 40) {
+    return `Published ${variantLabel} Reading exams must contain exactly 40 questions across 3 ${label.toLowerCase()}s.`;
+  }
+
+  const passagesByPart = new Map<number, ReadingPassage>();
+  for (const passage of readingPassages) {
+    passagesByPart.set(passage.part, passage);
+  }
+  for (const part of [1, 2, 3]) {
+    const passage = passagesByPart.get(part);
+    if (!passage?.text) {
+      return `${label} ${part} needs full source text before publishing.`;
+    }
+  }
+
+  const counts = new Map<number, number>([
+    [1, 0],
+    [2, 0],
+    [3, 0],
+  ]);
+  for (const question of readingQuestions) {
+    const part = Number(question.part);
+    if (!Number.isInteger(part) || part < 1 || part > 3) {
+      return `Every published Reading question must be assigned to ${label} 1, 2, or 3.`;
+    }
+    counts.set(part, (counts.get(part) ?? 0) + 1);
+    const answerError = getObjectiveAnswerError(question);
+    if (answerError) return answerError;
+  }
+  for (const part of [1, 2, 3]) {
+    if ((counts.get(part) ?? 0) === 0) {
+      return `${label} ${part} must contain at least one question before publishing.`;
+    }
+  }
+
+  return null;
+}
+
+function validatePublishRules(
+  input: ExamWizardSaveInput,
+  listeningAudio: SanitizedListeningClip[],
+): string | null {
+  const questions = input.questions ?? [];
+  for (const question of questions) {
+    const questionType = String(question.question_type ?? "").trim();
+    if (!SUPPORTED_QUESTION_TYPE_VALUES.has(questionType)) {
+      return `Question type "${questionType || "unknown"}" is not supported. Replace it before publishing.`;
+    }
+  }
+
+  const { testVariant, readingPassages } = parseExamMeta(input.structure_json);
+
+  if (input.modules.includes("listening")) {
+    const listeningError = validateListeningForPublish(questions, listeningAudio);
+    if (listeningError) return listeningError;
+  }
+
+  if (input.modules.includes("reading")) {
+    const readingError = validateReadingForPublish(questions, readingPassages, testVariant);
+    if (readingError) return readingError;
+  }
+
+  return null;
+}
+
 export async function saveExamWizard(
   input: ExamWizardSaveInput,
 ): Promise<{ ok: true; id: string } | { ok: false; message: string }> {
@@ -179,7 +404,7 @@ export async function saveExamWizard(
     Number.parseInt(String(input.duration_minutes ?? 30), 10) || 30;
   const question_count =
     Number.parseInt(String(input.question_count ?? 0), 10) ||
-    Math.max(1, input.questions?.length ?? 0);
+    Math.max(0, input.questions?.length ?? 0);
   const difficulty =
     input.difficulty === "beginner" ||
     input.difficulty === "intermediate" ||
@@ -200,6 +425,10 @@ export async function saveExamWizard(
   const structure_json = input.structure_json ?? [];
   const scoring_json = input.scoring_json ?? {};
   const listening_audio_json = sanitizeListeningAudioJson(input.listening_audio_json);
+  const publishError = input.is_published ? validatePublishRules({ ...input, modules }, listening_audio_json) : null;
+  if (publishError) {
+    return { ok: false, message: publishError };
+  }
 
   const examPayload = {
     category_id,
@@ -280,7 +509,7 @@ export async function saveExamWizard(
         exam_id: examId,
         sort_order,
         module: MODULE_SET.has(q.module) ? q.module : "reading",
-        question_type: String(q.question_type || "multiple_choice").slice(0, 120),
+        question_type: String(q.question_type === "multiple_choice_multi" ? "multiple_choice" : q.question_type || "multiple_choice").slice(0, 120),
         prompt: String(q.prompt ?? "").slice(0, 20000),
         options_json: q.options_json ?? [],
         correct_json: q.correct_json ?? null,

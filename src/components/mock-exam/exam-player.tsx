@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { submitExamAttempt } from "@/app/(site)/mock-exam/actions";
+import { coerceTestVariant, getReadingSectionLabel } from "@/lib/exam/ielts-defaults";
 import { Clock, Send, Volume2, Pause, Play, ChevronLeft, ChevronRight } from "lucide-react";
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -28,6 +29,7 @@ export type ExamData = {
   duration_minutes: number;
   listening_audio_json?: { part: number; url: string; title?: string }[] | null;
   structure_json?: {
+    exam_meta?: { test_variant?: "academic" | "general" };
     reading_passages?: { part: number; title: string; text: string; image_url?: string }[];
     writing_tasks?: { part: number; prompt: string; image_url?: string; min_words?: number }[];
   } | null;
@@ -171,6 +173,8 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
   const isReading = currentPartInfo.module === "reading";
   const isListening = currentPartInfo.module === "listening";
   const isWriting = currentPartInfo.module === "writing";
+  const readingVariant = coerceTestVariant(exam.structure_json?.exam_meta?.test_variant);
+  const readingSectionLabel = getReadingSectionLabel(readingVariant);
 
   // Get audio for a specific part
   const getAudioForPart = (partNum: number) => {
@@ -404,12 +408,12 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
             {/* LEFT: Passage */}
             <div className="ep-reading-split__passage">
               <div className="ep-reading-split__passage-inner">
-                <p className="ep-reading-split__part-label ep-slide-up">PART {currentPartInfo.part}</p>
-                <h2 className="ep-reading-split__title ep-slide-up">Reading Passage {currentPartInfo.part}</h2>
+                <p className="ep-reading-split__part-label ep-slide-up">{readingSectionLabel.toUpperCase()} {currentPartInfo.part}</p>
+                <h2 className="ep-reading-split__title ep-slide-up">Reading {readingSectionLabel} {currentPartInfo.part}</h2>
                 {(() => {
                   const passages = exam.structure_json?.reading_passages ?? [];
                   const passage = passages.find((p) => p.part === currentPartInfo.part);
-                  if (!passage) return <p style={{ color: "var(--muted)" }}>No passage text available.</p>;
+                  if (!passage) return <p style={{ color: "var(--muted)" }}>No {readingSectionLabel.toLowerCase()} text available.</p>;
                   return (
                     <>
                       {passage.image_url ? (
