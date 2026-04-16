@@ -17,12 +17,13 @@ export function ThemeToggle() {
   }
 
   const isDark = resolvedTheme === "dark";
+  const nextTheme = isDark ? "light" : "dark";
 
   return (
     <motion.button
       type="button"
       className="theme-toggle"
-      onClick={() => setTheme(isDark ? "light" : "dark")}
+      onClick={() => setTheme(nextTheme)}
       aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
       whileHover={{ scale: 1.05 }}
       whileTap={{ scale: 0.95 }}
@@ -35,21 +36,21 @@ export function ThemeToggle() {
         >
           {isDark ? (
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-              <path
-                d="M21 14.5A8.5 8.5 0 0111.5 5a8.4 8.4 0 013.5 9.5z"
-                stroke="currentColor"
-                strokeWidth="1.6"
-                strokeLinejoin="round"
-              />
-            </svg>
-          ) : (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
               <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="1.6" />
               <path
                 d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"
                 stroke="currentColor"
                 strokeWidth="1.6"
                 strokeLinecap="round"
+              />
+            </svg>
+          ) : (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <path
+                d="M21 14.5A8.5 8.5 0 0111.5 5a8.4 8.4 0 013.5 9.5z"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinejoin="round"
               />
             </svg>
           )}
