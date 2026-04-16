@@ -949,23 +949,43 @@
 }
 
 .admin-review-item--format {
-  background: color-mix(in srgb, #4f7cff 10%, var(--surface));
-  border-color: color-mix(in srgb, #4f7cff 22%, var(--border));
+  background: #2ed23f;
+  border-color: #2ed23f;
 }
 
 .admin-review-item--surface {
-  background: color-mix(in srgb, #27b6a6 10%, var(--surface));
-  border-color: color-mix(in srgb, #27b6a6 24%, var(--border));
+  background: #2ea2d7;
+  border-color: #2ea2d7;
 }
 
 .admin-review-item--category {
-  background: color-mix(in srgb, #ff9a62 10%, var(--surface));
-  border-color: color-mix(in srgb, #ff9a62 24%, var(--border));
+  background: #ffa924;
+  border-color: #ffa924;
 }
 
 .admin-review-item--state {
-  background: color-mix(in srgb, #8b7cff 10%, var(--surface));
-  border-color: color-mix(in srgb, #8b7cff 24%, var(--border));
+  background: #8c51f8;
+  border-color: #8c51f8;
+}
+
+.admin-review-item--format .admin-review-label,
+.admin-review-item--surface .admin-review-label,
+.admin-review-item--category .admin-review-label,
+.admin-review-item--state .admin-review-label {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.admin-review-item--format .admin-review-value,
+.admin-review-item--surface .admin-review-value,
+.admin-review-item--category .admin-review-value,
+.admin-review-item--state .admin-review-value {
+  color: #fff;
+}
+
+.admin-review-item--state .admin-badge {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #fff;
 }
 
 .admin-review-label {
