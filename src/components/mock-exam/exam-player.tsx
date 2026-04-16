@@ -66,6 +66,16 @@ type SpeakingRecordingAnswer = {
   duration_seconds: number;
 };
 
+function normalizeAudioMimeType(mimeType: string): string {
+  const lower = mimeType.toLowerCase();
+  if (lower.includes("audio/webm")) return "audio/webm";
+  if (lower.includes("audio/mp4")) return "audio/mp4";
+  if (lower.includes("audio/mpeg") || lower.includes("audio/mp3")) return "audio/mpeg";
+  if (lower.includes("audio/wav")) return "audio/wav";
+  if (lower.includes("audio/ogg")) return "audio/ogg";
+  return "audio/webm";
+}
+
 const MODULE_LABELS: Record<string, string> = {
   listening: "Listening",
   reading: "Reading",
@@ -465,7 +475,7 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
   }, [recordingPreviewUrls]);
 
   const uploadSpeakingRecording = useCallback(async (questionId: string, blob: Blob, durationSeconds: number) => {
-    const mimeType = blob.type || mediaRecorderRef.current?.mimeType || "audio/webm";
+    const mimeType = normalizeAudioMimeType(blob.type || mediaRecorderRef.current?.mimeType || "audio/webm");
     const extension = mimeType.includes("mp4")
       ? "mp4"
       : mimeType.includes("mpeg") || mimeType.includes("mp3")
@@ -552,7 +562,7 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
       recorder.onstop = async () => {
         const durationSeconds = Math.max(1, Math.round((Date.now() - recordingStartedAtRef.current) / 1000));
         const blob = new Blob(mediaChunksRef.current, {
-          type: recorder.mimeType || "audio/webm",
+          type: normalizeAudioMimeType(recorder.mimeType || "audio/webm"),
         });
 
         mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
