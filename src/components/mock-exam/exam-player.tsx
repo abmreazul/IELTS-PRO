@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { submitExamAttempt } from "@/app/(site)/mock-exam/actions";
+import { getSignedSpeakingResponseUploadUrl, submitExamAttempt } from "@/app/(site)/mock-exam/actions";
 import {
   coerceTestVariant,
   getReadingSectionLabel,
@@ -37,6 +37,11 @@ export type ExamData = {
     exam_meta?: { test_variant?: "academic" | "general" };
     reading_passages?: { part: number; title: string; text: string; image_url?: string }[];
     writing_tasks?: { part: number; prompt: string; image_url?: string; min_words?: number }[];
+    speaking?: {
+      part1?: { topic_title?: string; prompts?: string[]; audio_url?: string };
+      part2?: { cue_card?: string; bullet_points?: string[]; follow_up_prompt?: string; audio_url?: string };
+      part3?: { topic_title?: string; prompts?: string[]; audio_url?: string };
+    };
   } | null;
 };
 
@@ -46,11 +51,19 @@ type Props = {
   attemptId: string;
 };
 
-type AnswerMap = Record<string, string | number | string[]>;
+type AnswerMap = Record<string, unknown>;
 type SubmitResult = {
   overallBand: number | null;
   moduleBands: Record<string, number | null>;
   reviewPendingModules: string[];
+};
+
+type SpeakingRecordingAnswer = {
+  kind: "audio_recording";
+  bucket: string;
+  path: string;
+  mime_type: string;
+  duration_seconds: number;
 };
 
 const MODULE_LABELS: Record<string, string> = {
@@ -113,6 +126,7 @@ const MODULE_PART_COUNTS: Record<string, number> = {
   listening: 4,
   reading: 3,
   writing: 2,
+  speaking: 3,
 };
 
 const MODULE_ORDER = ["listening", "reading", "writing", "speaking"];
@@ -190,6 +204,11 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
   const [submitted, setSubmitted] = useState(false);
   const [result, setResult] = useState<SubmitResult | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [recordingQuestionId, setRecordingQuestionId] = useState<string | null>(null);
+  const [uploadingQuestionId, setUploadingQuestionId] = useState<string | null>(null);
+  const [recordingError, setRecordingError] = useState<string | null>(null);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [recordingPreviewUrls, setRecordingPreviewUrls] = useState<Record<string, string>>({});
 
   // Audio
   const masterAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -206,6 +225,10 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
 
   const contentRef = useRef<HTMLDivElement>(null);
   const [navCollapsed, setNavCollapsed] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const mediaChunksRef = useRef<Blob[]>([]);
+  const recordingStartedAtRef = useRef<number>(0);
 
   const totalSeconds = exam.duration_minutes * 60;
   const handleTimeEnd = useCallback(() => {
@@ -221,6 +244,7 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
   const isReading = currentPartInfo.module === "reading";
   const isListening = currentPartInfo.module === "listening";
   const isWriting = currentPartInfo.module === "writing";
+  const isSpeaking = currentPartInfo.module === "speaking";
   const readingVariant = coerceTestVariant(exam.structure_json?.exam_meta?.test_variant);
   const readingSectionLabel = getReadingSectionLabel(readingVariant);
   const listeningAudioSource = useMemo(
@@ -292,11 +316,26 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
     return true;
   }, [activePart, currentPartInfo.module, currentPartInfo.part, furthestListeningPart, isMasterListeningAudio, listeningFinished, listeningStarted, parts]);
 
-  const setAnswer = (questionId: string, value: string | number) => {
+  const setAnswer = (questionId: string, value: unknown) => {
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
   };
 
+  const getSpeakingAnswer = (questionId: string): SpeakingRecordingAnswer | null => {
+    const value = answers[questionId];
+    if (!value || typeof value !== "object") return null;
+    const answer = value as Partial<SpeakingRecordingAnswer>;
+    if (answer.kind !== "audio_recording" || !answer.path || !answer.bucket) return null;
+    return {
+      kind: "audio_recording",
+      bucket: String(answer.bucket),
+      path: String(answer.path),
+      mime_type: String(answer.mime_type ?? "audio/webm"),
+      duration_seconds: Number(answer.duration_seconds ?? 0),
+    };
+  };
+
   const goToPart = (part: number) => {
+    if (recordingQuestionId || uploadingQuestionId) return;
     if (!canNavigateToPart(part)) return;
     const targetPart = parts[part - 1];
     const shouldKeepMasterAudioPlaying =
@@ -326,6 +365,10 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
 
   const handleSubmit = async () => {
     if (submitting || submitted) return;
+    if (recordingQuestionId || uploadingQuestionId) {
+      alert("Finish the current speaking recording before submitting.");
+      return;
+    }
     setSubmitting(true);
     setShowConfirm(false);
     const res = await submitExamAttempt(attemptId, answers);
@@ -403,6 +446,143 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
   }, [currentPartInfo.module, currentPartInfo.part, isMasterListeningAudio, pendingAutoplayPart]);
 
   useEffect(() => stopListeningAudio, [stopListeningAudio]);
+
+  useEffect(() => {
+    if (!recordingQuestionId) return;
+    const id = window.setInterval(() => {
+      if (!recordingStartedAtRef.current) return;
+      setRecordingSeconds(Math.max(0, Math.round((Date.now() - recordingStartedAtRef.current) / 1000)));
+    }, 250);
+    return () => window.clearInterval(id);
+  }, [recordingQuestionId]);
+
+  useEffect(() => {
+    return () => {
+      mediaRecorderRef.current?.stop();
+      mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+      Object.values(recordingPreviewUrls).forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [recordingPreviewUrls]);
+
+  const uploadSpeakingRecording = useCallback(async (questionId: string, blob: Blob, durationSeconds: number) => {
+    const mimeType = blob.type || mediaRecorderRef.current?.mimeType || "audio/webm";
+    const extension = mimeType.includes("mp4")
+      ? "mp4"
+      : mimeType.includes("mpeg") || mimeType.includes("mp3")
+        ? "mp3"
+        : mimeType.includes("ogg")
+          ? "ogg"
+          : mimeType.includes("wav")
+            ? "wav"
+            : "webm";
+
+    setUploadingQuestionId(questionId);
+    const signed = await getSignedSpeakingResponseUploadUrl(attemptId, questionId, extension, mimeType);
+    if (!signed.ok) {
+      setUploadingQuestionId(null);
+      setRecordingError(signed.message);
+      return;
+    }
+
+    const response = await fetch(signed.signedUrl, {
+      method: "PUT",
+      headers: {
+        "Content-Type": mimeType,
+      },
+      body: blob,
+    });
+
+    if (!response.ok) {
+      setUploadingQuestionId(null);
+      setRecordingError(`Upload failed (${response.status})`);
+      return;
+    }
+
+    setAnswer(questionId, {
+      kind: "audio_recording",
+      bucket: signed.bucket,
+      path: signed.path,
+      mime_type: mimeType,
+      duration_seconds: durationSeconds,
+    });
+    setUploadingQuestionId(null);
+    setRecordingError(null);
+  }, [attemptId]);
+
+  const stopSpeakingRecording = useCallback(async () => {
+    const recorder = mediaRecorderRef.current;
+    if (!recorder || recorder.state === "inactive" || !recordingQuestionId) return;
+    recorder.stop();
+  }, [recordingQuestionId]);
+
+  const startSpeakingRecording = useCallback(async (questionId: string) => {
+    if (recordingQuestionId || uploadingQuestionId) return;
+    if (typeof window === "undefined" || !navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      setRecordingError("This browser does not support microphone recording.");
+      return;
+    }
+
+    try {
+      setRecordingError(null);
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+      mediaChunksRef.current = [];
+
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : MediaRecorder.isTypeSupported("audio/webm")
+          ? "audio/webm"
+          : "";
+      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
+      recordingStartedAtRef.current = Date.now();
+      setRecordingQuestionId(questionId);
+      setRecordingSeconds(0);
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          mediaChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onerror = () => {
+        setRecordingError("Recording failed. Please allow microphone access and try again.");
+      };
+
+      recorder.onstop = async () => {
+        const durationSeconds = Math.max(1, Math.round((Date.now() - recordingStartedAtRef.current) / 1000));
+        const blob = new Blob(mediaChunksRef.current, {
+          type: recorder.mimeType || "audio/webm",
+        });
+
+        mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+        mediaStreamRef.current = null;
+        mediaRecorderRef.current = null;
+        setRecordingQuestionId(null);
+        setRecordingSeconds(0);
+
+        if (blob.size === 0) {
+          setRecordingError("No audio was captured. Please try again.");
+          return;
+        }
+
+        setRecordingPreviewUrls((prev) => {
+          if (prev[questionId]) URL.revokeObjectURL(prev[questionId]);
+          return { ...prev, [questionId]: URL.createObjectURL(blob) };
+        });
+
+        await uploadSpeakingRecording(questionId, blob, durationSeconds);
+      };
+
+      recorder.start();
+    } catch {
+      setRecordingError("Microphone access was denied or unavailable.");
+      mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
+      mediaRecorderRef.current = null;
+      setRecordingQuestionId(null);
+    }
+  }, [recordingQuestionId, uploadingQuestionId, uploadSpeakingRecording]);
 
   const answeredInPart = (partQuestions: ExamQuestion[]) =>
     partQuestions.filter((q) => answers[q.id] !== undefined).length;
@@ -520,7 +700,38 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
         {q.question_type === "speaking_prompt" ? (
           <>
             <p className="ep-q__text"><strong>{globalIdx + 1}.</strong> {q.prompt}</p>
-            <p className="ep-q__speaking-note">🎤 Speaking prompt — respond verbally in a real exam.</p>
+            <div className="ep-speaking-recorder">
+              <p className="ep-q__speaking-note">Respond aloud, record your answer, and upload it for moderator review.</p>
+              <div className="ep-speaking-recorder__actions">
+                {recordingQuestionId === q.id ? (
+                  <button type="button" className="ep-speaking-recorder__btn ep-speaking-recorder__btn--stop" onClick={() => void stopSpeakingRecording()}>
+                    Stop Recording ({recordingSeconds}s)
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="ep-speaking-recorder__btn"
+                    disabled={Boolean(recordingQuestionId || uploadingQuestionId)}
+                    onClick={() => void startSpeakingRecording(q.id)}
+                  >
+                    {getSpeakingAnswer(q.id) ? "Record Again" : "Start Recording"}
+                  </button>
+                )}
+                {uploadingQuestionId === q.id ? (
+                  <span className="ep-speaking-recorder__status">Uploading response…</span>
+                ) : getSpeakingAnswer(q.id) ? (
+                  <span className="ep-speaking-recorder__status ep-speaking-recorder__status--ok">
+                    Saved for review ({getSpeakingAnswer(q.id)?.duration_seconds ?? 0}s)
+                  </span>
+                ) : null}
+              </div>
+              {recordingPreviewUrls[q.id] ? (
+                <audio controls src={recordingPreviewUrls[q.id]} className="ep-speaking-recorder__preview" preload="metadata" />
+              ) : null}
+              {recordingError ? (
+                <p className="ep-speaking-recorder__error">{recordingError}</p>
+              ) : null}
+            </div>
           </>
         ) : null}
       </div>
@@ -703,7 +914,7 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
             <div className="ep-content__inner">
               <h2 className="ep-part-title ep-slide-up">{currentPartInfo.module === "speaking" ? "Speaking" : `Part ${currentPartInfo.part}`}</h2>
 
-              {/* Audio player for this part (listening) */}
+              {/* Audio player for this part (listening / speaking) */}
               {isListening && getAudioForPart(currentPartInfo.part) ? (
                 <div className="ep-listen-bar ep-slide-up">
                   <span className="ep-listen-bar__label">
@@ -794,6 +1005,36 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
                     <div className="ep-listen-bar__progress-fill" style={{ width: `${masterAudioProgress}%` }} />
                   </div>
                 </div>
+              ) : isSpeaking ? (
+                <>
+                  <p className="ep-part-range ep-slide-up">
+                    Speaking Part {currentPartInfo.part}
+                    {currentPartInfo.part === 1
+                      ? " · Introduction and interview"
+                      : currentPartInfo.part === 2
+                        ? " · Long turn / cue card"
+                        : " · Discussion"}
+                  </p>
+                  {(() => {
+                    const speaking = exam.structure_json?.speaking;
+                    const speakingPart = currentPartInfo.part === 1
+                      ? speaking?.part1
+                      : currentPartInfo.part === 2
+                        ? speaking?.part2
+                        : speaking?.part3;
+                    const examinerAudioUrl = speakingPart?.audio_url?.trim();
+                    if (!examinerAudioUrl) return null;
+                    return (
+                      <div className="ep-listen-bar ep-slide-up">
+                        <span className="ep-listen-bar__label">Examiner prompt audio</span>
+                        <span className="ep-listen-bar__meta">
+                          Play the examiner recording before you answer this speaking part.
+                        </span>
+                        <audio controls src={examinerAudioUrl} preload="metadata" style={{ width: "100%", maxWidth: "560px" }} />
+                      </div>
+                    );
+                  })()}
+                </>
               ) : (
                 <p className="ep-part-range ep-slide-up">
                   Questions {currentPartInfo.startIndex + 1}–{currentPartInfo.startIndex + currentPartInfo.questions.length}

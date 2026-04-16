@@ -626,6 +626,74 @@
   margin-top: 0.5rem;
 }
 
+.ep-speaking-recorder {
+  margin-top: 0.75rem;
+  padding: 1rem;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--primary) 4%, var(--surface));
+}
+
+.ep-speaking-recorder__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 0.75rem;
+}
+
+.ep-speaking-recorder__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.65rem 1rem;
+  border: none;
+  border-radius: 10px;
+  background: var(--primary);
+  color: #fff;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+}
+
+.ep-speaking-recorder__btn:hover:not(:disabled) {
+  opacity: 0.92;
+  transform: translateY(-1px);
+}
+
+.ep-speaking-recorder__btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.ep-speaking-recorder__btn--stop {
+  background: #dc2626;
+}
+
+.ep-speaking-recorder__status {
+  font-size: 0.82rem;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.ep-speaking-recorder__status--ok {
+  color: #15803d;
+}
+
+.ep-speaking-recorder__preview {
+  width: 100%;
+  margin-top: 0.85rem;
+}
+
+.ep-speaking-recorder__error {
+  margin: 0.7rem 0 0;
+  font-size: 0.82rem;
+  color: #b91c1c;
+  font-weight: 700;
+}
+
 /* ═══════════════════════════════════════════════════════════════════
    Right: Question navigator panel
    ═══════════════════════════════════════════════════════════════════ */

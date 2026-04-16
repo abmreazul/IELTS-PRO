@@ -51,6 +51,9 @@ type ListeningClip = { part: number; url: string; title: string };
 type ListeningAudioAsset = { url: string; title: string };
 type ReadingPassage = { part: number; title: string; text: string; image_url: string };
 type WritingTask = { part: number; prompt: string; image_url: string; min_words: number };
+type SpeakingPartOne = { topic_title: string; prompts: string[]; audio_url: string };
+type SpeakingPartTwo = { cue_card: string; bullet_points: string[]; follow_up_prompt: string; audio_url: string };
+type SpeakingPartThree = { topic_title: string; prompts: string[]; audio_url: string };
 
 type DbQuestion = {
   id: string;
@@ -177,6 +180,9 @@ function dbQuestionToDraft(q: DbQuestion): QuestionDraft {
   } else if (mod === "writing") {
     part = q.sort_order >= 100 ? Math.floor(q.sort_order / 100) : 1;
     part = Math.max(1, Math.min(2, part));
+  } else if (mod === "speaking") {
+    part = q.sort_order >= 100 ? Math.floor(q.sort_order / 100) : 1;
+    part = Math.max(1, Math.min(3, part));
   }
   return {
     tempId: q.id,
@@ -353,12 +359,93 @@ export function ExamWizard({
     ];
   });
 
+  const [speakingPartOne, setSpeakingPartOne] = useState<SpeakingPartOne>(() => {
+    const sj = initialExam?.structure_json;
+    if (sj && typeof sj === "object" && "speaking" in (sj as Record<string, unknown>)) {
+      const speaking = (sj as Record<string, unknown>).speaking;
+      if (speaking && typeof speaking === "object" && "part1" in (speaking as Record<string, unknown>)) {
+        const part = (speaking as Record<string, unknown>).part1;
+        if (part && typeof part === "object") {
+          const value = part as Record<string, unknown>;
+          return {
+            topic_title: String(value.topic_title ?? ""),
+            prompts: Array.isArray(value.prompts) ? value.prompts.map((prompt) => String(prompt ?? "")) : ["", "", "", ""],
+            audio_url: String(value.audio_url ?? ""),
+          };
+        }
+      }
+    }
+    const existing = initialQuestions
+      .map(dbQuestionToDraft)
+      .filter((question) => question.module === "speaking" && question.part === 1);
+    return {
+      topic_title: "",
+      prompts: existing.length > 0 ? existing.map((question) => question.prompt) : ["", "", "", ""],
+      audio_url: "",
+    };
+  });
+
+  const [speakingPartTwo, setSpeakingPartTwo] = useState<SpeakingPartTwo>(() => {
+    const sj = initialExam?.structure_json;
+    if (sj && typeof sj === "object" && "speaking" in (sj as Record<string, unknown>)) {
+      const speaking = (sj as Record<string, unknown>).speaking;
+      if (speaking && typeof speaking === "object" && "part2" in (speaking as Record<string, unknown>)) {
+        const part = (speaking as Record<string, unknown>).part2;
+        if (part && typeof part === "object") {
+          const value = part as Record<string, unknown>;
+          return {
+            cue_card: String(value.cue_card ?? ""),
+            bullet_points: Array.isArray(value.bullet_points) ? value.bullet_points.map((point) => String(point ?? "")) : ["", "", ""],
+            follow_up_prompt: String(value.follow_up_prompt ?? ""),
+            audio_url: String(value.audio_url ?? ""),
+          };
+        }
+      }
+    }
+    const existing = initialQuestions
+      .map(dbQuestionToDraft)
+      .find((question) => question.module === "speaking" && question.part === 2);
+    return {
+      cue_card: existing?.prompt ?? "",
+      bullet_points: ["", "", ""],
+      follow_up_prompt: "",
+      audio_url: "",
+    };
+  });
+
+  const [speakingPartThree, setSpeakingPartThree] = useState<SpeakingPartThree>(() => {
+    const sj = initialExam?.structure_json;
+    if (sj && typeof sj === "object" && "speaking" in (sj as Record<string, unknown>)) {
+      const speaking = (sj as Record<string, unknown>).speaking;
+      if (speaking && typeof speaking === "object" && "part3" in (speaking as Record<string, unknown>)) {
+        const part = (speaking as Record<string, unknown>).part3;
+        if (part && typeof part === "object") {
+          const value = part as Record<string, unknown>;
+          return {
+            topic_title: String(value.topic_title ?? ""),
+            prompts: Array.isArray(value.prompts) ? value.prompts.map((prompt) => String(prompt ?? "")) : ["", "", "", ""],
+            audio_url: String(value.audio_url ?? ""),
+          };
+        }
+      }
+    }
+    const existing = initialQuestions
+      .map(dbQuestionToDraft)
+      .filter((question) => question.module === "speaking" && question.part === 3);
+    return {
+      topic_title: "",
+      prompts: existing.length > 0 ? existing.map((question) => question.prompt) : ["", "", "", ""],
+      audio_url: "",
+    };
+  });
+
   /* Active module tab for the Questions step (for "full" exams only) */
   const [activeModuleTab, setActiveModuleTab] = useState<string>(modules[0] ?? "listening");
 
   const hasListening = modules.includes("listening");
   const hasReading = modules.includes("reading");
   const hasWriting = modules.includes("writing");
+  const hasSpeaking = modules.includes("speaking");
 
   const generatedWritingQuestions = useMemo<QuestionDraft[]>(() => {
     if (!hasWriting) return [];
@@ -381,9 +468,76 @@ export function ExamWizard({
     });
   }, [hasWriting, questions, writingTasks]);
 
+  const generatedSpeakingQuestions = useMemo<QuestionDraft[]>(() => {
+    if (!hasSpeaking) return [];
+
+    const introQuestions = speakingPartOne.prompts
+      .map((prompt, index) => prompt.trim())
+      .filter(Boolean)
+      .map((prompt, index) => ({
+        tempId: `speaking-part-1-${index}`,
+        module: "speaking" as const,
+        part: 1,
+        question_type: "speaking_prompt",
+        prompt,
+        options: ["", "", "", ""],
+        correctIndex: 0,
+        correctTriple: "",
+        correctText: "",
+        points: 1,
+      }));
+
+    const cueCardLines = [speakingPartTwo.cue_card.trim()]
+      .concat(
+        speakingPartTwo.bullet_points
+          .map((point) => point.trim())
+          .filter(Boolean)
+          .map((point) => `- ${point}`),
+      )
+      .concat(speakingPartTwo.follow_up_prompt.trim() ? [`Follow-up: ${speakingPartTwo.follow_up_prompt.trim()}`] : [])
+      .filter(Boolean);
+
+    const cueCardQuestion = cueCardLines.length > 0
+      ? [{
+          tempId: "speaking-part-2",
+          module: "speaking" as const,
+          part: 2,
+          question_type: "speaking_prompt",
+          prompt: cueCardLines.join("\n"),
+          options: ["", "", "", ""],
+          correctIndex: 0,
+          correctTriple: "",
+          correctText: "",
+          points: 1,
+        }]
+      : [];
+
+    const discussionQuestions = speakingPartThree.prompts
+      .map((prompt) => prompt.trim())
+      .filter(Boolean)
+      .map((prompt, index) => ({
+        tempId: `speaking-part-3-${index}`,
+        module: "speaking" as const,
+        part: 3,
+        question_type: "speaking_prompt",
+        prompt,
+        options: ["", "", "", ""],
+        correctIndex: 0,
+        correctTriple: "",
+        correctText: "",
+        points: 1,
+      }));
+
+    return [...introQuestions, ...cueCardQuestion, ...discussionQuestions];
+  }, [hasSpeaking, speakingPartOne.prompts, speakingPartThree.prompts, speakingPartTwo.bullet_points, speakingPartTwo.cue_card, speakingPartTwo.follow_up_prompt]);
+
   const payloadQuestions = useMemo(
-    () => [...questions.filter((question) => question.module !== "writing"), ...generatedWritingQuestions],
-    [generatedWritingQuestions, questions],
+    () => [
+      ...questions.filter((question) => question.module !== "writing" && question.module !== "speaking"),
+      ...generatedWritingQuestions,
+      ...generatedSpeakingQuestions,
+    ],
+    [generatedSpeakingQuestions, generatedWritingQuestions, questions],
   );
 
   const setListeningAudioUrl = useCallback((url: string) => {
@@ -476,6 +630,13 @@ export function ExamWizard({
         },
         reading_passages: hasReading ? readingPassages : [],
         writing_tasks: hasWriting ? writingTasks : [],
+        speaking: hasSpeaking
+          ? {
+              part1: speakingPartOne,
+              part2: speakingPartTwo,
+              part3: speakingPartThree,
+            }
+          : null,
         sections: structure,
       },
       scoring_json: DEFAULT_SCORING,
@@ -1296,6 +1457,249 @@ export function ExamWizard({
           {/* ── Speaking / other: flat question list ── */}
           {(() => {
             const mod = (modules.length === 1 ? modules[0] : activeModuleTab) as QuestionDraft["module"];
+            if (mod === "speaking") {
+              return (
+                <div style={{ marginTop: "1.25rem", display: "grid", gap: "1rem" }}>
+                  <div className="admin-part-card">
+                    <div className="admin-part-card__body">
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "1rem", marginBottom: "0.75rem" }}>
+                        <div>
+                          <h3 style={{ margin: 0, fontSize: "1rem" }}>Part 1: Introduction & Interview</h3>
+                          <p style={{ margin: "0.3rem 0 0", color: "var(--muted)", fontSize: "0.84rem" }}>
+                            Add short familiar-topic questions. Aim for 4 to 8 prompts.
+                          </p>
+                        </div>
+                        <span style={{ color: "var(--muted)", fontSize: "0.8rem", fontWeight: 700 }}>
+                          {speakingPartOne.prompts.filter((prompt) => prompt.trim()).length} prompt(s)
+                        </span>
+                      </div>
+                      <div style={{ marginBottom: "0.85rem" }}>
+                        <label className="admin-label">Topic title</label>
+                        <input
+                          className="admin-input"
+                          value={speakingPartOne.topic_title}
+                          onChange={(e) => setSpeakingPartOne((prev) => ({ ...prev, topic_title: e.target.value }))}
+                          placeholder="e.g., Home, studies, daily routine"
+                        />
+                      </div>
+                      <div style={{ marginBottom: "0.85rem" }}>
+                        <span className="admin-label">Examiner audio (optional)</span>
+                        {speakingPartOne.audio_url ? (
+                          <div style={{ marginTop: "0.45rem" }}>
+                            <audio controls src={speakingPartOne.audio_url} style={{ width: "100%", maxWidth: "480px" }} preload="metadata" />
+                            <button
+                              type="button"
+                              className="admin-btn-ghost"
+                              style={{ marginTop: "0.35rem", fontSize: "0.78rem" }}
+                              onClick={() => setSpeakingPartOne((prev) => ({ ...prev, audio_url: "" }))}
+                            >
+                              Remove audio
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="admin-form-grid admin-form-grid--2" style={{ marginTop: "0.5rem" }}>
+                            <ExamLocalUpload
+                              folder="listening"
+                              accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/webm,audio/ogg,.mp3,.wav,.webm,.ogg"
+                              disabled={pending}
+                              onUploaded={(url) => setSpeakingPartOne((prev) => ({ ...prev, audio_url: url }))}
+                            />
+                            <div>
+                              <label className="admin-label" htmlFor="sp1-audio-url">Or paste URL</label>
+                              <input
+                                id="sp1-audio-url"
+                                className="admin-input"
+                                value={speakingPartOne.audio_url}
+                                onChange={(e) => setSpeakingPartOne((prev) => ({ ...prev, audio_url: e.target.value }))}
+                                placeholder="https://…"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      {speakingPartOne.prompts.map((prompt, index) => (
+                        <div key={`sp1-${index}`} style={{ display: "flex", gap: "0.55rem", alignItems: "flex-start", marginBottom: "0.55rem" }}>
+                          <span style={{ minWidth: "3rem", paddingTop: "0.7rem", color: "var(--muted)", fontWeight: 700, fontSize: "0.8rem" }}>
+                            Q{index + 1}
+                          </span>
+                          <input
+                            className="admin-input"
+                            value={prompt}
+                            onChange={(e) => {
+                              const next = [...speakingPartOne.prompts];
+                              next[index] = e.target.value;
+                              setSpeakingPartOne((prev) => ({ ...prev, prompts: next }));
+                            }}
+                            placeholder="What do you enjoy about your hometown?"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="admin-part-card">
+                    <div className="admin-part-card__body">
+                      <div style={{ marginBottom: "0.75rem" }}>
+                        <h3 style={{ margin: 0, fontSize: "1rem" }}>Part 2: Cue Card</h3>
+                        <p style={{ margin: "0.3rem 0 0", color: "var(--muted)", fontSize: "0.84rem" }}>
+                          Add one cue card topic, bullet prompts, and an optional follow-up line after the 2-minute talk.
+                        </p>
+                      </div>
+                      <div style={{ marginBottom: "0.75rem" }}>
+                        <label className="admin-label">Cue card prompt</label>
+                        <textarea
+                          className="admin-textarea"
+                          rows={4}
+                          value={speakingPartTwo.cue_card}
+                          onChange={(e) => setSpeakingPartTwo((prev) => ({ ...prev, cue_card: e.target.value }))}
+                          placeholder="Describe a memorable trip you have taken."
+                        />
+                      </div>
+                      <div style={{ marginBottom: "0.75rem" }}>
+                        <span className="admin-label">Examiner audio (optional)</span>
+                        {speakingPartTwo.audio_url ? (
+                          <div style={{ marginTop: "0.45rem" }}>
+                            <audio controls src={speakingPartTwo.audio_url} style={{ width: "100%", maxWidth: "480px" }} preload="metadata" />
+                            <button
+                              type="button"
+                              className="admin-btn-ghost"
+                              style={{ marginTop: "0.35rem", fontSize: "0.78rem" }}
+                              onClick={() => setSpeakingPartTwo((prev) => ({ ...prev, audio_url: "" }))}
+                            >
+                              Remove audio
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="admin-form-grid admin-form-grid--2" style={{ marginTop: "0.5rem" }}>
+                            <ExamLocalUpload
+                              folder="listening"
+                              accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/webm,audio/ogg,.mp3,.wav,.webm,.ogg"
+                              disabled={pending}
+                              onUploaded={(url) => setSpeakingPartTwo((prev) => ({ ...prev, audio_url: url }))}
+                            />
+                            <div>
+                              <label className="admin-label" htmlFor="sp2-audio-url">Or paste URL</label>
+                              <input
+                                id="sp2-audio-url"
+                                className="admin-input"
+                                value={speakingPartTwo.audio_url}
+                                onChange={(e) => setSpeakingPartTwo((prev) => ({ ...prev, audio_url: e.target.value }))}
+                                placeholder="https://…"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ marginBottom: "0.75rem" }}>
+                        <span className="admin-label">Bullet points</span>
+                        <div style={{ marginTop: "0.45rem", display: "grid", gap: "0.5rem" }}>
+                          {speakingPartTwo.bullet_points.map((point, index) => (
+                            <input
+                              key={`sp2-bullet-${index}`}
+                              className="admin-input"
+                              value={point}
+                              onChange={(e) => {
+                                const next = [...speakingPartTwo.bullet_points];
+                                next[index] = e.target.value;
+                                setSpeakingPartTwo((prev) => ({ ...prev, bullet_points: next }));
+                              }}
+                              placeholder={index === 0 ? "Where you went" : index === 1 ? "Who you went with" : "Why it was memorable"}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="admin-label">Optional follow-up line</label>
+                        <input
+                          className="admin-input"
+                          value={speakingPartTwo.follow_up_prompt}
+                          onChange={(e) => setSpeakingPartTwo((prev) => ({ ...prev, follow_up_prompt: e.target.value }))}
+                          placeholder="Would you like to take a similar trip again?"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="admin-part-card">
+                    <div className="admin-part-card__body">
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "1rem", marginBottom: "0.75rem" }}>
+                        <div>
+                          <h3 style={{ margin: 0, fontSize: "1rem" }}>Part 3: Discussion</h3>
+                          <p style={{ margin: "0.3rem 0 0", color: "var(--muted)", fontSize: "0.84rem" }}>
+                            Add broader analytical questions linked to the Part 2 topic. Aim for 4 to 6 prompts.
+                          </p>
+                        </div>
+                        <span style={{ color: "var(--muted)", fontSize: "0.8rem", fontWeight: 700 }}>
+                          {speakingPartThree.prompts.filter((prompt) => prompt.trim()).length} prompt(s)
+                        </span>
+                      </div>
+                      <div style={{ marginBottom: "0.85rem" }}>
+                        <label className="admin-label">Discussion theme</label>
+                        <input
+                          className="admin-input"
+                          value={speakingPartThree.topic_title}
+                          onChange={(e) => setSpeakingPartThree((prev) => ({ ...prev, topic_title: e.target.value }))}
+                          placeholder="e.g., Travel, tourism, and cultural exchange"
+                        />
+                      </div>
+                      <div style={{ marginBottom: "0.85rem" }}>
+                        <span className="admin-label">Examiner audio (optional)</span>
+                        {speakingPartThree.audio_url ? (
+                          <div style={{ marginTop: "0.45rem" }}>
+                            <audio controls src={speakingPartThree.audio_url} style={{ width: "100%", maxWidth: "480px" }} preload="metadata" />
+                            <button
+                              type="button"
+                              className="admin-btn-ghost"
+                              style={{ marginTop: "0.35rem", fontSize: "0.78rem" }}
+                              onClick={() => setSpeakingPartThree((prev) => ({ ...prev, audio_url: "" }))}
+                            >
+                              Remove audio
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="admin-form-grid admin-form-grid--2" style={{ marginTop: "0.5rem" }}>
+                            <ExamLocalUpload
+                              folder="listening"
+                              accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/webm,audio/ogg,.mp3,.wav,.webm,.ogg"
+                              disabled={pending}
+                              onUploaded={(url) => setSpeakingPartThree((prev) => ({ ...prev, audio_url: url }))}
+                            />
+                            <div>
+                              <label className="admin-label" htmlFor="sp3-audio-url">Or paste URL</label>
+                              <input
+                                id="sp3-audio-url"
+                                className="admin-input"
+                                value={speakingPartThree.audio_url}
+                                onChange={(e) => setSpeakingPartThree((prev) => ({ ...prev, audio_url: e.target.value }))}
+                                placeholder="https://…"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      {speakingPartThree.prompts.map((prompt, index) => (
+                        <div key={`sp3-${index}`} style={{ display: "flex", gap: "0.55rem", alignItems: "flex-start", marginBottom: "0.55rem" }}>
+                          <span style={{ minWidth: "3rem", paddingTop: "0.7rem", color: "var(--muted)", fontWeight: 700, fontSize: "0.8rem" }}>
+                            Q{index + 1}
+                          </span>
+                          <input
+                            className="admin-input"
+                            value={prompt}
+                            onChange={(e) => {
+                              const next = [...speakingPartThree.prompts];
+                              next[index] = e.target.value;
+                              setSpeakingPartThree((prev) => ({ ...prev, prompts: next }));
+                            }}
+                            placeholder="How has tourism changed the way people live in cities?"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
             if (mod === "listening" || mod === "reading" || mod === "writing") return null;
             const modQuestions = questions.filter((q) => q.module === mod);
 

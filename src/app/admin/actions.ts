@@ -110,6 +110,88 @@ export async function deleteExam(formData: FormData) {
   revalidatePath("/mock-exam");
 }
 
+function roundToNearestHalf(value: number): number {
+  return Math.round(value * 2) / 2;
+}
+
+export async function reviewSpeakingAttempt(formData: FormData) {
+  const reviewer = await requireAdmin();
+  const attemptId = String(formData.get("attempt_id") ?? "").trim();
+  const examId = String(formData.get("exam_id") ?? "").trim();
+  const speakingBandRaw = Number.parseFloat(String(formData.get("speaking_band") ?? ""));
+  const notes = String(formData.get("speaking_review_notes") ?? "").trim() || null;
+
+  if (!attemptId || !examId || Number.isNaN(speakingBandRaw)) {
+    throw new Error("Attempt, exam, and speaking band are required.");
+  }
+
+  const speakingBand = Math.max(0, Math.min(9, roundToNearestHalf(speakingBandRaw)));
+  const admin = createServiceRoleClient();
+
+  const { data: attempt } = await admin
+    .from("mock_attempts")
+    .select("id, exam_id, listening_band, reading_band, writing_band, speaking_band")
+    .eq("id", attemptId)
+    .single();
+
+  if (!attempt || attempt.exam_id !== examId) {
+    throw new Error("Attempt not found.");
+  }
+
+  const { data: exam } = await admin
+    .from("mock_exams")
+    .select("modules")
+    .eq("id", examId)
+    .single();
+
+  if (!exam) {
+    throw new Error("Exam not found.");
+  }
+
+  const modules = Array.isArray(exam.modules) ? exam.modules.map(String) : [];
+  const bandByModule: Record<string, number | null> = {
+    listening: attempt.listening_band != null ? Number(attempt.listening_band) : null,
+    reading: attempt.reading_band != null ? Number(attempt.reading_band) : null,
+    writing: attempt.writing_band != null ? Number(attempt.writing_band) : null,
+    speaking: speakingBand,
+  };
+
+  const requiredModuleBands = modules
+    .filter((module) => ["listening", "reading", "writing", "speaking"].includes(module))
+    .map((module) => bandByModule[module])
+    .filter((band): band is number => band != null);
+
+  const allModulesReviewed = modules
+    .filter((module) => ["listening", "reading", "writing", "speaking"].includes(module))
+    .every((module) => bandByModule[module] != null);
+
+  const overallBand = allModulesReviewed && requiredModuleBands.length > 0
+    ? roundToNearestHalf(requiredModuleBands.reduce((sum, band) => sum + band, 0) / requiredModuleBands.length)
+    : null;
+
+  const reviewStatus = modules.includes("writing") && attempt.writing_band == null ? "pending" : "reviewed";
+
+  const { error } = await admin
+    .from("mock_attempts")
+    .update({
+      speaking_band: speakingBand,
+      overall_band: overallBand,
+      review_status: reviewStatus,
+      speaking_review_notes: notes,
+      reviewed_at: new Date().toISOString(),
+      reviewed_by: reviewer.id,
+    })
+    .eq("id", attemptId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath(`/admin/exams/${examId}/analytics`);
+  revalidatePath("/admin");
+  revalidatePath("/mock-exam");
+}
+
 const MODULE_SET = new Set(["listening", "reading", "writing", "speaking"]);
 
 export type WizardQuestionInput = {
@@ -148,18 +230,35 @@ type SanitizedListeningClip = { part: number; url: string; title: string };
 type SanitizedListeningAudio = { url: string; title: string } | SanitizedListeningClip[] | null;
 type ReadingPassage = { part: number; title: string; text: string; image_url: string };
 type WritingTask = { part: number; prompt: string; image_url: string; min_words: number };
+type SpeakingPartOne = { topic_title: string; prompts: string[]; audio_url: string };
+type SpeakingPartTwo = { cue_card: string; bullet_points: string[]; follow_up_prompt: string; audio_url: string };
+type SpeakingPartThree = { topic_title: string; prompts: string[]; audio_url: string };
 
 function parseExamMeta(structure_json: unknown): {
   testVariant: TestVariant;
   readingPassages: ReadingPassage[];
   writingTasks: WritingTask[];
+  speaking: {
+    part1: SpeakingPartOne;
+    part2: SpeakingPartTwo;
+    part3: SpeakingPartThree;
+  };
 } {
   let testVariant: TestVariant = "academic";
   let readingPassages: ReadingPassage[] = [];
   let writingTasks: WritingTask[] = [];
+  let speaking: {
+    part1: SpeakingPartOne;
+    part2: SpeakingPartTwo;
+    part3: SpeakingPartThree;
+  } = {
+    part1: { topic_title: "", prompts: [], audio_url: "" },
+    part2: { cue_card: "", bullet_points: [], follow_up_prompt: "", audio_url: "" },
+    part3: { topic_title: "", prompts: [], audio_url: "" },
+  };
 
   if (!structure_json || typeof structure_json !== "object") {
-    return { testVariant, readingPassages, writingTasks };
+    return { testVariant, readingPassages, writingTasks, speaking };
   }
 
   const structure = structure_json as Record<string, unknown>;
@@ -198,7 +297,42 @@ function parseExamMeta(structure_json: unknown): {
       .filter((row): row is WritingTask => Boolean(row));
   }
 
-  return { testVariant, readingPassages, writingTasks };
+  if (structure.speaking && typeof structure.speaking === "object") {
+    const speakingRaw = structure.speaking as Record<string, unknown>;
+    if (speakingRaw.part1 && typeof speakingRaw.part1 === "object") {
+      const part1 = speakingRaw.part1 as Record<string, unknown>;
+      speaking.part1 = {
+        topic_title: String(part1.topic_title ?? "").trim(),
+        prompts: Array.isArray(part1.prompts)
+          ? part1.prompts.map((prompt) => String(prompt ?? "").trim()).filter(Boolean)
+          : [],
+        audio_url: String(part1.audio_url ?? "").trim(),
+      };
+    }
+    if (speakingRaw.part2 && typeof speakingRaw.part2 === "object") {
+      const part2 = speakingRaw.part2 as Record<string, unknown>;
+      speaking.part2 = {
+        cue_card: String(part2.cue_card ?? "").trim(),
+        bullet_points: Array.isArray(part2.bullet_points)
+          ? part2.bullet_points.map((point) => String(point ?? "").trim()).filter(Boolean)
+          : [],
+        follow_up_prompt: String(part2.follow_up_prompt ?? "").trim(),
+        audio_url: String(part2.audio_url ?? "").trim(),
+      };
+    }
+    if (speakingRaw.part3 && typeof speakingRaw.part3 === "object") {
+      const part3 = speakingRaw.part3 as Record<string, unknown>;
+      speaking.part3 = {
+        topic_title: String(part3.topic_title ?? "").trim(),
+        prompts: Array.isArray(part3.prompts)
+          ? part3.prompts.map((prompt) => String(prompt ?? "").trim()).filter(Boolean)
+          : [],
+        audio_url: String(part3.audio_url ?? "").trim(),
+      };
+    }
+  }
+
+  return { testVariant, readingPassages, writingTasks, speaking };
 }
 
 function getObjectiveAnswerError(question: WizardQuestionInput): string | null {
@@ -432,7 +566,7 @@ function validatePublishRules(
     }
   }
 
-  const { testVariant, readingPassages, writingTasks } = parseExamMeta(input.structure_json);
+  const { testVariant, readingPassages, writingTasks, speaking } = parseExamMeta(input.structure_json);
 
   if (input.modules.includes("listening")) {
     const listeningError = validateListeningForPublish(questions, listeningAudio);
@@ -447,6 +581,51 @@ function validatePublishRules(
   if (input.modules.includes("writing")) {
     const writingError = validateWritingForPublish(questions, writingTasks, testVariant);
     if (writingError) return writingError;
+  }
+
+  if (input.modules.includes("speaking")) {
+    const speakingQuestions = questions.filter((question) => question.module === "speaking");
+    if (speaking.part1.prompts.length < 4) {
+      return "Speaking Part 1 needs at least 4 short interview questions before publishing.";
+    }
+    if (!speaking.part2.cue_card) {
+      return "Speaking Part 2 needs a cue card prompt before publishing.";
+    }
+    if (speaking.part2.bullet_points.length < 3) {
+      return "Speaking Part 2 needs at least 3 cue card bullet points before publishing.";
+    }
+    if (speaking.part3.prompts.length < 4) {
+      return "Speaking Part 3 needs at least 4 discussion questions before publishing.";
+    }
+
+    const expectedCount = speaking.part1.prompts.length + 1 + speaking.part3.prompts.length;
+    if (speakingQuestions.length !== expectedCount) {
+      return "Speaking prompts are out of sync. Save the structured Speaking section again before publishing.";
+    }
+
+    const counts = new Map<number, number>([
+      [1, 0],
+      [2, 0],
+      [3, 0],
+    ]);
+
+    for (const question of speakingQuestions) {
+      const part = Number(question.part);
+      if (!Number.isInteger(part) || part < 1 || part > 3) {
+        return "Every published Speaking prompt must belong to Part 1, 2, or 3.";
+      }
+      if (question.question_type !== "speaking_prompt") {
+        return "Speaking only supports speaking prompts.";
+      }
+      if (!String(question.prompt ?? "").trim()) {
+        return "Every published Speaking prompt needs text.";
+      }
+      counts.set(part, (counts.get(part) ?? 0) + 1);
+    }
+
+    if ((counts.get(2) ?? 0) !== 1) {
+      return "Speaking Part 2 must contain exactly one cue card prompt.";
+    }
   }
 
   return null;
@@ -583,7 +762,7 @@ export async function saveExamWizard(
     let flatIdx = 0;
     const rows = qs.map((q) => {
       let sort_order: number;
-      const hasPart = (q.module === "listening" || q.module === "reading" || q.module === "writing") && q.part && q.part >= 1;
+      const hasPart = (q.module === "listening" || q.module === "reading" || q.module === "writing" || q.module === "speaking") && q.part && q.part >= 1;
       if (hasPart) {
         const key = q.module;
         const p = q.part!;

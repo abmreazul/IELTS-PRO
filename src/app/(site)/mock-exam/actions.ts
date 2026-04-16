@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { getAuthUser } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
 
+const ATTEMPT_MEDIA_BUCKET = "attempt-media";
+
 /* ═══════════════════════════════════════════════════════════════════
    IELTS Band Conversion (standard 40-question Listening / Reading)
    ═══════════════════════════════════════════════════════════════════ */
@@ -72,12 +74,59 @@ export async function startExamAttempt(
    Submit Attempt — score answers and save results
    ═══════════════════════════════════════════════════════════════════ */
 
-type AnswerMap = Record<string, string | number | string[]>;
+type AnswerMap = Record<string, unknown>;
 type SubmitResult = {
   overallBand: number | null;
   moduleBands: Record<string, number | null>;
   reviewPendingModules: string[];
 };
+
+export async function getSignedSpeakingResponseUploadUrl(
+  attemptId: string,
+  questionId: string,
+  fileExt: string,
+  contentType: string,
+): Promise<
+  | { ok: true; signedUrl: string; path: string; bucket: string }
+  | { ok: false; message: string }
+> {
+  const { user, error } = await getAuthUser();
+  if (error || !user) {
+    return { ok: false, message: "Sign in required" };
+  }
+
+  const admin = createServiceRoleClient();
+  const { data: attempt } = await admin
+    .from("mock_attempts")
+    .select("id, user_id, status")
+    .eq("id", attemptId)
+    .single();
+
+  if (!attempt || attempt.user_id !== user.id) {
+    return { ok: false, message: "Attempt not found" };
+  }
+  if (attempt.status === "completed") {
+    return { ok: false, message: "This attempt is already submitted." };
+  }
+
+  const safeExt = (fileExt || "webm").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 10) || "webm";
+  const path = `speaking/${user.id}/${attemptId}/${questionId}-${crypto.randomUUID()}.${safeExt}`;
+
+  const { data, error: uploadErr } = await admin.storage
+    .from(ATTEMPT_MEDIA_BUCKET)
+    .createSignedUploadUrl(path);
+
+  if (uploadErr || !data) {
+    return { ok: false, message: uploadErr?.message ?? "Could not create upload URL" };
+  }
+
+  return {
+    ok: true,
+    signedUrl: data.signedUrl,
+    path,
+    bucket: ATTEMPT_MEDIA_BUCKET,
+  };
+}
 
 export async function submitExamAttempt(
   attemptId: string,
