@@ -618,7 +618,7 @@ img {
 
 .hero-grid {
   display: grid;
-  grid-template-columns: 1.05fr 0.95fr;
+  grid-template-columns: 1fr 1.08fr;
   gap: clamp(2rem, 5vw, 3.5rem);
   align-items: center;
 }
@@ -678,21 +678,16 @@ img {
 
 .hero-visual {
   position: relative;
-}
-
-.hero-image-frame {
-  border-radius: 20px;
-  overflow: hidden;
-  box-shadow: var(--shadow-md);
-  border: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-end;
 }
 
 .hero-image {
-  width: 100%;
+  width: clamp(760px, 72vw, 1260px);
+  max-width: 100%;
   height: auto;
-  object-fit: cover;
   display: block;
-  aspect-ratio: 4 / 3;
 }
 
 .hero-float-card {
@@ -1258,6 +1253,15 @@ img {
   .hero-grid {
     grid-template-columns: 1fr;
     padding: 2rem 0 1rem;
+  }
+
+  .hero-visual {
+    justify-content: center;
+  }
+
+  .hero-image {
+    width: min(100%, 640px);
+    max-width: 100%;
   }
 
   .hero-stats {

@@ -173,17 +173,16 @@ export function HomePage() {
               animate="visible"
               variants={heroImage}
             >
-              <div className="hero-image-frame">
-                <Image
-                  src="https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=900&q=85"
-                  alt="Students collaborating in a classroom"
-                  width={640}
-                  height={480}
-                  className="hero-image"
-                  priority
-                  sizes="(max-width: 960px) 100vw, 45vw"
-                />
-              </div>
+              <Image
+                src="/hero-section-v3.png"
+                alt="Students collaborating in a classroom"
+                width={640}
+                height={480}
+                className="hero-image"
+                priority
+                unoptimized
+                sizes="(max-width: 960px) 100vw, 45vw"
+              />
               <motion.div
                 className="hero-float-card"
                 variants={floatCard}
