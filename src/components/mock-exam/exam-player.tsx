@@ -165,6 +165,7 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
   const audioRefs = useRef<Record<number, HTMLAudioElement | null>>({});
   const [playingPart, setPlayingPart] = useState<number | null>(null);
   const [audioProgress, setAudioProgress] = useState<Record<number, number>>({});
+  const [pendingAutoplayPart, setPendingAutoplayPart] = useState<number | null>(null);
 
   const contentRef = useRef<HTMLDivElement>(null);
   const [navCollapsed, setNavCollapsed] = useState(false);
@@ -192,16 +193,33 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
     return exam.listening_audio_json.find((a) => a.part === partNum) ?? null;
   };
 
+  const listeningTabIndices = useMemo(
+    () => parts
+      .map((part, idx) => ({ idx: idx + 1, part }))
+      .filter(({ part }) => part.module === "listening"),
+    [parts],
+  );
+
+  const stopListeningAudio = useCallback(() => {
+    for (const audio of Object.values(audioRefs.current)) {
+      audio?.pause();
+    }
+    setPlayingPart(null);
+    setPendingAutoplayPart(null);
+  }, []);
+
+  const getNextListeningTab = useCallback((partNum: number) => {
+    const current = listeningTabIndices.find(({ part }) => part.part === partNum);
+    if (!current) return null;
+    return listeningTabIndices.find(({ idx }) => idx === current.idx + 1) ?? null;
+  }, [listeningTabIndices]);
+
   const setAnswer = (questionId: string, value: string | number) => {
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
   };
 
   const goToPart = (part: number) => {
-    // Pause current audio when switching parts
-    if (playingPart !== null) {
-      audioRefs.current[playingPart]?.pause();
-      setPlayingPart(null);
-    }
+    stopListeningAudio();
     setActivePart(part);
     contentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -231,7 +249,7 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
     }
   };
 
-  const toggleAudio = (partNum: number) => {
+  const toggleAudio = async (partNum: number) => {
     const audio = audioRefs.current[partNum];
     if (!audio) return;
 
@@ -243,11 +261,36 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
     if (playingPart === partNum) {
       audio.pause();
       setPlayingPart(null);
+      setPendingAutoplayPart(null);
     } else {
-      audio.play();
-      setPlayingPart(partNum);
+      try {
+        await audio.play();
+        setPlayingPart(partNum);
+      } catch {
+        setPlayingPart(null);
+      }
     }
   };
+
+  useEffect(() => {
+    if (!pendingAutoplayPart || currentPartInfo.module !== "listening" || currentPartInfo.part !== pendingAutoplayPart) {
+      return;
+    }
+    const audio = audioRefs.current[pendingAutoplayPart];
+    if (!audio) return;
+
+    audio.currentTime = 0;
+    void audio.play()
+      .then(() => {
+        setPlayingPart(pendingAutoplayPart);
+        setPendingAutoplayPart(null);
+      })
+      .catch(() => {
+        setPlayingPart(null);
+      });
+  }, [currentPartInfo.module, currentPartInfo.part, pendingAutoplayPart]);
+
+  useEffect(() => stopListeningAudio, [stopListeningAudio]);
 
   const answeredInPart = (partQuestions: ExamQuestion[]) =>
     partQuestions.filter((q) => answers[q.id] !== undefined).length;
@@ -552,11 +595,16 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
               {isListening && getAudioForPart(currentPartInfo.part) ? (
                 <div className="ep-listen-bar ep-slide-up">
                   <span className="ep-listen-bar__label">
+                    IELTS Listening Paper
+                  </span>
+                  <span className="ep-listen-bar__meta">
+                    Part {currentPartInfo.part} of 4
+                    <span className="ep-listen-bar__meta-divider">•</span>
                     Questions {currentPartInfo.startIndex + 1}–{currentPartInfo.startIndex + currentPartInfo.questions.length}
                   </span>
-                  <button className="ep-listen-bar__btn" onClick={() => toggleAudio(currentPartInfo.part)} type="button">
+                  <button className="ep-listen-bar__btn" onClick={() => void toggleAudio(currentPartInfo.part)} type="button">
                     {playingPart === currentPartInfo.part ? <Pause size={14} /> : <Play size={14} />}
-                    {playingPart === currentPartInfo.part ? "Pause" : "Listen from here"}
+                    {playingPart === currentPartInfo.part ? "Pause paper" : currentPartInfo.part === 1 ? "Start paper" : `Play Part ${currentPartInfo.part}`}
                   </button>
                   <audio
                     ref={(el) => { audioRefs.current[currentPartInfo.part] = el; }}
@@ -566,7 +614,18 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
                       const a = e.currentTarget;
                       if (a.duration) setAudioProgress((prev) => ({ ...prev, [currentPartInfo.part]: (a.currentTime / a.duration) * 100 }));
                     }}
-                    onEnded={() => setPlayingPart(null)}
+                    onEnded={() => {
+                      const nextListeningTab = getNextListeningTab(currentPartInfo.part);
+                      if (!nextListeningTab) {
+                        setPlayingPart(null);
+                        setPendingAutoplayPart(null);
+                        return;
+                      }
+
+                      setPendingAutoplayPart(nextListeningTab.part.part);
+                      setActivePart(nextListeningTab.idx);
+                      contentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+                    }}
                   />
                   <div className="ep-listen-bar__progress">
                     <div className="ep-listen-bar__progress-fill" style={{ width: `${audioProgress[currentPartInfo.part] ?? 0}%` }} />

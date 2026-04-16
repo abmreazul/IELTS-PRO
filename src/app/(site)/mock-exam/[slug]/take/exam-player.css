@@ -350,6 +350,17 @@
   color: var(--primary);
 }
 
+.ep-listen-bar__meta {
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.ep-listen-bar__meta-divider {
+  margin: 0 0.45rem;
+  color: var(--border-strong, var(--border));
+}
+
 .ep-listen-bar__btn {
   display: inline-flex;
   align-items: center;
