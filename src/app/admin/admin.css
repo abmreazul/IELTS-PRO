@@ -898,18 +898,30 @@
   cursor: pointer;
   transition:
     background 0.15s ease,
-    color 0.15s ease;
+    color 0.15s ease,
+    border-color 0.15s ease;
 }
 
 .admin-module-tab:hover {
   color: var(--text);
-  background: color-mix(in srgb, var(--primary) 5%, var(--surface));
 }
 
 .admin-module-tab--active {
   background: var(--surface);
-  color: var(--primary);
   box-shadow: var(--shadow-sm);
+}
+
+.admin-module-tab__icon {
+  width: 1rem;
+  height: 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.admin-module-tab__icon svg {
+  width: 1rem;
+  height: 1rem;
 }
 
 .admin-module-tab__count {
@@ -926,8 +938,72 @@
   color: var(--primary);
 }
 
-.admin-module-tab--active .admin-module-tab__count {
-  background: color-mix(in srgb, var(--primary) 15%, var(--surface));
+.admin-module-tab--listening {
+  color: #2ed23f;
+  border: 1px solid transparent;
+}
+
+.admin-module-tab--listening:hover,
+.admin-module-tab--listening.admin-module-tab--active {
+  background: color-mix(in srgb, #2ed23f 12%, var(--surface));
+  border-color: color-mix(in srgb, #2ed23f 28%, var(--border));
+  color: #1da92a;
+}
+
+.admin-module-tab--listening .admin-module-tab__count {
+  background: color-mix(in srgb, #2ed23f 18%, var(--surface));
+  color: #179624;
+}
+
+.admin-module-tab--reading {
+  color: #2ea2d7;
+  border: 1px solid transparent;
+}
+
+.admin-module-tab--reading:hover,
+.admin-module-tab--reading.admin-module-tab--active {
+  background: color-mix(in srgb, #2ea2d7 12%, var(--surface));
+  border-color: color-mix(in srgb, #2ea2d7 28%, var(--border));
+  color: #1f8cbf;
+}
+
+.admin-module-tab--reading .admin-module-tab__count {
+  background: color-mix(in srgb, #2ea2d7 18%, var(--surface));
+  color: #1f8cbf;
+}
+
+.admin-module-tab--writing {
+  color: #ffa924;
+  border: 1px solid transparent;
+}
+
+.admin-module-tab--writing:hover,
+.admin-module-tab--writing.admin-module-tab--active {
+  background: color-mix(in srgb, #ffa924 14%, var(--surface));
+  border-color: color-mix(in srgb, #ffa924 30%, var(--border));
+  color: #de8c09;
+}
+
+.admin-module-tab--writing .admin-module-tab__count {
+  background: color-mix(in srgb, #ffa924 22%, var(--surface));
+  color: #cf7f00;
+}
+
+.admin-module-tab--speaking {
+  color: #8c51f8;
+  border: 1px solid transparent;
+}
+
+.admin-module-tab--speaking:hover,
+.admin-module-tab--speaking.admin-module-tab--active {
+  background: color-mix(in srgb, #8c51f8 12%, var(--surface));
+  border-color: color-mix(in srgb, #8c51f8 28%, var(--border));
+  color: #7b3ef0;
+}
+
+.admin-module-tab--speaking .admin-module-tab__count {
+  background: color-mix(in srgb, #8c51f8 18%, var(--surface));
+  color: #7131eb;
 }
 
 /* ——— Review grid ——— */

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronDown, ChevronRight, Plus, Trash2 } from "lucide-react";
+import { BookOpen, ChevronDown, ChevronRight, Headphones, Mic, PenLine, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { saveExamWizard, type ExamWizardSaveInput, type WizardQuestionInput } from "@/app/admin/actions";
@@ -214,6 +214,13 @@ const MODULE_LABELS: Record<string, string> = {
   reading: "Reading",
   writing: "Writing",
   speaking: "Speaking",
+};
+
+const MODULE_ICONS: Record<string, typeof Headphones> = {
+  listening: Headphones,
+  reading: BookOpen,
+  writing: PenLine,
+  speaking: Mic,
 };
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -867,15 +874,23 @@ export function ExamWizard({
           {modules.length > 1 ? (
             <div className="admin-module-tabs">
               {modules.map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  className={`admin-module-tab${activeModuleTab === m ? " admin-module-tab--active" : ""}`}
-                  onClick={() => setActiveModuleTab(m)}
-                >
-                  {MODULE_LABELS[m] ?? m}
-                  <span className="admin-module-tab__count">{questionCounts[m] ?? 0}</span>
-                </button>
+                (() => {
+                  const Icon = MODULE_ICONS[m] ?? BookOpen;
+                  return (
+                    <button
+                      key={m}
+                      type="button"
+                      className={`admin-module-tab admin-module-tab--${m}${activeModuleTab === m ? " admin-module-tab--active" : ""}`}
+                      onClick={() => setActiveModuleTab(m)}
+                    >
+                      <span className="admin-module-tab__icon" aria-hidden>
+                        <Icon />
+                      </span>
+                      <span>{MODULE_LABELS[m] ?? m}</span>
+                      <span className="admin-module-tab__count">{questionCounts[m] ?? 0}</span>
+                    </button>
+                  );
+                })()
               ))}
             </div>
           ) : null}
