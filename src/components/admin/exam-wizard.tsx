@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { ChevronDown, ChevronRight, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { saveExamWizard, type ExamWizardSaveInput, type WizardQuestionInput } from "@/app/admin/actions";
 import { ExamLocalUpload } from "@/components/admin/exam-local-upload";
 import {
@@ -69,6 +69,7 @@ type QuestionDraft = {
 };
 
 type Surface = "full" | "listening" | "reading" | "writing" | "speaking";
+type TestVariant = "academic" | "general";
 
 /* ═══════════════════════════════════════════════════════════════════
    Helpers
@@ -93,6 +94,27 @@ function modulesFromSurface(s: Surface): { exam_type: "full" | "partial"; module
 function categoryForSurface(s: Surface, categories: Category[]): string | undefined {
   const slug = s === "full" ? "full-exams" : s;
   return categories.find((c) => c.slug === slug)?.id;
+}
+
+function slugify(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function parseTestVariant(raw: unknown): TestVariant {
+  if (raw && typeof raw === "object" && "exam_meta" in (raw as Record<string, unknown>)) {
+    const meta = (raw as { exam_meta?: unknown }).exam_meta;
+    if (meta && typeof meta === "object" && "test_variant" in (meta as Record<string, unknown>)) {
+      const variant = (meta as { test_variant?: unknown }).test_variant;
+      if (variant === "academic" || variant === "general") {
+        return variant;
+      }
+    }
+  }
+  return "academic";
 }
 
 function parseListeningClips(raw: unknown): ListeningClip[] {
@@ -226,17 +248,33 @@ export function ExamWizard({
   );
   const [title, setTitle] = useState(initialExam?.title ?? "");
   const [slug, setSlug] = useState(initialExam?.slug ?? "");
+  const [isSlugManual, setIsSlugManual] = useState(Boolean(initialExam?.id || initialExam?.slug));
   const [description, setDescription] = useState(initialExam?.description ?? "");
   const [difficulty, setDifficulty] = useState(initialExam?.difficulty ?? "intermediate");
   const [durationMinutes, setDurationMinutes] = useState(initialExam?.duration_minutes ?? 60);
   const [priceDollars, setPriceDollars] = useState(
     initialExam ? (initialExam.price_cents / 100).toFixed(2) : "29.99",
   );
+  const [pricingMode, setPricingMode] = useState<"free" | "paid">(
+    initialExam?.price_cents && initialExam.price_cents > 0 ? "paid" : "free",
+  );
   const [currency, setCurrency] = useState(initialExam?.currency ?? "USD");
   const [coverUrl, setCoverUrl] = useState(initialExam?.cover_image_url ?? "");
   const [isPublished, setIsPublished] = useState(initialExam?.is_published ?? false);
+  const [testVariant, setTestVariant] = useState<TestVariant>(() =>
+    parseTestVariant(initialExam?.structure_json),
+  );
 
   const { exam_type, modules } = useMemo(() => modulesFromSurface(surface), [surface]);
+  const currentCategory = useMemo(
+    () => categories.find((c) => c.id === categoryId) ?? null,
+    [categories, categoryId],
+  );
+
+  useEffect(() => {
+    if (isSlugManual) return;
+    setSlug(slugify(title));
+  }, [title, isSlugManual]);
 
   const [questions, setQuestions] = useState<QuestionDraft[]>(() =>
     initialQuestions.length ? initialQuestions.map(dbQuestionToDraft) : [],
@@ -354,7 +392,10 @@ export function ExamWizard({
 
   /* ── Build payload ────────────────────────────────────── */
   const buildPayload = (published: boolean): ExamWizardSaveInput => {
-    const price_cents = Math.round(Number.parseFloat(priceDollars || "0") * 100) || 0;
+    const price_cents =
+      pricingMode === "free"
+        ? 0
+        : Math.max(0, Math.round(Number.parseFloat(priceDollars || "0") * 100) || 0);
     // Auto-derive structure from questions added
     const structure: SectionStructure[] = structureForModules(modules).map((s) => ({
       ...s,
@@ -375,10 +416,13 @@ export function ExamWizard({
       question_count: qCount,
       difficulty: difficulty === "beginner" || difficulty === "advanced" ? difficulty : "intermediate",
       price_cents,
-      currency: currency.trim() || "USD",
+      currency: (currency.trim() || "USD").toUpperCase(),
       cover_image_url: coverUrl.trim() || null,
       is_published: published,
       structure_json: {
+        exam_meta: {
+          test_variant: testVariant,
+        },
         reading_passages: hasReading ? readingPassages : [],
         writing_tasks: hasWriting ? writingTasks : [],
         sections: structure,
@@ -609,6 +653,33 @@ export function ExamWizard({
           <p>Title, pricing, and how this mock appears in the catalog.</p>
 
           <div className="admin-form-grid" style={{ marginTop: "1rem" }}>
+            <div style={{ gridColumn: "1 / -1" }}>
+              <div className="admin-review-grid" style={{ marginTop: "-0.1rem", marginBottom: "1.1rem" }}>
+                <div className="admin-review-item">
+                  <span className="admin-review-label">IELTS Format</span>
+                  <span className="admin-review-value">
+                    {testVariant === "academic" ? "Academic" : "General Training"}
+                  </span>
+                </div>
+                <div className="admin-review-item">
+                  <span className="admin-review-label">Mock Surface</span>
+                  <span className="admin-review-value">
+                    {surface === "full" ? "Full Test" : MODULE_LABELS[surface] ?? surface}
+                  </span>
+                </div>
+                <div className="admin-review-item">
+                  <span className="admin-review-label">Catalog Category</span>
+                  <span className="admin-review-value">{currentCategory?.name ?? "Not mapped"}</span>
+                </div>
+                <div className="admin-review-item">
+                  <span className="admin-review-label">Save State</span>
+                  <span className={`admin-badge ${isPublished ? "admin-badge--published" : "admin-badge--draft"}`}>
+                    {isPublished ? "Published" : "Draft"}
+                  </span>
+                </div>
+              </div>
+            </div>
+
             <div>
               <label className="admin-label" htmlFor="ew-title">
                 Exam title (required)
@@ -623,15 +694,50 @@ export function ExamWizard({
             </div>
             <div>
               <label className="admin-label" htmlFor="ew-slug">
-                URL slug (required)
+                URL slug
               </label>
-              <input
-                id="ew-slug"
-                className="admin-input"
-                value={slug}
-                onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/\s+/g, "-"))}
-                placeholder="academic-full-mock-1"
-              />
+              <div className="admin-form-grid admin-form-grid--2" style={{ gap: "0.6rem", alignItems: "end" }}>
+                <input
+                  id="ew-slug"
+                  className="admin-input"
+                  value={slug}
+                  onChange={(e) => {
+                    setIsSlugManual(true);
+                    setSlug(slugify(e.target.value));
+                  }}
+                  placeholder="auto-generated-from-title"
+                />
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  style={{ width: "100%" }}
+                  onClick={() => {
+                    setIsSlugManual(false);
+                    setSlug(slugify(title));
+                  }}
+                >
+                  Auto Generate
+                </button>
+              </div>
+              <p style={{ margin: "0.45rem 0 0", fontSize: "0.78rem", color: "var(--muted)" }}>
+                Generated from the title by default. Edit only if you want a custom URL.
+              </p>
+            </div>
+            <div>
+              <span className="admin-label">IELTS Format</span>
+              <div className="admin-segment" style={{ marginTop: "0.35rem" }}>
+                {(["academic", "general"] as const).map((variant) => (
+                  <label key={variant}>
+                    <input
+                      type="radio"
+                      name="test-variant"
+                      checked={testVariant === variant}
+                      onChange={() => setTestVariant(variant)}
+                    />
+                    <span>{variant === "academic" ? "Academic" : "General Training"}</span>
+                  </label>
+                ))}
+              </div>
             </div>
             <div>
               <span className="admin-label">Exam Category</span>
@@ -684,20 +790,67 @@ export function ExamWizard({
                 />
               </div>
               <div>
-                <label className="admin-label" htmlFor="ew-price">
-                  Price (USD)
-                </label>
-                <input
-                  id="ew-price"
-                  type="number"
-                  step="0.01"
-                  min={0}
-                  className="admin-input"
-                  value={priceDollars}
-                  onChange={(e) => setPriceDollars(e.target.value)}
-                />
+                <span className="admin-label">Access</span>
+                <div className="admin-segment" style={{ marginTop: "0.35rem" }}>
+                  {(["free", "paid"] as const).map((mode) => (
+                    <label key={mode}>
+                      <input
+                        type="radio"
+                        name="pricing"
+                        checked={pricingMode === mode}
+                        onChange={() => setPricingMode(mode)}
+                      />
+                      <span>{mode === "free" ? "Free Mock" : "Paid Mock"}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
             </div>
+            {pricingMode === "paid" ? (
+              <div className="admin-form-grid admin-form-grid--2">
+                <div>
+                  <label className="admin-label" htmlFor="ew-price">
+                    Price
+                  </label>
+                  <input
+                    id="ew-price"
+                    type="number"
+                    step="0.01"
+                    min={0}
+                    className="admin-input"
+                    value={priceDollars}
+                    onChange={(e) => setPriceDollars(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="admin-label" htmlFor="ew-currency">
+                    Currency
+                  </label>
+                  <input
+                    id="ew-currency"
+                    className="admin-input"
+                    value={currency}
+                    maxLength={3}
+                    onChange={(e) => setCurrency(e.target.value.toUpperCase())}
+                    placeholder="USD"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div
+                style={{
+                  padding: "0.9rem 1rem",
+                  borderRadius: "12px",
+                  border: "1px solid var(--border)",
+                  background: "color-mix(in srgb, #22c55e 7%, var(--surface))",
+                  color: "var(--muted)",
+                  fontSize: "0.86rem",
+                  fontWeight: 600,
+                }}
+              >
+                This mock will appear as free in the public catalog.
+              </div>
+            )}
             <div>
               <span className="admin-label">Thumbnail Image</span>
               <div className="admin-thumb-grid">
@@ -728,19 +881,6 @@ export function ExamWizard({
               </div>
             </div>
             <div>
-              <span className="admin-label">Status</span>
-              <div className="admin-segment" style={{ marginTop: "0.35rem" }}>
-                <label>
-                  <input type="radio" name="pub" checked={!isPublished} onChange={() => setIsPublished(false)} />
-                  <span>Draft</span>
-                </label>
-                <label>
-                  <input type="radio" name="pub" checked={isPublished} onChange={() => setIsPublished(true)} />
-                  <span>Published</span>
-                </label>
-              </div>
-            </div>
-            <div>
               <label className="admin-label" htmlFor="ew-desc">
                 Description
               </label>
@@ -751,6 +891,9 @@ export function ExamWizard({
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
               />
+              <p style={{ margin: "0.45rem 0 0", fontSize: "0.78rem", color: "var(--muted)" }}>
+                Save state is controlled by the toolbar buttons above: <strong>Save Draft</strong> or <strong>Publish</strong>.
+              </p>
             </div>
           </div>
         </div>
@@ -1135,6 +1278,12 @@ export function ExamWizard({
               <span className="admin-review-value">{title || "(Untitled)"}</span>
             </div>
             <div className="admin-review-item">
+              <span className="admin-review-label">IELTS Format</span>
+              <span className="admin-review-value">
+                {testVariant === "academic" ? "Academic" : "General Training"}
+              </span>
+            </div>
+            <div className="admin-review-item">
               <span className="admin-review-label">Category</span>
               <span className="admin-review-value">{surface === "full" ? "Full Test" : MODULE_LABELS[surface] ?? surface}</span>
             </div>
@@ -1148,7 +1297,9 @@ export function ExamWizard({
             </div>
             <div className="admin-review-item">
               <span className="admin-review-label">Price</span>
-              <span className="admin-review-value">{currency} {priceDollars}</span>
+              <span className="admin-review-value">
+                {pricingMode === "free" ? "Free" : `${currency.toUpperCase()} ${priceDollars}`}
+              </span>
             </div>
             <div className="admin-review-item">
               <span className="admin-review-label">Status</span>
