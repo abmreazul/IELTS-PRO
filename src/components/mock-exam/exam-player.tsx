@@ -3,7 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { submitExamAttempt } from "@/app/(site)/mock-exam/actions";
-import { coerceTestVariant, getReadingSectionLabel } from "@/lib/exam/ielts-defaults";
+import {
+  coerceTestVariant,
+  getReadingSectionLabel,
+  getWritingTaskPromptPlaceholder,
+  getWritingTaskTitle,
+} from "@/lib/exam/ielts-defaults";
 import { Clock, Send, Volume2, Pause, Play, ChevronLeft, ChevronRight } from "lucide-react";
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -42,6 +47,11 @@ type Props = {
 };
 
 type AnswerMap = Record<string, string | number | string[]>;
+type SubmitResult = {
+  overallBand: number | null;
+  moduleBands: Record<string, number | null>;
+  reviewPendingModules: string[];
+};
 
 const MODULE_LABELS: Record<string, string> = {
   listening: "Listening",
@@ -148,7 +158,7 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
   const [activePart, setActivePart] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [result, setResult] = useState<{ overallBand: number; moduleBands: Record<string, number> } | null>(null);
+  const [result, setResult] = useState<SubmitResult | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
 
   // Audio — one ref per part
@@ -215,7 +225,7 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
     setSubmitting(false);
     if (res.ok) {
       setSubmitted(true);
-      setResult({ overallBand: res.overallBand, moduleBands: res.moduleBands });
+      setResult(res.result);
     } else {
       alert(res.message);
     }
@@ -244,21 +254,32 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
 
   /* ── Results screen ────────────── */
   if (submitted && result) {
+    const reviewPending = result.reviewPendingModules.length > 0;
     return (
       <div className="ep-results">
         <div className="ep-results__card ep-fade-in">
           <div className="ep-results__badge">✓</div>
-          <h1 className="ep-results__title">Exam Completed!</h1>
+          <h1 className="ep-results__title">{reviewPending ? "Submission Received" : "Exam Completed!"}</h1>
           <p className="ep-results__sub">{exam.title}</p>
-          <div className="ep-results__band-main">
-            <span className="ep-results__band-label">Overall Band Score</span>
-            <span className="ep-results__band-value">{result.overallBand.toFixed(1)}</span>
-          </div>
+          {reviewPending ? (
+            <div className="ep-results__stats" style={{ marginBottom: "1rem" }}>
+              <div>
+                <span>Review status</span>
+                <strong>{result.reviewPendingModules.map((mod) => MODULE_LABELS[mod] ?? mod).join(" + ")} pending review</strong>
+              </div>
+            </div>
+          ) : null}
+          {result.overallBand != null ? (
+            <div className="ep-results__band-main">
+              <span className="ep-results__band-label">Overall Band Score</span>
+              <span className="ep-results__band-value">{result.overallBand.toFixed(1)}</span>
+            </div>
+          ) : null}
           <div className="ep-results__modules">
             {Object.entries(result.moduleBands).map(([mod, band]) => (
               <div key={mod} className="ep-results__module">
                 <span>{MODULE_LABELS[mod] ?? mod}</span>
-                <strong>{band.toFixed(1)}</strong>
+                <strong>{band != null ? band.toFixed(1) : "Pending review"}</strong>
               </div>
             ))}
           </div>
@@ -454,7 +475,7 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
               <div className="ep-reading-split__passage-inner">
                 <p className="ep-reading-split__part-label ep-slide-up">WRITING TASK {currentPartInfo.part}</p>
                 <h2 className="ep-reading-split__title ep-slide-up">
-                  {currentPartInfo.part === 1 ? "Writing Task 1" : "Writing Task 2"}
+                  {getWritingTaskTitle(readingVariant, currentPartInfo.part)}
                 </h2>
                 {(() => {
                   const tasks = exam.structure_json?.writing_tasks ?? [];
@@ -495,7 +516,7 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
                       <div key={q.id} className="ep-writing-area ep-slide-up">
                         <textarea
                           className="ep-writing-area__input"
-                          placeholder={`Write your ${currentPartInfo.part === 1 ? "report" : "essay"} here…`}
+                          placeholder={getWritingTaskPromptPlaceholder(readingVariant, currentPartInfo.part)}
                           value={text}
                           onChange={(e) => setAnswer(q.id, e.target.value)}
                           rows={20}

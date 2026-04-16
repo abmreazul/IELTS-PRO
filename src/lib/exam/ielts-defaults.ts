@@ -95,6 +95,32 @@ export function getReadingIntro(variant: TestVariant): string {
   return "IELTS Academic Reading has 3 passages and 40 questions. Each passage needs complete source text before publishing.";
 }
 
+export function getWritingTaskTitle(variant: TestVariant, part: number): string {
+  if (part === 1) {
+    return variant === "general" ? "Writing Task 1 (Letter)" : "Writing Task 1 (Report)";
+  }
+  return "Writing Task 2 (Essay)";
+}
+
+export function getWritingTaskPromptPlaceholder(variant: TestVariant, part: number): string {
+  if (part === 1) {
+    return variant === "general"
+      ? "Write a letter responding to the situation below…"
+      : "Describe the chart, graph, table, map, or process below…";
+  }
+  return "Write an essay responding to the question below…";
+}
+
+export function getWritingImageLabel(variant: TestVariant, part: number): string {
+  if (part === 1 && variant === "academic") {
+    return "Image URL (chart / graph / diagram)";
+  }
+  if (part === 1 && variant === "general") {
+    return "Image URL (optional)";
+  }
+  return "Image URL (optional)";
+}
+
 export function structureForModules(modules: string[]): SectionStructure[] {
   const all = DEFAULT_FULL_STRUCTURE;
   return all.map((s) => ({

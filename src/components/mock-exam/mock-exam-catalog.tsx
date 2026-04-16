@@ -40,10 +40,11 @@ export function ExamCard({ exam, latestAttempt, entitled, isLoggedIn }: ExamCard
   const category = exam.exam_categories;
   const categoryName = category?.name ?? "Exam";
   const slug = category?.slug ?? "exam";
-  const completed =
+  const hasCompletedAttempt =
     latestAttempt?.status === "completed" &&
-    latestAttempt?.completed_at &&
-    latestAttempt.overall_band != null;
+    latestAttempt?.completed_at;
+  const reviewPending = Boolean(hasCompletedAttempt && latestAttempt?.review_status === "pending");
+  const completed = Boolean(hasCompletedAttempt && latestAttempt?.overall_band != null);
   const band = latestAttempt?.overall_band ?? null;
 
   const cover = exam.cover_image_url;
@@ -65,6 +66,11 @@ export function ExamCard({ exam, latestAttempt, entitled, isLoggedIn }: ExamCard
             <span className="me-card__status">
               <Check size={14} strokeWidth={2.5} aria-hidden />
               Attempted
+            </span>
+          ) : reviewPending ? (
+            <span className="me-card__status">
+              <Check size={14} strokeWidth={2.5} aria-hidden />
+              Review pending
             </span>
           ) : (
             <span aria-hidden />
@@ -97,17 +103,22 @@ export function ExamCard({ exam, latestAttempt, entitled, isLoggedIn }: ExamCard
             <span className="me-card__score-label">Your band score</span>
             <span className="me-card__score-value">{Number(band).toFixed(1)}</span>
           </div>
+        ) : reviewPending ? (
+          <div className="me-card__score-box">
+            <span className="me-card__score-label">Submission status</span>
+            <span className="me-card__score-value" style={{ fontSize: "1rem" }}>Pending review</span>
+          </div>
         ) : (
           <p className="me-card__price">{formatPrice(exam.price_cents, exam.currency)}</p>
         )}
 
         <div
-          className={`me-card__actions${completed ? " me-card__actions--row" : ""}`}
+          className={`me-card__actions${completed || reviewPending ? " me-card__actions--row" : ""}`}
         >
-          {completed ? (
+          {completed || reviewPending ? (
             <>
               <Link href={`/mock-exam/${exam.slug}/review`} className="btn btn-outline">
-                Review results
+                {reviewPending ? "Review submission" : "Review results"}
               </Link>
               <Link href={`/mock-exam/${exam.slug}/take`} className="btn btn-topbar-cta btn-primary">
                 Retake

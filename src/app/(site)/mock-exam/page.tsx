@@ -67,7 +67,7 @@ async function UserCatalog() {
       supabase
         .from("mock_attempts")
         .select(
-          "id, exam_id, status, overall_band, listening_band, reading_band, writing_band, speaking_band, completed_at, created_at",
+          "id, exam_id, status, review_status, overall_band, listening_band, reading_band, writing_band, speaking_band, completed_at, created_at",
         )
         .eq("user_id", user.id)
         .eq("status", "completed")

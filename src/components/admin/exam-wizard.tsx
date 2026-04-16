@@ -11,6 +11,9 @@ import {
   DEFAULT_SCORING,
   getReadingIntro,
   getReadingSectionLabel,
+  getWritingImageLabel,
+  getWritingTaskPromptPlaceholder,
+  getWritingTaskTitle,
   type ScoringConfig,
   type SectionStructure,
   type TestVariant,
@@ -185,7 +188,7 @@ const TEXT_ANSWER_TYPES = new Set([
 
 function toWizardQuestion(q: QuestionDraft): WizardQuestionInput {
   let options_json: unknown = q.options.map((s) => s.trim()).filter(Boolean);
-  let correct_json: unknown = { kind: "rubric", value: q.correctText.trim() };
+  let correct_json: unknown = null;
 
   if (q.question_type === "true_false_not_given") {
     options_json = ["True", "False", "Not Given"];
@@ -342,6 +345,32 @@ export function ExamWizard({
   const hasReading = modules.includes("reading");
   const hasWriting = modules.includes("writing");
 
+  const generatedWritingQuestions = useMemo<QuestionDraft[]>(() => {
+    if (!hasWriting) return [];
+    const existingWritingQuestions = questions.filter((question) => question.module === "writing");
+    return [1, 2].map((part) => {
+      const existing = existingWritingQuestions.find((question) => question.part === part);
+      const task = writingTasks.find((row) => row.part === part);
+      return {
+        tempId: existing?.tempId ?? `writing-task-${part}`,
+        module: "writing",
+        part,
+        question_type: "essay",
+        prompt: task?.prompt ?? existing?.prompt ?? "",
+        options: ["", "", "", ""],
+        correctIndex: 0,
+        correctTriple: "",
+        correctText: "",
+        points: existing?.points ?? 1,
+      };
+    });
+  }, [hasWriting, questions, writingTasks]);
+
+  const payloadQuestions = useMemo(
+    () => [...questions.filter((question) => question.module !== "writing"), ...generatedWritingQuestions],
+    [generatedWritingQuestions, questions],
+  );
+
   const setListeningPartUrl = useCallback((part: number, url: string) => {
     const t = url.trim();
     if (!t) {
@@ -409,10 +438,10 @@ export function ExamWizard({
     // Auto-derive structure from questions added
     const structure: SectionStructure[] = structureForModules(modules).map((s) => ({
       ...s,
-      questions: questions.filter((q) => q.module === s.module).length,
+      questions: payloadQuestions.filter((q) => q.module === s.module).length,
       enabled: modules.includes(s.module),
     }));
-    const qCount = questions.length;
+    const qCount = payloadQuestions.length;
 
     return {
       id: examId,
@@ -439,7 +468,7 @@ export function ExamWizard({
       },
       scoring_json: DEFAULT_SCORING,
       listening_audio_json: hasListening ? listeningClips : [],
-      questions: questions.map(toWizardQuestion),
+      questions: payloadQuestions.map(toWizardQuestion),
     };
   };
 
@@ -472,11 +501,11 @@ export function ExamWizard({
   const questionCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const m of modules) counts[m] = 0;
-    for (const q of questions) {
+    for (const q of payloadQuestions) {
       if (counts[q.module] !== undefined) counts[q.module]++;
     }
     return counts;
-  }, [questions, modules]);
+  }, [payloadQuestions, modules]);
 
   /* ── Reusable question card renderer ────────────────── */
   const renderQuestionCard = (q: QuestionDraft, qIdx: number) => (
@@ -1137,7 +1166,6 @@ export function ExamWizard({
               <div style={{ marginTop: "1.25rem" }}>
                 {[1, 2].map((part) => {
                   const task = writingTasks.find((t) => t.part === part) ?? { part, prompt: "", image_url: "", min_words: part === 1 ? 150 : 250 };
-                  const partQuestions = questions.filter((q) => q.module === "writing" && q.part === part);
                   const isExpanded = expandedParts[part + 10] !== false; // offset to not conflict with listening
 
                   return (
@@ -1152,9 +1180,9 @@ export function ExamWizard({
                           border: "none", cursor: "pointer", fontWeight: 700, fontSize: "0.95rem", color: "var(--text)",
                         }}
                       >
-                        <span>Writing Task {part} {part === 1 ? "(Report)" : "(Essay)"}</span>
+                        <span>{getWritingTaskTitle(testVariant, part)}</span>
                         <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
-                          {partQuestions.length} question{partQuestions.length !== 1 ? "s" : ""} · Min {task.min_words} words
+                          1 response slot · Min {task.min_words} words
                         </span>
                       </button>
 
@@ -1171,13 +1199,13 @@ export function ExamWizard({
                               const val = e.target.value;
                               setWritingTasks((prev) => prev.map((t) => t.part === part ? { ...t, prompt: val } : t));
                             }}
-                            placeholder={part === 1 ? "Describe the chart/graph/table below…" : "Write an essay on the following topic…"}
+                            placeholder={getWritingTaskPromptPlaceholder(testVariant, part)}
                             style={{ width: "100%", padding: "0.65rem", border: "1px solid var(--border)", borderRadius: "8px", fontSize: "0.9rem", resize: "vertical", boxSizing: "border-box" }}
                           />
 
                           {/* Image URL */}
                           <label style={{ display: "block", marginTop: "0.75rem", marginBottom: "0.4rem", fontWeight: 600, fontSize: "0.85rem" }}>
-                            Image URL {part === 1 ? "(chart/graph)" : "(optional)"}
+                            {getWritingImageLabel(testVariant, part)}
                           </label>
                           <input
                             type="url"
@@ -1204,19 +1232,22 @@ export function ExamWizard({
                             style={{ width: "120px", padding: "0.55rem 0.65rem", border: "1px solid var(--border)", borderRadius: "8px", fontSize: "0.9rem" }}
                           />
 
-                          {/* Questions */}
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "1rem", marginBottom: "0.5rem", position: "sticky", top: 0, background: "var(--surface)", zIndex: 2, padding: "0.5rem 0" }}>
-                            <span style={{ fontWeight: 600, fontSize: "0.85rem" }}>Questions ({partQuestions.length})</span>
-                            <button
-                              type="button"
-                              className="btn btn-primary btn-topbar-cta"
-                              style={{ fontSize: "0.78rem", padding: "0.35rem 0.7rem" }}
-                              onClick={() => addQuestion("writing", part)}
-                            >
-                              <Plus style={{ width: "0.85rem", height: "0.85rem" }} /> Add Question
-                            </button>
+                          <div
+                            style={{
+                              marginTop: "1rem",
+                              padding: "0.9rem 1rem",
+                              borderRadius: "12px",
+                              background: "color-mix(in srgb, var(--primary) 6%, var(--surface))",
+                              border: "1px solid var(--border)",
+                            }}
+                          >
+                            <p style={{ margin: 0, fontWeight: 700, fontSize: "0.88rem", color: "var(--text)" }}>
+                              Candidate response slot
+                            </p>
+                            <p style={{ margin: "0.35rem 0 0", color: "var(--muted)", fontSize: "0.84rem", lineHeight: 1.6 }}>
+                              IELTS Writing uses one typed response for each task. This response field is generated automatically on save and will be sent for review instead of exact-answer grading.
+                            </p>
                           </div>
-                          {partQuestions.map((q, qIdx) => renderQuestionCard(q, qIdx))}
                         </div>
                       ) : null}
                     </div>
@@ -1319,7 +1350,7 @@ export function ExamWizard({
               ))}
               <div className="admin-review-item" style={{ fontWeight: 700 }}>
                 <span className="admin-review-label">Total</span>
-                <span className="admin-review-value">{questions.length} question(s)</span>
+                <span className="admin-review-value">{payloadQuestions.length} question(s)</span>
               </div>
             </div>
           </div>

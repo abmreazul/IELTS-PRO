@@ -146,13 +146,19 @@ export type ExamWizardSaveInput = {
 
 type SanitizedListeningClip = { part: number; url: string; title: string };
 type ReadingPassage = { part: number; title: string; text: string; image_url: string };
+type WritingTask = { part: number; prompt: string; image_url: string; min_words: number };
 
-function parseExamMeta(structure_json: unknown): { testVariant: TestVariant; readingPassages: ReadingPassage[] } {
+function parseExamMeta(structure_json: unknown): {
+  testVariant: TestVariant;
+  readingPassages: ReadingPassage[];
+  writingTasks: WritingTask[];
+} {
   let testVariant: TestVariant = "academic";
   let readingPassages: ReadingPassage[] = [];
+  let writingTasks: WritingTask[] = [];
 
   if (!structure_json || typeof structure_json !== "object") {
-    return { testVariant, readingPassages };
+    return { testVariant, readingPassages, writingTasks };
   }
 
   const structure = structure_json as Record<string, unknown>;
@@ -176,7 +182,22 @@ function parseExamMeta(structure_json: unknown): { testVariant: TestVariant; rea
       .filter((row): row is ReadingPassage => Boolean(row));
   }
 
-  return { testVariant, readingPassages };
+  if (Array.isArray(structure.writing_tasks)) {
+    writingTasks = structure.writing_tasks
+      .map((row) => {
+        if (!row || typeof row !== "object") return null;
+        const task = row as Record<string, unknown>;
+        return {
+          part: Math.max(1, Math.min(2, Math.floor(Number(task.part)) || 1)),
+          prompt: String(task.prompt ?? "").trim(),
+          image_url: String(task.image_url ?? "").trim(),
+          min_words: Math.max(0, Math.floor(Number(task.min_words)) || 0),
+        };
+      })
+      .filter((row): row is WritingTask => Boolean(row));
+  }
+
+  return { testVariant, readingPassages, writingTasks };
 }
 
 function getObjectiveAnswerError(question: WizardQuestionInput): string | null {
@@ -336,6 +357,61 @@ function validateReadingForPublish(
   return null;
 }
 
+function validateWritingForPublish(
+  questions: WizardQuestionInput[],
+  writingTasks: WritingTask[],
+  testVariant: TestVariant,
+): string | null {
+  const variantLabel = testVariant === "general" ? "General Training" : "Academic";
+  const writingQuestions = questions.filter((question) => question.module === "writing");
+  if (writingQuestions.length !== 2) {
+    return `Published ${variantLabel} Writing exams must contain exactly 2 response slots, one for each task.`;
+  }
+
+  const tasksByPart = new Map<number, WritingTask>();
+  for (const task of writingTasks) {
+    tasksByPart.set(task.part, task);
+  }
+
+  const minimumWordsByPart = new Map<number, number>([
+    [1, 150],
+    [2, 250],
+  ]);
+
+  for (const part of [1, 2]) {
+    const task = tasksByPart.get(part);
+    if (!task?.prompt) {
+      return `Writing Task ${part} needs a prompt before publishing.`;
+    }
+    if (task.min_words < (minimumWordsByPart.get(part) ?? 0)) {
+      return `Writing Task ${part} must require at least ${(minimumWordsByPart.get(part) ?? 0)} words.`;
+    }
+  }
+
+  const counts = new Map<number, number>([
+    [1, 0],
+    [2, 0],
+  ]);
+  for (const question of writingQuestions) {
+    const part = Number(question.part);
+    if (!Number.isInteger(part) || part < 1 || part > 2) {
+      return "Every published Writing response slot must belong to Task 1 or Task 2.";
+    }
+    if (question.question_type !== "essay") {
+      return "Writing tasks only support essay responses.";
+    }
+    counts.set(part, (counts.get(part) ?? 0) + 1);
+  }
+
+  for (const part of [1, 2]) {
+    if ((counts.get(part) ?? 0) !== 1) {
+      return `Writing Task ${part} must have exactly one response slot.`;
+    }
+  }
+
+  return null;
+}
+
 function validatePublishRules(
   input: ExamWizardSaveInput,
   listeningAudio: SanitizedListeningClip[],
@@ -348,7 +424,7 @@ function validatePublishRules(
     }
   }
 
-  const { testVariant, readingPassages } = parseExamMeta(input.structure_json);
+  const { testVariant, readingPassages, writingTasks } = parseExamMeta(input.structure_json);
 
   if (input.modules.includes("listening")) {
     const listeningError = validateListeningForPublish(questions, listeningAudio);
@@ -358,6 +434,11 @@ function validatePublishRules(
   if (input.modules.includes("reading")) {
     const readingError = validateReadingForPublish(questions, readingPassages, testVariant);
     if (readingError) return readingError;
+  }
+
+  if (input.modules.includes("writing")) {
+    const writingError = validateWritingForPublish(questions, writingTasks, testVariant);
+    if (writingError) return writingError;
   }
 
   return null;

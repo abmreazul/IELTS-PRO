@@ -73,12 +73,17 @@ export async function startExamAttempt(
    ═══════════════════════════════════════════════════════════════════ */
 
 type AnswerMap = Record<string, string | number | string[]>;
+type SubmitResult = {
+  overallBand: number | null;
+  moduleBands: Record<string, number | null>;
+  reviewPendingModules: string[];
+};
 
 export async function submitExamAttempt(
   attemptId: string,
   answers: AnswerMap,
 ): Promise<
-  | { ok: true; overallBand: number; moduleBands: Record<string, number> }
+  | { ok: true; result: SubmitResult }
   | { ok: false; message: string }
 > {
   const { user, error } = await getAuthUser();
@@ -115,9 +120,17 @@ export async function submitExamAttempt(
 
   // Score each question
   const moduleScores: Record<string, { correct: number; total: number }> = {};
+  const allModules = new Set<string>();
+  const reviewPendingModules = new Set<string>();
+  const subjectiveQuestionTypes = new Set(["essay", "speaking_prompt"]);
 
   for (const q of questions) {
     const mod = q.module || "reading";
+    allModules.add(mod);
+    if (subjectiveQuestionTypes.has(String(q.question_type ?? ""))) {
+      reviewPendingModules.add(mod);
+      continue;
+    }
     if (!moduleScores[mod]) {
       moduleScores[mod] = { correct: 0, total: 0 };
     }
@@ -152,7 +165,7 @@ export async function submitExamAttempt(
   }
 
   // Calculate bands per module
-  const moduleBands: Record<string, number> = {};
+  const moduleBands: Record<string, number | null> = {};
   let totalCorrect = 0;
   let totalQuestions = 0;
 
@@ -161,13 +174,23 @@ export async function submitExamAttempt(
     totalCorrect += correct;
     totalQuestions += total;
   }
+  for (const mod of allModules) {
+    if (!(mod in moduleBands)) {
+      moduleBands[mod] = null;
+    }
+  }
 
-  const overallBand = rawToBand(totalCorrect, totalQuestions);
+  const overallBand = reviewPendingModules.size > 0
+    ? null
+    : rawToBand(totalCorrect, totalQuestions);
+  const reviewStatus = reviewPendingModules.size > 0 ? "pending" : "not_required";
 
   // Update attempt
   const { error: updateErr } = await admin
     .from("mock_attempts")
     .update({
+      answers_json: answers,
+      review_status: reviewStatus,
       status: "completed",
       overall_band: overallBand,
       listening_band: moduleBands.listening ?? null,
@@ -184,5 +207,12 @@ export async function submitExamAttempt(
 
   revalidatePath("/mock-exam");
 
-  return { ok: true, overallBand, moduleBands };
+  return {
+    ok: true,
+    result: {
+      overallBand,
+      moduleBands,
+      reviewPendingModules: Array.from(reviewPendingModules),
+    },
+  };
 }

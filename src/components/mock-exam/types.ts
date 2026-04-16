@@ -29,6 +29,7 @@ export type MockAttemptRow = {
   id: string;
   exam_id: string;
   status: string;
+  review_status: "not_required" | "pending" | "reviewed" | null;
   overall_band: number | null;
   listening_band: number | null;
   reading_band: number | null;
