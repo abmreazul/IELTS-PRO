@@ -248,7 +248,7 @@ export function ExamWizard({
   );
   const [title, setTitle] = useState(initialExam?.title ?? "");
   const [slug, setSlug] = useState(initialExam?.slug ?? "");
-  const [isSlugManual, setIsSlugManual] = useState(Boolean(initialExam?.id || initialExam?.slug));
+  const [isSlugManual] = useState(Boolean(initialExam?.id || initialExam?.slug));
   const [description, setDescription] = useState(initialExam?.description ?? "");
   const [difficulty, setDifficulty] = useState(initialExam?.difficulty ?? "intermediate");
   const [durationMinutes, setDurationMinutes] = useState(initialExam?.duration_minutes ?? 60);
@@ -655,23 +655,23 @@ export function ExamWizard({
           <div className="admin-form-grid" style={{ marginTop: "1rem" }}>
             <div style={{ gridColumn: "1 / -1" }}>
               <div className="admin-review-grid" style={{ marginTop: "-0.1rem", marginBottom: "1.1rem" }}>
-                <div className="admin-review-item">
+                <div className="admin-review-item admin-review-item--format">
                   <span className="admin-review-label">IELTS Format</span>
                   <span className="admin-review-value">
                     {testVariant === "academic" ? "Academic" : "General Training"}
                   </span>
                 </div>
-                <div className="admin-review-item">
+                <div className="admin-review-item admin-review-item--surface">
                   <span className="admin-review-label">Mock Surface</span>
                   <span className="admin-review-value">
                     {surface === "full" ? "Full Test" : MODULE_LABELS[surface] ?? surface}
                   </span>
                 </div>
-                <div className="admin-review-item">
+                <div className="admin-review-item admin-review-item--category">
                   <span className="admin-review-label">Catalog Category</span>
                   <span className="admin-review-value">{currentCategory?.name ?? "Not mapped"}</span>
                 </div>
-                <div className="admin-review-item">
+                <div className="admin-review-item admin-review-item--state">
                   <span className="admin-review-label">Save State</span>
                   <span className={`admin-badge ${isPublished ? "admin-badge--published" : "admin-badge--draft"}`}>
                     {isPublished ? "Published" : "Draft"}
@@ -691,53 +691,6 @@ export function ExamWizard({
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="e.g., IELTS Academic Full Mock Test #1"
               />
-            </div>
-            <div>
-              <label className="admin-label" htmlFor="ew-slug">
-                URL slug
-              </label>
-              <div className="admin-form-grid admin-form-grid--2" style={{ gap: "0.6rem", alignItems: "end" }}>
-                <input
-                  id="ew-slug"
-                  className="admin-input"
-                  value={slug}
-                  onChange={(e) => {
-                    setIsSlugManual(true);
-                    setSlug(slugify(e.target.value));
-                  }}
-                  placeholder="auto-generated-from-title"
-                />
-                <button
-                  type="button"
-                  className="btn btn-outline"
-                  style={{ width: "100%" }}
-                  onClick={() => {
-                    setIsSlugManual(false);
-                    setSlug(slugify(title));
-                  }}
-                >
-                  Auto Generate
-                </button>
-              </div>
-              <p style={{ margin: "0.45rem 0 0", fontSize: "0.78rem", color: "var(--muted)" }}>
-                Generated from the title by default. Edit only if you want a custom URL.
-              </p>
-            </div>
-            <div>
-              <span className="admin-label">IELTS Format</span>
-              <div className="admin-segment" style={{ marginTop: "0.35rem" }}>
-                {(["academic", "general"] as const).map((variant) => (
-                  <label key={variant}>
-                    <input
-                      type="radio"
-                      name="test-variant"
-                      checked={testVariant === variant}
-                      onChange={() => setTestVariant(variant)}
-                    />
-                    <span>{variant === "academic" ? "Academic" : "General Training"}</span>
-                  </label>
-                ))}
-              </div>
             </div>
             <div>
               <span className="admin-label">Exam Category</span>
