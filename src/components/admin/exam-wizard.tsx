@@ -656,26 +656,37 @@ export function ExamWizard({
     );
   }, []);
 
-  const importListeningPartJson = useCallback(async (part: number, file: File) => {
+  const importListeningJson = useCallback(async (file: File) => {
     try {
       const parsed = await readJsonFile(file);
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-        throw new Error("Listening import must be a JSON object with a questions array.");
+        throw new Error("Listening import must be a JSON object.");
       }
       const payload = parsed as Record<string, unknown>;
-      if (!Array.isArray(payload.questions)) {
-        throw new Error("Listening import requires a questions array.");
+      if (!Array.isArray(payload.parts)) {
+        throw new Error("Listening import requires a parts array.");
       }
-      const nextQuestions = payload.questions.map((question) =>
-        normalizeImportedQuestion(question, "listening", part),
-      );
+      const nextQuestions: QuestionDraft[] = [];
+      for (const rawPart of payload.parts) {
+        if (!rawPart || typeof rawPart !== "object") {
+          throw new Error("Every listening part import must be an object.");
+        }
+        const partValue = rawPart as Record<string, unknown>;
+        const part = Math.max(1, Math.min(4, Math.floor(Number(partValue.part) || 0)));
+        if (!part || !Array.isArray(partValue.questions)) {
+          throw new Error("Every listening part import needs part and questions.");
+        }
+        nextQuestions.push(
+          ...partValue.questions.map((question) => normalizeImportedQuestion(question, "listening", part)),
+        );
+      }
       setQuestions((prev) => [
-        ...prev.filter((question) => !(question.module === "listening" && question.part === part)),
+        ...prev.filter((question) => question.module !== "listening"),
         ...nextQuestions,
       ]);
       setMessage({
         type: "ok",
-        text: `Imported ${nextQuestions.length} Listening question${nextQuestions.length === 1 ? "" : "s"} into Part ${part}.`,
+        text: `Imported full Listening JSON with ${nextQuestions.length} question${nextQuestions.length === 1 ? "" : "s"}.`,
       });
     } catch (error) {
       setMessage({
@@ -685,30 +696,47 @@ export function ExamWizard({
     }
   }, []);
 
-  const importReadingPartJson = useCallback(async (part: number, file: File) => {
+  const importReadingJson = useCallback(async (file: File) => {
     try {
       const parsed = await readJsonFile(file);
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
         throw new Error("Reading import must be a JSON object.");
       }
       const payload = parsed as Record<string, unknown>;
-      if (!Array.isArray(payload.questions)) {
-        throw new Error("Reading import requires a questions array.");
+      if (!Array.isArray(payload.passages)) {
+        throw new Error("Reading import requires a passages array.");
       }
-      const nextQuestions = payload.questions.map((question) =>
-        normalizeImportedQuestion(question, "reading", part),
+      const nextQuestions: QuestionDraft[] = [];
+      const nextPassages: ReadingPassage[] = [];
+      for (const rawPassage of payload.passages) {
+        if (!rawPassage || typeof rawPassage !== "object") {
+          throw new Error("Every reading passage import must be an object.");
+        }
+        const passageValue = rawPassage as Record<string, unknown>;
+        const part = Math.max(1, Math.min(3, Math.floor(Number(passageValue.part) || 0)));
+        if (!part || !Array.isArray(passageValue.questions)) {
+          throw new Error("Every reading passage import needs part and questions.");
+        }
+        nextPassages.push({
+          part,
+          title: String(passageValue.title ?? "").trim(),
+          text: String(passageValue.text ?? "").trim(),
+          image_url: readingPassages.find((passage) => passage.part === part)?.image_url ?? "",
+        });
+        nextQuestions.push(
+          ...passageValue.questions.map((question) => normalizeImportedQuestion(question, "reading", part)),
+        );
+      }
+      setReadingPassages((prev) =>
+        prev.map((passage) => nextPassages.find((item) => item.part === passage.part) ?? passage),
       );
-      updateReadingPassage(part, {
-        title: String(payload.title ?? "").trim(),
-        text: String(payload.text ?? "").trim(),
-      });
       setQuestions((prev) => [
-        ...prev.filter((question) => !(question.module === "reading" && question.part === part)),
+        ...prev.filter((question) => question.module !== "reading"),
         ...nextQuestions,
       ]);
       setMessage({
         type: "ok",
-        text: `Imported ${readingSectionLabel} ${part} with ${nextQuestions.length} question${nextQuestions.length === 1 ? "" : "s"}.`,
+        text: `Imported full Reading JSON with ${nextQuestions.length} question${nextQuestions.length === 1 ? "" : "s"}.`,
       });
     } catch (error) {
       setMessage({
@@ -716,30 +744,49 @@ export function ExamWizard({
         text: error instanceof Error ? error.message : "Reading JSON import failed.",
       });
     }
-  }, [readingSectionLabel, updateReadingPassage]);
+  }, [readingPassages]);
 
-  const importWritingTaskJson = useCallback(async (part: number, file: File) => {
+  const importWritingJson = useCallback(async (file: File) => {
     try {
       const parsed = await readJsonFile(file);
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
         throw new Error("Writing import must be a JSON object.");
       }
       const payload = parsed as Record<string, unknown>;
-      const prompt = String(payload.prompt ?? "").trim();
-      if (!prompt) {
-        throw new Error("Writing import requires a prompt field.");
+      if (!Array.isArray(payload.tasks)) {
+        throw new Error("Writing import requires a tasks array.");
       }
-      const minWords = Math.max(0, Math.floor(Number(payload.min_words) || 0));
+      const nextTasks = payload.tasks.map((rawTask) => {
+        if (!rawTask || typeof rawTask !== "object") {
+          throw new Error("Every writing task import must be an object.");
+        }
+        const taskValue = rawTask as Record<string, unknown>;
+        const part = Math.max(1, Math.min(2, Math.floor(Number(taskValue.part) || 0)));
+        const prompt = String(taskValue.prompt ?? "").trim();
+        if (!part || !prompt) {
+          throw new Error("Every writing task import needs part and prompt.");
+        }
+        return {
+          part,
+          prompt,
+          min_words: Math.max(0, Math.floor(Number(taskValue.min_words) || 0)),
+        };
+      });
       setWritingTasks((prev) =>
         prev.map((task) =>
-          task.part === part
-            ? { ...task, prompt, min_words: minWords || task.min_words }
+          nextTasks.find((item) => item.part === task.part)
+            ? {
+                ...task,
+                prompt: nextTasks.find((item) => item.part === task.part)?.prompt ?? task.prompt,
+                min_words:
+                  nextTasks.find((item) => item.part === task.part)?.min_words || task.min_words,
+              }
             : task,
         ),
       );
       setMessage({
         type: "ok",
-        text: `Imported ${getWritingTaskTitle(testVariant, part)} content from JSON.`,
+        text: "Imported full Writing JSON.",
       });
     } catch (error) {
       setMessage({
@@ -747,53 +794,57 @@ export function ExamWizard({
         text: error instanceof Error ? error.message : "Writing JSON import failed.",
       });
     }
-  }, [testVariant]);
+  }, []);
 
-  const importSpeakingPartJson = useCallback(async (part: 1 | 2 | 3, file: File) => {
+  const importSpeakingJson = useCallback(async (file: File) => {
     try {
       const parsed = await readJsonFile(file);
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
         throw new Error("Speaking import must be a JSON object.");
       }
       const payload = parsed as Record<string, unknown>;
-
-      if (part === 1) {
-        const prompts = coerceImportedStringArray(payload.prompts).filter(Boolean);
-        if (prompts.length === 0) {
-          throw new Error("Speaking Part 1 import requires a prompts array.");
-        }
-        setSpeakingPartOne((prev) => ({
-          ...prev,
-          topic_title: String(payload.topic_title ?? "").trim(),
-          prompts,
-        }));
-      } else if (part === 2) {
-        const cueCard = String(payload.cue_card ?? "").trim();
-        const bulletPoints = coerceImportedStringArray(payload.bullet_points).filter(Boolean);
-        if (!cueCard) {
-          throw new Error("Speaking Part 2 import requires a cue_card field.");
-        }
-        setSpeakingPartTwo((prev) => ({
-          ...prev,
-          cue_card: cueCard,
-          bullet_points: bulletPoints.length > 0 ? bulletPoints : prev.bullet_points,
-          follow_up_prompt: String(payload.follow_up_prompt ?? "").trim(),
-        }));
-      } else {
-        const prompts = coerceImportedStringArray(payload.prompts).filter(Boolean);
-        if (prompts.length === 0) {
-          throw new Error("Speaking Part 3 import requires a prompts array.");
-        }
-        setSpeakingPartThree((prev) => ({
-          ...prev,
-          topic_title: String(payload.topic_title ?? "").trim(),
-          prompts,
-        }));
+      const part1 = payload.part1;
+      const part2 = payload.part2;
+      const part3 = payload.part3;
+      if (!part1 || !part2 || !part3) {
+        throw new Error("Speaking import requires part1, part2, and part3 objects.");
       }
+      if (typeof part1 !== "object" || typeof part2 !== "object" || typeof part3 !== "object") {
+        throw new Error("Speaking import parts must be objects.");
+      }
+      const part1Value = part1 as Record<string, unknown>;
+      const part2Value = part2 as Record<string, unknown>;
+      const part3Value = part3 as Record<string, unknown>;
+
+      const part1Prompts = coerceImportedStringArray(part1Value.prompts).filter(Boolean);
+      const part2CueCard = String(part2Value.cue_card ?? "").trim();
+      const part2BulletPoints = coerceImportedStringArray(part2Value.bullet_points).filter(Boolean);
+      const part3Prompts = coerceImportedStringArray(part3Value.prompts).filter(Boolean);
+
+      if (part1Prompts.length === 0) throw new Error("Speaking part1 requires a prompts array.");
+      if (!part2CueCard) throw new Error("Speaking part2 requires a cue_card field.");
+      if (part3Prompts.length === 0) throw new Error("Speaking part3 requires a prompts array.");
+
+      setSpeakingPartOne((prev) => ({
+        ...prev,
+        topic_title: String(part1Value.topic_title ?? "").trim(),
+        prompts: part1Prompts,
+      }));
+      setSpeakingPartTwo((prev) => ({
+        ...prev,
+        cue_card: part2CueCard,
+        bullet_points: part2BulletPoints.length > 0 ? part2BulletPoints : prev.bullet_points,
+        follow_up_prompt: String(part2Value.follow_up_prompt ?? "").trim(),
+      }));
+      setSpeakingPartThree((prev) => ({
+        ...prev,
+        topic_title: String(part3Value.topic_title ?? "").trim(),
+        prompts: part3Prompts,
+      }));
 
       setMessage({
         type: "ok",
-        text: `Imported Speaking Part ${part} content from JSON.`,
+        text: "Imported full Speaking JSON.",
       });
     } catch (error) {
       setMessage({
@@ -1373,9 +1424,15 @@ export function ExamWizard({
 
             return (
               <div style={{ marginTop: "1rem" }}>
-                <p style={{ color: "var(--muted)", fontSize: "0.85rem", marginBottom: "1rem" }}>
-                  IELTS Listening uses one master audio recording. Keep the 4 parts below only for question grouping.
-                </p>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem", marginBottom: "1rem" }}>
+                  <p style={{ color: "var(--muted)", fontSize: "0.85rem", margin: 0 }}>
+                    IELTS Listening uses one master audio recording. Keep the 4 parts below only for question grouping.
+                  </p>
+                  <ImportJsonButton
+                    disabled={pending}
+                    onFile={(file) => void importListeningJson(file)}
+                  />
+                </div>
 
                 <div className="admin-part-card" style={{ marginBottom: "1rem" }}>
                   <div className="admin-part-card__body">
@@ -1469,20 +1526,14 @@ export function ExamWizard({
                               <span style={{ fontWeight: 700, fontSize: "0.85rem" }}>
                                 Questions ({partQuestions.length})
                               </span>
-                              <div style={{ display: "flex", gap: "0.5rem" }}>
-                                <ImportJsonButton
-                                  disabled={pending}
-                                  onFile={(file) => void importListeningPartJson(part, file)}
-                                />
-                                <button
-                                  type="button"
-                                  className="btn btn-primary btn-topbar-cta"
-                                  style={{ fontSize: "0.78rem", padding: "0.35rem 0.7rem" }}
-                                  onClick={() => addQuestion("listening", part)}
-                                >
-                                  <Plus style={{ width: "0.8rem", height: "0.8rem" }} /> Add
-                                </button>
-                              </div>
+                              <button
+                                type="button"
+                                className="btn btn-primary btn-topbar-cta"
+                                style={{ fontSize: "0.78rem", padding: "0.35rem 0.7rem" }}
+                                onClick={() => addQuestion("listening", part)}
+                              >
+                                <Plus style={{ width: "0.8rem", height: "0.8rem" }} /> Add
+                              </button>
                             </div>
 
                             {partQuestions.length === 0 ? (
@@ -1511,7 +1562,7 @@ export function ExamWizard({
                   style={{
                     display: "grid",
                     gap: "1rem",
-                    gridTemplateColumns: "minmax(220px, 320px) minmax(0, 1fr)",
+                    gridTemplateColumns: "minmax(220px, 320px) minmax(0, 1fr) auto",
                     alignItems: "start",
                     marginBottom: "1rem",
                   }}
@@ -1525,6 +1576,10 @@ export function ExamWizard({
                   <p style={{ color: "var(--muted)", fontSize: "0.9rem", margin: 0 }}>
                     {readingIntro}
                   </p>
+                  <ImportJsonButton
+                    disabled={pending}
+                    onFile={(file) => void importReadingJson(file)}
+                  />
                 </div>
 
                 {[1, 2, 3].map((part) => {
@@ -1591,20 +1646,14 @@ export function ExamWizard({
                               <span style={{ fontWeight: 700, fontSize: "0.88rem" }}>
                                 Questions ({partQuestions.length})
                               </span>
-                              <div style={{ display: "flex", gap: "0.5rem" }}>
-                                <ImportJsonButton
-                                  disabled={pending}
-                                  onFile={(file) => void importReadingPartJson(part, file)}
-                                />
-                                <button
-                                  type="button"
-                                  className="btn btn-primary btn-topbar-cta"
-                                  style={{ fontSize: "0.78rem", padding: "0.35rem 0.75rem" }}
-                                  onClick={() => addQuestion("reading", part)}
-                                >
-                                  <Plus style={{ width: "0.85rem", height: "0.85rem" }} /> Add Question
-                                </button>
-                              </div>
+                              <button
+                                type="button"
+                                className="btn btn-primary btn-topbar-cta"
+                                style={{ fontSize: "0.78rem", padding: "0.35rem 0.75rem" }}
+                                onClick={() => addQuestion("reading", part)}
+                              >
+                                <Plus style={{ width: "0.85rem", height: "0.85rem" }} /> Add Question
+                              </button>
                             </div>
                             {partQuestions.length === 0 ? (
                               <p style={{ color: "var(--muted)", fontSize: "0.85rem" }}>No questions for {readingSectionLabel} {part} yet.</p>
@@ -1627,6 +1676,12 @@ export function ExamWizard({
 
             return (
               <div style={{ marginTop: "1.25rem" }}>
+                <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "0.85rem" }}>
+                  <ImportJsonButton
+                    disabled={pending}
+                    onFile={(file) => void importWritingJson(file)}
+                  />
+                </div>
                 {[1, 2].map((part) => {
                   const task = writingTasks.find((t) => t.part === part) ?? { part, prompt: "", image_url: "", min_words: part === 1 ? 150 : 250 };
                   const isExpanded = expandedParts[part + 10] !== false; // offset to not conflict with listening
@@ -1665,10 +1720,6 @@ export function ExamWizard({
                             1 response slot · Min {task.min_words} words
                           </span>
                         </button>
-                        <ImportJsonButton
-                          disabled={pending}
-                          onFile={(file) => void importWritingTaskJson(part, file)}
-                        />
                       </div>
 
                       {isExpanded ? (
@@ -1748,6 +1799,12 @@ export function ExamWizard({
             if (mod === "speaking") {
               return (
                 <div style={{ marginTop: "1.25rem", display: "grid", gap: "1rem" }}>
+                  <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                    <ImportJsonButton
+                      disabled={pending}
+                      onFile={(file) => void importSpeakingJson(file)}
+                    />
+                  </div>
                   <div className="admin-part-card">
                     <div className="admin-part-card__body">
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "1rem", marginBottom: "0.75rem" }}>
@@ -1758,13 +1815,7 @@ export function ExamWizard({
                           </p>
                         </div>
                         <span style={{ color: "var(--muted)", fontSize: "0.8rem", fontWeight: 700 }}>
-                          <span style={{ marginRight: "0.75rem" }}>
-                            {speakingPartOne.prompts.filter((prompt) => prompt.trim()).length} prompt(s)
-                          </span>
-                          <ImportJsonButton
-                            disabled={pending}
-                            onFile={(file) => void importSpeakingPartJson(1, file)}
-                          />
+                          {speakingPartOne.prompts.filter((prompt) => prompt.trim()).length} prompt(s)
                         </span>
                       </div>
                       <div style={{ marginBottom: "0.85rem" }}>
@@ -1841,10 +1892,6 @@ export function ExamWizard({
                               Add one cue card topic, bullet prompts, and an optional follow-up line after the 2-minute talk.
                             </p>
                           </div>
-                          <ImportJsonButton
-                            disabled={pending}
-                            onFile={(file) => void importSpeakingPartJson(2, file)}
-                          />
                         </div>
                       </div>
                       <div style={{ marginBottom: "0.75rem" }}>
@@ -1932,13 +1979,7 @@ export function ExamWizard({
                           </p>
                         </div>
                         <span style={{ color: "var(--muted)", fontSize: "0.8rem", fontWeight: 700 }}>
-                          <span style={{ marginRight: "0.75rem" }}>
-                            {speakingPartThree.prompts.filter((prompt) => prompt.trim()).length} prompt(s)
-                          </span>
-                          <ImportJsonButton
-                            disabled={pending}
-                            onFile={(file) => void importSpeakingPartJson(3, file)}
-                          />
+                          {speakingPartThree.prompts.filter((prompt) => prompt.trim()).length} prompt(s)
                         </span>
                       </div>
                       <div style={{ marginBottom: "0.85rem" }}>
