@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BookOpen, ChevronDown, ChevronRight, Headphones, Mic, PenLine, Plus, Trash2 } from "lucide-react";
+import { BookOpen, ChevronDown, ChevronRight, Headphones, Mic, PenLine, Plus, Trash2, Upload } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
 import { saveExamWizard, type ExamWizardSaveInput, type WizardQuestionInput } from "@/app/admin/actions";
@@ -255,6 +255,13 @@ function coerceImportedStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.map((item) => String(item ?? "").trim()) : [];
 }
 
+function normalizeImportedTripleValue(value: unknown): string {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "_");
+}
+
 function normalizeImportedQuestion(
   raw: unknown,
   module: "listening" | "reading",
@@ -280,7 +287,7 @@ function normalizeImportedQuestion(
   const correctIndex = Number.isInteger(value.correct_index)
     ? Number(value.correct_index)
     : Math.max(0, Math.floor(Number(value.correct_index) || 0));
-  const correctTriple = String(value.correct_triple ?? value.correct_value ?? "").trim().toLowerCase();
+  const correctTriple = normalizeImportedTripleValue(value.correct_triple ?? value.correct_value);
   const correctText = String(value.correct_text ?? value.correct_value ?? "").trim();
 
   return {
@@ -307,7 +314,7 @@ async function readJsonFile(file: File): Promise<unknown> {
 }
 
 function ImportJsonButton({
-  label = "Import JSON",
+  label = "Upload JSON",
   disabled,
   onFile,
 }: {
@@ -340,6 +347,7 @@ function ImportJsonButton({
         disabled={disabled}
         onClick={() => inputRef.current?.click()}
       >
+        <Upload style={{ width: "0.82rem", height: "0.82rem" }} />
         {label}
       </button>
     </>
