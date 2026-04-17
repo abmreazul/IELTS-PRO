@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { BookOpen, ChevronDown, ChevronRight, Headphones, Mic, PenLine, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
 import { saveExamWizard, type ExamWizardSaveInput, type WizardQuestionInput } from "@/app/admin/actions";
 import { ExamLocalUpload } from "@/components/admin/exam-local-upload";
 import {
@@ -244,6 +244,107 @@ const MODULE_ICONS: Record<string, typeof Headphones> = {
   writing: PenLine,
   speaking: Mic,
 };
+
+const IMPORTABLE_OBJECTIVE_TYPES = new Set(
+  IELTS_QUESTION_TYPES
+    .map((type) => type.value)
+    .filter((type) => type !== "essay" && type !== "speaking_prompt"),
+);
+
+function coerceImportedStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.map((item) => String(item ?? "").trim()) : [];
+}
+
+function normalizeImportedQuestion(
+  raw: unknown,
+  module: "listening" | "reading",
+  part: number,
+): QuestionDraft {
+  if (!raw || typeof raw !== "object") {
+    throw new Error("Every imported question must be an object.");
+  }
+
+  const value = raw as Record<string, unknown>;
+  const questionType = String(value.question_type ?? "").trim();
+  if (!IMPORTABLE_OBJECTIVE_TYPES.has(questionType)) {
+    throw new Error(`Unsupported question type "${questionType || "unknown"}" in imported JSON.`);
+  }
+
+  const prompt = String(value.prompt ?? "").trim();
+  if (!prompt) {
+    throw new Error("Every imported question needs prompt text.");
+  }
+
+  const points = Math.max(1, Math.round(Number(value.points) || 1));
+  const options = coerceImportedStringArray(value.options).slice(0, 4);
+  const correctIndex = Number.isInteger(value.correct_index)
+    ? Number(value.correct_index)
+    : Math.max(0, Math.floor(Number(value.correct_index) || 0));
+  const correctTriple = String(value.correct_triple ?? value.correct_value ?? "").trim().toLowerCase();
+  const correctText = String(value.correct_text ?? value.correct_value ?? "").trim();
+
+  return {
+    tempId: crypto.randomUUID(),
+    module,
+    part,
+    question_type: questionType,
+    prompt,
+    options: [...options, "", "", "", ""].slice(0, 4),
+    correctIndex,
+    correctTriple,
+    correctText,
+    points,
+  };
+}
+
+async function readJsonFile(file: File): Promise<unknown> {
+  const text = await file.text();
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    throw new Error("Invalid JSON file.");
+  }
+}
+
+function ImportJsonButton({
+  label = "Import JSON",
+  disabled,
+  onFile,
+}: {
+  label?: string;
+  disabled?: boolean;
+  onFile: (file: File) => void;
+}) {
+  const inputId = useId();
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  return (
+    <>
+      <input
+        id={inputId}
+        ref={inputRef}
+        type="file"
+        accept="application/json,.json"
+        style={{ display: "none" }}
+        disabled={disabled}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          if (file) onFile(file);
+        }}
+      />
+      <button
+        type="button"
+        className="btn btn-outline"
+        style={{ fontSize: "0.78rem", padding: "0.35rem 0.7rem" }}
+        disabled={disabled}
+        onClick={() => inputRef.current?.click()}
+      >
+        {label}
+      </button>
+    </>
+  );
+}
 
 /* ═══════════════════════════════════════════════════════════════════
    Steps: Basic Info → Questions → Review
@@ -553,6 +654,153 @@ export function ExamWizard({
     setReadingPassages((prev) =>
       prev.map((p) => (p.part === part ? { ...p, ...patch } : p)),
     );
+  }, []);
+
+  const importListeningPartJson = useCallback(async (part: number, file: File) => {
+    try {
+      const parsed = await readJsonFile(file);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        throw new Error("Listening import must be a JSON object with a questions array.");
+      }
+      const payload = parsed as Record<string, unknown>;
+      if (!Array.isArray(payload.questions)) {
+        throw new Error("Listening import requires a questions array.");
+      }
+      const nextQuestions = payload.questions.map((question) =>
+        normalizeImportedQuestion(question, "listening", part),
+      );
+      setQuestions((prev) => [
+        ...prev.filter((question) => !(question.module === "listening" && question.part === part)),
+        ...nextQuestions,
+      ]);
+      setMessage({
+        type: "ok",
+        text: `Imported ${nextQuestions.length} Listening question${nextQuestions.length === 1 ? "" : "s"} into Part ${part}.`,
+      });
+    } catch (error) {
+      setMessage({
+        type: "err",
+        text: error instanceof Error ? error.message : "Listening JSON import failed.",
+      });
+    }
+  }, []);
+
+  const importReadingPartJson = useCallback(async (part: number, file: File) => {
+    try {
+      const parsed = await readJsonFile(file);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        throw new Error("Reading import must be a JSON object.");
+      }
+      const payload = parsed as Record<string, unknown>;
+      if (!Array.isArray(payload.questions)) {
+        throw new Error("Reading import requires a questions array.");
+      }
+      const nextQuestions = payload.questions.map((question) =>
+        normalizeImportedQuestion(question, "reading", part),
+      );
+      updateReadingPassage(part, {
+        title: String(payload.title ?? "").trim(),
+        text: String(payload.text ?? "").trim(),
+      });
+      setQuestions((prev) => [
+        ...prev.filter((question) => !(question.module === "reading" && question.part === part)),
+        ...nextQuestions,
+      ]);
+      setMessage({
+        type: "ok",
+        text: `Imported ${readingSectionLabel} ${part} with ${nextQuestions.length} question${nextQuestions.length === 1 ? "" : "s"}.`,
+      });
+    } catch (error) {
+      setMessage({
+        type: "err",
+        text: error instanceof Error ? error.message : "Reading JSON import failed.",
+      });
+    }
+  }, [readingSectionLabel, updateReadingPassage]);
+
+  const importWritingTaskJson = useCallback(async (part: number, file: File) => {
+    try {
+      const parsed = await readJsonFile(file);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        throw new Error("Writing import must be a JSON object.");
+      }
+      const payload = parsed as Record<string, unknown>;
+      const prompt = String(payload.prompt ?? "").trim();
+      if (!prompt) {
+        throw new Error("Writing import requires a prompt field.");
+      }
+      const minWords = Math.max(0, Math.floor(Number(payload.min_words) || 0));
+      setWritingTasks((prev) =>
+        prev.map((task) =>
+          task.part === part
+            ? { ...task, prompt, min_words: minWords || task.min_words }
+            : task,
+        ),
+      );
+      setMessage({
+        type: "ok",
+        text: `Imported ${getWritingTaskTitle(testVariant, part)} content from JSON.`,
+      });
+    } catch (error) {
+      setMessage({
+        type: "err",
+        text: error instanceof Error ? error.message : "Writing JSON import failed.",
+      });
+    }
+  }, [testVariant]);
+
+  const importSpeakingPartJson = useCallback(async (part: 1 | 2 | 3, file: File) => {
+    try {
+      const parsed = await readJsonFile(file);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        throw new Error("Speaking import must be a JSON object.");
+      }
+      const payload = parsed as Record<string, unknown>;
+
+      if (part === 1) {
+        const prompts = coerceImportedStringArray(payload.prompts).filter(Boolean);
+        if (prompts.length === 0) {
+          throw new Error("Speaking Part 1 import requires a prompts array.");
+        }
+        setSpeakingPartOne((prev) => ({
+          ...prev,
+          topic_title: String(payload.topic_title ?? "").trim(),
+          prompts,
+        }));
+      } else if (part === 2) {
+        const cueCard = String(payload.cue_card ?? "").trim();
+        const bulletPoints = coerceImportedStringArray(payload.bullet_points).filter(Boolean);
+        if (!cueCard) {
+          throw new Error("Speaking Part 2 import requires a cue_card field.");
+        }
+        setSpeakingPartTwo((prev) => ({
+          ...prev,
+          cue_card: cueCard,
+          bullet_points: bulletPoints.length > 0 ? bulletPoints : prev.bullet_points,
+          follow_up_prompt: String(payload.follow_up_prompt ?? "").trim(),
+        }));
+      } else {
+        const prompts = coerceImportedStringArray(payload.prompts).filter(Boolean);
+        if (prompts.length === 0) {
+          throw new Error("Speaking Part 3 import requires a prompts array.");
+        }
+        setSpeakingPartThree((prev) => ({
+          ...prev,
+          topic_title: String(payload.topic_title ?? "").trim(),
+          prompts,
+        }));
+      }
+
+      setMessage({
+        type: "ok",
+        text: `Imported Speaking Part ${part} content from JSON.`,
+      });
+    } catch (error) {
+      setMessage({
+        type: "err",
+        text: error instanceof Error ? error.message : "Speaking JSON import failed.",
+      });
+    }
   }, []);
 
   const handleSurface = (s: Surface) => {
@@ -907,6 +1155,22 @@ export function ExamWizard({
               />
             </div>
             <div>
+              <span className="admin-label">IELTS Type</span>
+              <div className="admin-segment" style={{ marginTop: "0.35rem" }}>
+                {(["academic", "general"] as const).map((variant) => (
+                  <label key={variant}>
+                    <input
+                      type="radio"
+                      name="test-variant"
+                      checked={testVariant === variant}
+                      onChange={() => setTestVariant(variant)}
+                    />
+                    <span>{variant === "academic" ? "Academic" : "General Training"}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div>
               <span className="admin-label">Exam Category</span>
               <div className="admin-segment" style={{ marginTop: "0.35rem" }}>
                 {(["full", "listening", "reading", "writing", "speaking"] as Surface[]).map((s) => (
@@ -1205,14 +1469,20 @@ export function ExamWizard({
                               <span style={{ fontWeight: 700, fontSize: "0.85rem" }}>
                                 Questions ({partQuestions.length})
                               </span>
-                              <button
-                                type="button"
-                                className="btn btn-primary btn-topbar-cta"
-                                style={{ fontSize: "0.78rem", padding: "0.35rem 0.7rem" }}
-                                onClick={() => addQuestion("listening", part)}
-                              >
-                                <Plus style={{ width: "0.8rem", height: "0.8rem" }} /> Add
-                              </button>
+                              <div style={{ display: "flex", gap: "0.5rem" }}>
+                                <ImportJsonButton
+                                  disabled={pending}
+                                  onFile={(file) => void importListeningPartJson(part, file)}
+                                />
+                                <button
+                                  type="button"
+                                  className="btn btn-primary btn-topbar-cta"
+                                  style={{ fontSize: "0.78rem", padding: "0.35rem 0.7rem" }}
+                                  onClick={() => addQuestion("listening", part)}
+                                >
+                                  <Plus style={{ width: "0.8rem", height: "0.8rem" }} /> Add
+                                </button>
+                              </div>
                             </div>
 
                             {partQuestions.length === 0 ? (
@@ -1248,19 +1518,9 @@ export function ExamWizard({
                 >
                   <div>
                     <span className="admin-label">Reading format</span>
-                    <div className="admin-segment" style={{ marginTop: "0.35rem" }}>
-                      {(["academic", "general"] as const).map((variant) => (
-                        <label key={variant}>
-                          <input
-                            type="radio"
-                            name="reading-variant"
-                            checked={testVariant === variant}
-                            onChange={() => setTestVariant(variant)}
-                          />
-                          <span>{variant === "academic" ? "Academic" : "General Training"}</span>
-                        </label>
-                      ))}
-                    </div>
+                    <p style={{ color: "var(--text)", fontWeight: 700, margin: "0.45rem 0 0" }}>
+                      {testVariant === "academic" ? "Academic" : "General Training"}
+                    </p>
                   </div>
                   <p style={{ color: "var(--muted)", fontSize: "0.9rem", margin: 0 }}>
                     {readingIntro}
@@ -1331,14 +1591,20 @@ export function ExamWizard({
                               <span style={{ fontWeight: 700, fontSize: "0.88rem" }}>
                                 Questions ({partQuestions.length})
                               </span>
-                              <button
-                                type="button"
-                                className="btn btn-primary btn-topbar-cta"
-                                style={{ fontSize: "0.78rem", padding: "0.35rem 0.75rem" }}
-                                onClick={() => addQuestion("reading", part)}
-                              >
-                                <Plus style={{ width: "0.85rem", height: "0.85rem" }} /> Add Question
-                              </button>
+                              <div style={{ display: "flex", gap: "0.5rem" }}>
+                                <ImportJsonButton
+                                  disabled={pending}
+                                  onFile={(file) => void importReadingPartJson(part, file)}
+                                />
+                                <button
+                                  type="button"
+                                  className="btn btn-primary btn-topbar-cta"
+                                  style={{ fontSize: "0.78rem", padding: "0.35rem 0.75rem" }}
+                                  onClick={() => addQuestion("reading", part)}
+                                >
+                                  <Plus style={{ width: "0.85rem", height: "0.85rem" }} /> Add Question
+                                </button>
+                              </div>
                             </div>
                             {partQuestions.length === 0 ? (
                               <p style={{ color: "var(--muted)", fontSize: "0.85rem" }}>No questions for {readingSectionLabel} {part} yet.</p>
@@ -1367,21 +1633,43 @@ export function ExamWizard({
 
                   return (
                     <div key={part} style={{ marginBottom: "1.25rem", border: "1px solid var(--border)", borderRadius: "12px", overflow: "hidden" }}>
-                      {/* Task header */}
-                      <button
-                        type="button"
-                        onClick={() => setExpandedParts((prev) => ({ ...prev, [part + 10]: !(prev[part + 10] !== false) }))}
+                      <div
                         style={{
-                          width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center",
-                          padding: "0.85rem 1rem", background: "color-mix(in srgb, var(--primary) 6%, var(--surface))",
-                          border: "none", cursor: "pointer", fontWeight: 700, fontSize: "0.95rem", color: "var(--text)",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          gap: "0.75rem",
+                          padding: "0.85rem 1rem",
+                          background: "color-mix(in srgb, var(--primary) 6%, var(--surface))",
                         }}
                       >
-                        <span>{getWritingTaskTitle(testVariant, part)}</span>
-                        <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
-                          1 response slot · Min {task.min_words} words
-                        </span>
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => setExpandedParts((prev) => ({ ...prev, [part + 10]: !(prev[part + 10] !== false) }))}
+                          style={{
+                            flex: 1,
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            border: "none",
+                            background: "transparent",
+                            cursor: "pointer",
+                            fontWeight: 700,
+                            fontSize: "0.95rem",
+                            color: "var(--text)",
+                            padding: 0,
+                          }}
+                        >
+                          <span>{getWritingTaskTitle(testVariant, part)}</span>
+                          <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
+                            1 response slot · Min {task.min_words} words
+                          </span>
+                        </button>
+                        <ImportJsonButton
+                          disabled={pending}
+                          onFile={(file) => void importWritingTaskJson(part, file)}
+                        />
+                      </div>
 
                       {isExpanded ? (
                         <div style={{ padding: "1rem" }}>
@@ -1470,7 +1758,13 @@ export function ExamWizard({
                           </p>
                         </div>
                         <span style={{ color: "var(--muted)", fontSize: "0.8rem", fontWeight: 700 }}>
-                          {speakingPartOne.prompts.filter((prompt) => prompt.trim()).length} prompt(s)
+                          <span style={{ marginRight: "0.75rem" }}>
+                            {speakingPartOne.prompts.filter((prompt) => prompt.trim()).length} prompt(s)
+                          </span>
+                          <ImportJsonButton
+                            disabled={pending}
+                            onFile={(file) => void importSpeakingPartJson(1, file)}
+                          />
                         </span>
                       </div>
                       <div style={{ marginBottom: "0.85rem" }}>
@@ -1540,10 +1834,18 @@ export function ExamWizard({
                   <div className="admin-part-card">
                     <div className="admin-part-card__body">
                       <div style={{ marginBottom: "0.75rem" }}>
-                        <h3 style={{ margin: 0, fontSize: "1rem" }}>Part 2: Cue Card</h3>
-                        <p style={{ margin: "0.3rem 0 0", color: "var(--muted)", fontSize: "0.84rem" }}>
-                          Add one cue card topic, bullet prompts, and an optional follow-up line after the 2-minute talk.
-                        </p>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "1rem" }}>
+                          <div>
+                            <h3 style={{ margin: 0, fontSize: "1rem" }}>Part 2: Cue Card</h3>
+                            <p style={{ margin: "0.3rem 0 0", color: "var(--muted)", fontSize: "0.84rem" }}>
+                              Add one cue card topic, bullet prompts, and an optional follow-up line after the 2-minute talk.
+                            </p>
+                          </div>
+                          <ImportJsonButton
+                            disabled={pending}
+                            onFile={(file) => void importSpeakingPartJson(2, file)}
+                          />
+                        </div>
                       </div>
                       <div style={{ marginBottom: "0.75rem" }}>
                         <label className="admin-label">Cue card prompt</label>
@@ -1630,7 +1932,13 @@ export function ExamWizard({
                           </p>
                         </div>
                         <span style={{ color: "var(--muted)", fontSize: "0.8rem", fontWeight: 700 }}>
-                          {speakingPartThree.prompts.filter((prompt) => prompt.trim()).length} prompt(s)
+                          <span style={{ marginRight: "0.75rem" }}>
+                            {speakingPartThree.prompts.filter((prompt) => prompt.trim()).length} prompt(s)
+                          </span>
+                          <ImportJsonButton
+                            disabled={pending}
+                            onFile={(file) => void importSpeakingPartJson(3, file)}
+                          />
                         </span>
                       </div>
                       <div style={{ marginBottom: "0.85rem" }}>
