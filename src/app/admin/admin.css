@@ -143,14 +143,14 @@
 
 /* Blue */
 .admin-stat-card--blue {
-  border-left-color: #3b82f6;
-  background: color-mix(in srgb, #3b82f6 4%, var(--surface));
+  border-left-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 4%, var(--surface));
 }
 .admin-stat-card--blue .admin-stat-card__label {
-  color: #3b82f6;
+  color: var(--primary);
 }
 .admin-stat-card--blue .admin-stat-card__icon {
-  color: #3b82f6;
+  color: var(--primary);
 }
 
 /* Green */
@@ -303,11 +303,11 @@
 }
 
 .admin-badge--full {
-  background: color-mix(in srgb, #3b82f6 14%, var(--surface));
-  color: #2563eb;
+  background: color-mix(in srgb, var(--primary) 14%, var(--surface));
+  color: var(--primary);
 }
 .dark .admin-badge--full {
-  color: #93c5fd;
+  color: color-mix(in srgb, var(--primary) 65%, white);
 }
 
 .admin-badge--listening {

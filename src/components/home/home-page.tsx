@@ -2,11 +2,31 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Check } from "lucide-react";
+import {
+  ArrowRight,
+  BookOpen,
+  Check,
+  ClipboardCheck,
+  GraduationCap,
+  HeartHandshake,
+  ShieldCheck,
+  Rocket,
+  Search,
+  Sparkles,
+} from "lucide-react";
 import { LogoMark } from "@/components/layout/logo-mark";
 import { MotionConfig, motion, useScroll, useSpring } from "framer-motion";
 import { useEffect, useState } from "react";
 import { fadeUp, heroImage, staggerContainer, staggerItem } from "./motion-variants";
+
+const heroSlides = [
+  "/herosection/1.jpg",
+  "/herosection/2.jpg",
+  "/herosection/3.jpg",
+  "/herosection/4.jpg",
+  "/herosection/5.jpg",
+  "/herosection/6.jpg",
+] as const;
 
 const features = [
   {
@@ -42,10 +62,26 @@ const features = [
 ] as const;
 
 const steps = [
-  { n: 1, title: "Sign Up", text: "Create your profile and set your exam date and target band." },
-  { n: 2, title: "Take Mock Tests", text: "Sit full exams or focus on one module at a time." },
-  { n: 3, title: "Review & Improve", text: "Read explanations, model answers, and tailored tips." },
-  { n: 4, title: "Achieve Your Goal", text: "Retest until you are consistently hitting your band." },
+  {
+    title: "Choose Your Test",
+    text: "Pick a full mock or a single section.",
+    icon: Search,
+  },
+  {
+    title: "Practice Under Time",
+    text: "Practice with real IELTS-style timing.",
+    icon: BookOpen,
+  },
+  {
+    title: "Review Your Results",
+    text: "See feedback and clear band insights.",
+    icon: ClipboardCheck,
+  },
+  {
+    title: "Reach Your Band",
+    text: "Keep improving until you hit your goal.",
+    icon: Rocket,
+  },
 ] as const;
 
 const plans = [
@@ -106,11 +142,65 @@ const testimonials = [
   },
 ] as const;
 
+const values = [
+  {
+    title: "Accessibility",
+    text: "Clear IELTS prep for every learner, wherever they start.",
+    icon: GraduationCap,
+  },
+  {
+    title: "Quality",
+    text: "Exam-style practice built with structure, accuracy, and care.",
+    icon: ShieldCheck,
+  },
+  {
+    title: "Flexibility",
+    text: "Study full tests or single sections on your own schedule.",
+    icon: Sparkles,
+  },
+  {
+    title: "Growth",
+    text: "Focused feedback that helps you move toward your target band.",
+    icon: HeartHandshake,
+  },
+] as const;
+
+const footerFaces = [
+  {
+    src: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=240&q=80",
+    alt: "Student portrait",
+    className: "footer-cta__face footer-cta__face--1",
+  },
+  {
+    src: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=240&q=80",
+    alt: "Student portrait",
+    className: "footer-cta__face footer-cta__face--2",
+  },
+  {
+    src: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=240&q=80",
+    alt: "Student portrait",
+    className: "footer-cta__face footer-cta__face--3",
+  },
+  {
+    src: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=240&q=80",
+    alt: "Student portrait",
+    className: "footer-cta__face footer-cta__face--4",
+  },
+] as const;
+
 
 export function HomePage() {
   const [billing, setBilling] = useState<"monthly" | "yearly">("monthly");
+  const [activeHeroSlide, setActiveHeroSlide] = useState(0);
   const { scrollYProgress } = useScroll();
   const scaleX = useSpring(scrollYProgress, { stiffness: 100, damping: 30, restDelta: 0.001 });
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setActiveHeroSlide((current) => (current + 1) % heroSlides.length);
+    }, 5000);
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   return (
     <MotionConfig reducedMotion="user">
@@ -118,6 +208,22 @@ export function HomePage() {
 
       <main className="page">
         <section className="hero">
+          <motion.div className="hero-media" initial="hidden" animate="visible" variants={heroImage}>
+            {heroSlides.map((slide, index) => (
+              <Image
+                key={slide}
+                src={slide}
+                alt=""
+                width={1600}
+                height={900}
+                className={`hero-image${activeHeroSlide === index ? " hero-image--active" : ""}`}
+                priority={index === 0}
+                unoptimized
+                sizes="100vw"
+              />
+            ))}
+          </motion.div>
+
           <div className="container hero-grid">
             <motion.div
               className="hero-copy-wrap"
@@ -125,71 +231,24 @@ export function HomePage() {
               initial="hidden"
               animate="visible"
             >
-              <motion.p className="hero-kicker" variants={staggerItem}>
-                IELTS practice platform for Academic and General Training
-              </motion.p>
               <motion.h1 className="hero-title" variants={staggerItem}>
-                Study Smarter. <span className="text-primary">Score Higher</span> in IELTS.
+                Planning to Ace <span className="text-primary">IELTS</span>
               </motion.h1>
               <motion.h2 className="hero-subtitle" variants={staggerItem}>
-                Full Mock Tests, Clear Feedback, Real Exam Confidence
+                Full mock tests built to raise your IELTS score.
               </motion.h2>
-              <motion.p className="hero-lead" variants={staggerItem}>
-                Practice with realistic listening, reading, writing, and speaking exams built to
-                feel like the real IELTS. Track your band progress, spot weak areas, and prepare
-                with purpose.
-              </motion.p>
               <motion.div className="hero-ctas" variants={staggerItem}>
                 <motion.div
                   style={{ display: "inline-flex" }}
                   whileHover={{ scale: 1.02, y: -1 }}
                   whileTap={{ scale: 0.98 }}
                 >
-                  <Link href="/create-account" className="btn btn-hero-dark">
-                    Start Free Practice
-                  </Link>
-                </motion.div>
-                <motion.div
-                  whileHover={{ scale: 1.02, y: -1 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  <Link href="/mock-exam" className="btn btn-outline">
-                    Explore Mock Exams
+                  <Link href="/mock-exam" className="btn btn-hero-light">
+                    Start Exam
+                    <ArrowRight size={18} strokeWidth={2.25} />
                   </Link>
                 </motion.div>
               </motion.div>
-              <motion.div className="hero-points" variants={staggerItem}>
-                <div className="hero-point">
-                  <span className="hero-point__dot" aria-hidden />
-                  <span>Full-length IELTS simulations with section timing</span>
-                </div>
-                <div className="hero-point">
-                  <span className="hero-point__dot" aria-hidden />
-                  <span>Writing and speaking submissions ready for review</span>
-                </div>
-                <div className="hero-point">
-                  <span className="hero-point__dot" aria-hidden />
-                  <span>Academic and General Training preparation in one place</span>
-                </div>
-              </motion.div>
-            </motion.div>
-
-            <motion.div
-              className="hero-visual"
-              initial="hidden"
-              animate="visible"
-              variants={heroImage}
-            >
-              <Image
-                src="/hero-section-v4.png"
-                alt="Student preparing for the IELTS exam"
-                width={820}
-                height={820}
-                className="hero-image"
-                priority
-                unoptimized
-                sizes="(max-width: 960px) 100vw, 45vw"
-              />
             </motion.div>
           </div>
         </section>
@@ -273,9 +332,14 @@ export function HomePage() {
             </motion.p>
           </div>
           <div className="container steps">
+            <div className="steps__curve" aria-hidden>
+              <svg viewBox="0 0 1200 180" preserveAspectRatio="none">
+                <path d="M90 70 C190 130, 310 130, 410 70 S630 10, 730 70 S950 130, 1050 70" />
+              </svg>
+            </div>
             {steps.map((s, i) => (
               <motion.div
-                key={s.n}
+                key={s.title}
                 className="step"
                 initial="hidden"
                 whileInView="visible"
@@ -283,18 +347,113 @@ export function HomePage() {
                 variants={fadeUp}
                 custom={i}
               >
-                {i < steps.length - 1 ? <span className="step__connector" aria-hidden /> : null}
                 <motion.div
-                  className="step__circle"
+                  className="step__icon-wrap"
                   whileHover={{ scale: 1.06 }}
                   transition={{ type: "spring", stiffness: 400, damping: 18 }}
                 >
-                  {s.n}
+                  <s.icon className="step__icon" strokeWidth={2.2} />
                 </motion.div>
                 <h3>{s.title}</h3>
                 <p>{s.text}</p>
               </motion.div>
             ))}
+          </div>
+        </section>
+
+        <section id="about" className="section about-showcase">
+          <div className="container about-intro">
+            <div className="about-intro__media about-intro__media--left">
+              <Image
+                src="https://images.unsplash.com/photo-1544717305-2782549b5136?w=640&q=80"
+                alt="Student holding books"
+                fill
+                sizes="220px"
+                style={{ objectFit: "cover" }}
+              />
+            </div>
+            <div className="about-intro__content">
+              <span className="about-chip">About Us</span>
+              <motion.h2
+                className="about-intro__title"
+                initial="hidden"
+                whileInView="visible"
+                viewport={{ once: true, margin: "-80px" }}
+                variants={fadeUp}
+                custom={0}
+              >
+                Gateway To Better
+                <br />
+                <span>IELTS Growth</span>
+              </motion.h2>
+              <motion.p
+                className="about-intro__text"
+                initial="hidden"
+                whileInView="visible"
+                viewport={{ once: true, margin: "-80px" }}
+                variants={fadeUp}
+                custom={1}
+              >
+                We built The IELTS Exam to make serious preparation feel clearer, more realistic,
+                and more achievable. From full mock tests to focused review, the platform helps
+                learners prepare with confidence for the score they need.
+              </motion.p>
+            </div>
+            <div className="about-intro__accent about-intro__accent--star" aria-hidden />
+            <div className="about-intro__accent about-intro__accent--spark" aria-hidden />
+            <div className="about-intro__media about-intro__media--right">
+              <Image
+                src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=640&q=80"
+                alt="Smiling student"
+                fill
+                sizes="220px"
+                style={{ objectFit: "cover" }}
+              />
+            </div>
+          </div>
+
+          <div className="container about-values">
+            <div className="about-values__image">
+              <Image
+                src="https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=900&q=80"
+                alt="Students studying together"
+                fill
+                sizes="(max-width: 1024px) 100vw, 44vw"
+                style={{ objectFit: "cover" }}
+              />
+            </div>
+            <div className="about-values__content">
+              <span className="about-chip">Our Values</span>
+              <motion.h2
+                className="about-values__title"
+                initial="hidden"
+                whileInView="visible"
+                viewport={{ once: true, margin: "-80px" }}
+                variants={fadeUp}
+                custom={0}
+              >
+                What We <span>Stand For</span>
+              </motion.h2>
+              <div className="about-values__grid">
+                {values.map((value, i) => (
+                  <motion.article
+                    key={value.title}
+                    className="about-value"
+                    initial="hidden"
+                    whileInView="visible"
+                    viewport={{ once: true, margin: "-60px" }}
+                    variants={fadeUp}
+                    custom={i}
+                  >
+                    <div className="about-value__icon">
+                      <value.icon strokeWidth={2.2} />
+                    </div>
+                    <h3>{value.title}</h3>
+                    <p>{value.text}</p>
+                  </motion.article>
+                ))}
+              </div>
+            </div>
           </div>
         </section>
 
@@ -454,6 +613,28 @@ export function HomePage() {
         </section>
 
         <footer className="site-footer">
+          <div className="container footer-cta">
+            <div className="footer-cta__rings footer-cta__rings--left" aria-hidden />
+            <div className="footer-cta__rings footer-cta__rings--right" aria-hidden />
+            {footerFaces.map((face) => (
+              <div key={face.src} className={face.className}>
+                <Image src={face.src} alt={face.alt} fill sizes="96px" style={{ objectFit: "cover" }} />
+              </div>
+            ))}
+            <div className="footer-cta__content">
+              <h2>
+                Ready to Start <span>Practising?</span>
+              </h2>
+              <p>
+                Take a full mock exam, review your result, and move one step closer to your target
+                band.
+              </p>
+              <Link href="/mock-exam" className="btn footer-cta__button">
+                Explore Mock Exams
+              </Link>
+            </div>
+          </div>
+
           <div className="container footer-grid">
             <div className="footer-brand">
               <a href="#" className="brand-link brand-link--footer">
@@ -461,72 +642,43 @@ export function HomePage() {
                 <span className="brand-text">The IELTS Exam</span>
               </a>
               <p>
-                Full-length IELTS mock exams, analytics, and study paths trusted by students in over
-                80 countries.
+                Realistic IELTS practice for listening, reading, writing, and speaking in one focused
+                platform.
               </p>
-              <div className="social-row" aria-label="Social links">
-                {["Facebook", "Twitter", "Instagram", "LinkedIn"].map((label) => (
-                  <motion.a
-                    key={label}
-                    href="#"
-                    className="social-link"
-                    aria-label={label}
-                    whileHover={{ y: -2, scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    {label[0]}
-                  </motion.a>
-                ))}
-              </div>
             </div>
             <div>
-              <p className="footer-heading">Quick Links</p>
+              <p className="footer-heading">Menu</p>
               <ul className="footer-links">
                 <li>
                   <a href="#features">Features</a>
                 </li>
                 <li>
-                  <a href="#pricing">Pricing</a>
+                  <a href="#how">How It Works</a>
                 </li>
                 <li>
-                  <a href="#testimonials">Testimonials</a>
+                  <a href="#pricing">Pricing</a>
                 </li>
                 <li>
                   <Link href="/sign-in">Sign In</Link>
                 </li>
               </ul>
             </div>
-            <div>
-              <p className="footer-heading">Resources</p>
-              <ul className="footer-links">
-                <li>
-                  <a href="#">Blog</a>
-                </li>
-                <li>
-                  <a href="#">Band Descriptors</a>
-                </li>
-                <li>
-                  <a href="#">Help Center</a>
-                </li>
-                <li>
-                  <a href="#">API</a>
-                </li>
-              </ul>
-            </div>
-            <div>
-              <p className="footer-heading">Contact Us</p>
-              <ul className="footer-contact">
-                <li>hello@ieltspro.com</li>
-                <li>+1 (555) 010-2040</li>
-                <li>Dublin, Ireland</li>
-              </ul>
+            <div className="footer-mock">
+              <p className="footer-heading">Mock Exams</p>
+              <p className="footer-mock__text">
+                Jump into full-length practice tests, track band progress, and review your weak areas.
+              </p>
+              <Link href="/mock-exam" className="footer-mock__link">
+                Browse Mock Exams
+                <ArrowRight size={16} strokeWidth={2.2} />
+              </Link>
             </div>
           </div>
           <div className="container footer-bar">
             <p>© {new Date().getFullYear()} The IELTS Exam. All rights reserved.</p>
             <div className="footer-legal">
+              <a href="#">Terms & Conditions</a>
               <a href="#">Privacy Policy</a>
-              <a href="#">Terms of Service</a>
             </div>
           </div>
         </footer>
