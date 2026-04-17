@@ -501,7 +501,7 @@ export function CreateAccountPage() {
                         <p className="ca-subtitle ca-verify-copy">
                           We sent a verification link to <strong>{email.trim()}</strong>. Open that
                           message and click the link to confirm your account. After that, sign in to
-                          start using IELTS Pro.
+                          start using The IELTS Exam.
                         </p>
                         <div className="ca-stack">
                           <Link href="/sign-in" className="ca-btn ca-btn-primary">

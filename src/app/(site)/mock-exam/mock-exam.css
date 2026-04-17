@@ -64,7 +64,7 @@
 
 .me-card__media {
   position: relative;
-  aspect-ratio: 16 / 10;
+  aspect-ratio: 1 / 1;
   background: linear-gradient(
     145deg,
     color-mix(in srgb, var(--primary) 18%, var(--bg-alt)) 0%,

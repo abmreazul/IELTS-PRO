@@ -7,7 +7,7 @@ import type { MockAttemptRow, MockExamRow } from "@/components/mock-exam/types";
 import "./mock-exam.css";
 
 export const metadata: Metadata = {
-  title: "Mock Exams | IELTS Pro",
+  title: "Mock Exams | The IELTS Exam",
   description: "Browse full and partial IELTS mock exams by category.",
 };
 

@@ -5,7 +5,7 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://ielts-pro.vercel.a
 const jsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
-  name: "IELTS Pro",
+  name: "The IELTS Exam",
   url: SITE_URL,
   description:
     "Master the IELTS exam with full mock tests, AI speaking evaluation, band analytics, and personalised preparation.",

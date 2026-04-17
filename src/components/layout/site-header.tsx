@@ -28,7 +28,7 @@ export function SiteHeader({ adminNavActive = false }: SiteHeaderProps) {
         <div className="container topbar-inner">
           <Link href="/" className="brand-link">
             <LogoMark />
-            <span className="brand-text">IELTS Pro</span>
+            <span className="brand-text">The IELTS Exam</span>
           </Link>
 
           <nav className="nav nav--desktop" aria-label="Primary">

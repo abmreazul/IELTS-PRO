@@ -6,7 +6,7 @@ import { Check } from "lucide-react";
 import { LogoMark } from "@/components/layout/logo-mark";
 import { MotionConfig, motion, useScroll, useSpring } from "framer-motion";
 import { useEffect, useState } from "react";
-import { fadeUp, floatCard, heroImage, staggerContainer, staggerItem } from "./motion-variants";
+import { fadeUp, heroImage, staggerContainer, staggerItem } from "./motion-variants";
 
 const features = [
   {
@@ -125,12 +125,19 @@ export function HomePage() {
               initial="hidden"
               animate="visible"
             >
+              <motion.p className="hero-kicker" variants={staggerItem}>
+                IELTS practice platform for Academic and General Training
+              </motion.p>
               <motion.h1 className="hero-title" variants={staggerItem}>
-                Master Your IELTS Exam with <span className="text-primary">Confidence</span>
+                Study Smarter. <span className="text-primary">Score Higher</span> in IELTS.
               </motion.h1>
+              <motion.h2 className="hero-subtitle" variants={staggerItem}>
+                Full Mock Tests, Clear Feedback, Real Exam Confidence
+              </motion.h2>
               <motion.p className="hero-lead" variants={staggerItem}>
-                Full-length mock tests, band-accurate scoring, and personalised learning paths—so
-                you walk into test day prepared, not guessing.
+                Practice with realistic listening, reading, writing, and speaking exams built to
+                feel like the real IELTS. Track your band progress, spot weak areas, and prepare
+                with purpose.
               </motion.p>
               <motion.div className="hero-ctas" variants={staggerItem}>
                 <motion.div
@@ -139,30 +146,30 @@ export function HomePage() {
                   whileTap={{ scale: 0.98 }}
                 >
                   <Link href="/create-account" className="btn btn-hero-dark">
-                    Start Free Trial
+                    Start Free Practice
                   </Link>
                 </motion.div>
-                <motion.button
-                  type="button"
-                  className="btn btn-outline"
+                <motion.div
                   whileHover={{ scale: 1.02, y: -1 }}
                   whileTap={{ scale: 0.98 }}
                 >
-                  View Sample Test
-                </motion.button>
+                  <Link href="/mock-exam" className="btn btn-outline">
+                    Explore Mock Exams
+                  </Link>
+                </motion.div>
               </motion.div>
-              <motion.div className="hero-stats" variants={staggerItem}>
-                <div>
-                  <strong>50K+</strong>
-                  <span>Active Students</span>
+              <motion.div className="hero-points" variants={staggerItem}>
+                <div className="hero-point">
+                  <span className="hero-point__dot" aria-hidden />
+                  <span>Full-length IELTS simulations with section timing</span>
                 </div>
-                <div>
-                  <strong>100+</strong>
-                  <span>Mock Tests</span>
+                <div className="hero-point">
+                  <span className="hero-point__dot" aria-hidden />
+                  <span>Writing and speaking submissions ready for review</span>
                 </div>
-                <div>
-                  <strong>95%</strong>
-                  <span>Success Rate</span>
+                <div className="hero-point">
+                  <span className="hero-point__dot" aria-hidden />
+                  <span>Academic and General Training preparation in one place</span>
                 </div>
               </motion.div>
             </motion.div>
@@ -173,31 +180,31 @@ export function HomePage() {
               animate="visible"
               variants={heroImage}
             >
+              <div className="hero-visual__halo hero-visual__halo--blue" aria-hidden />
+              <div className="hero-visual__halo hero-visual__halo--soft" aria-hidden />
+              <div className="hero-visual__dots" aria-hidden />
+              <div className="hero-flag hero-flag--uk" aria-hidden>
+                UK
+              </div>
+              <div className="hero-flag hero-flag--global" aria-hidden>
+                IELTS
+              </div>
               <Image
-                src="/hero-section-v3.png"
-                alt="Students collaborating in a classroom"
-                width={640}
-                height={480}
+                src="/hero-section-v4.jpg"
+                alt="Student preparing for the IELTS exam"
+                width={820}
+                height={820}
                 className="hero-image"
                 priority
                 unoptimized
                 sizes="(max-width: 960px) 100vw, 45vw"
               />
-              <motion.div
-                className="hero-float-card"
-                variants={floatCard}
-                initial="hidden"
-                animate="visible"
-                whileHover={{ y: -4, boxShadow: "0 20px 50px rgba(0,0,0,0.12)" }}
-              >
-                <span className="hero-float-card__check" aria-hidden>
-                  <Check strokeWidth={2.5} />
-                </span>
-                <div>
-                  <p className="hero-float-card__name">Sarah M.</p>
-                  <p className="hero-float-card__band">Band 8.5 Achieved!</p>
-                </div>
-              </motion.div>
+              <div className="hero-badge hero-badge--top">
+                Trusted practice for target bands 6.5 to 8.5
+              </div>
+              <div className="hero-badge hero-badge--bottom">
+                Listening, Reading, Writing, Speaking
+              </div>
             </motion.div>
           </div>
         </section>
@@ -466,7 +473,7 @@ export function HomePage() {
             <div className="footer-brand">
               <a href="#" className="brand-link brand-link--footer">
                 <LogoMark />
-                <span className="brand-text">IELTS Pro</span>
+                <span className="brand-text">The IELTS Exam</span>
               </a>
               <p>
                 Full-length IELTS mock exams, analytics, and study paths trusted by students in over
@@ -531,7 +538,7 @@ export function HomePage() {
             </div>
           </div>
           <div className="container footer-bar">
-            <p>© {new Date().getFullYear()} IELTS Pro. All rights reserved.</p>
+            <p>© {new Date().getFullYear()} The IELTS Exam. All rights reserved.</p>
             <div className="footer-legal">
               <a href="#">Privacy Policy</a>
               <a href="#">Terms of Service</a>

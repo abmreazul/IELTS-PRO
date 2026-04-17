@@ -18,8 +18,8 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://ielts-pro.vercel.a
 
 export const metadata: Metadata = {
   title: {
-    default: "IELTS Pro — Full-Length Mock Tests & Band Score Analytics",
-    template: "%s | IELTS Pro",
+    default: "The IELTS Exam — Full-Length Mock Tests & Band Score Analytics",
+    template: "%s | The IELTS Exam",
   },
   description:
     "Master the IELTS exam with full mock tests, AI speaking evaluation, band analytics, and personalised preparation trusted by 50,000+ students worldwide.",
@@ -45,8 +45,8 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_US",
     url: SITE_URL,
-    siteName: "IELTS Pro",
-    title: "IELTS Pro — Full-Length Mock Tests & Band Score Analytics",
+    siteName: "The IELTS Exam",
+    title: "The IELTS Exam — Full-Length Mock Tests & Band Score Analytics",
     description:
       "Master the IELTS exam with full mock tests, AI speaking evaluation, band analytics, and personalised preparation.",
     images: [
@@ -54,13 +54,13 @@ export const metadata: Metadata = {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "IELTS Pro — Practice Smarter, Score Higher",
+        alt: "The IELTS Exam — Practice Smarter, Score Higher",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "IELTS Pro — Full-Length Mock Tests",
+    title: "The IELTS Exam — Full-Length Mock Tests",
     description:
       "Practice with realistic IELTS simulations and track your band score progress.",
     images: ["/og-image.png"],

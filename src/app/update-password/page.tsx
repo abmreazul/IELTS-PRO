@@ -3,8 +3,8 @@ import { UpdatePasswordPage } from "@/components/auth/update-password-page";
 import "../create-account/create-account.css";
 
 export const metadata: Metadata = {
-  title: "Update Password | IELTS Pro",
-  description: "Set a new password for your IELTS Pro account.",
+  title: "Update Password | The IELTS Exam",
+  description: "Set a new password for your account on The IELTS Exam.",
 };
 
 export default function UpdatePassword() {

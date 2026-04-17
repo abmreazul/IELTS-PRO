@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { createClient, getAuthUser } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
-  title: "Review results | IELTS Pro",
+  title: "Review results | The IELTS Exam",
 };
 
 export default async function ReviewMockExamPage({

@@ -754,7 +754,7 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
       {/* Top bar */}
       <header className="ep-top">
         <div className="ep-top__left">
-          <span className="ep-top__logo">IELTS Pro</span>
+          <span className="ep-top__logo">The IELTS Exam</span>
         </div>
         <div className="ep-top__center">
           <Clock size={15} />
