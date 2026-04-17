@@ -16,6 +16,7 @@ import {
   getWritingTaskTitle,
   type ScoringConfig,
   type SectionStructure,
+  SUPPORTED_QUESTION_TYPE_VALUES,
   type TestVariant,
   IELTS_QUESTION_TYPES,
   structureForModules,
@@ -246,9 +247,9 @@ const MODULE_ICONS: Record<string, typeof Headphones> = {
 };
 
 const IMPORTABLE_OBJECTIVE_TYPES = new Set(
-  IELTS_QUESTION_TYPES
-    .map((type) => type.value)
-    .filter((type) => type !== "essay" && type !== "speaking_prompt"),
+  [...SUPPORTED_QUESTION_TYPE_VALUES].filter(
+    (type) => type !== "essay" && type !== "speaking_prompt",
+  ),
 );
 
 function coerceImportedStringArray(value: unknown): string[] {
