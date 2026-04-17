@@ -180,17 +180,8 @@ export function HomePage() {
               animate="visible"
               variants={heroImage}
             >
-              <div className="hero-visual__halo hero-visual__halo--blue" aria-hidden />
-              <div className="hero-visual__halo hero-visual__halo--soft" aria-hidden />
-              <div className="hero-visual__dots" aria-hidden />
-              <div className="hero-flag hero-flag--uk" aria-hidden>
-                UK
-              </div>
-              <div className="hero-flag hero-flag--global" aria-hidden>
-                IELTS
-              </div>
               <Image
-                src="/hero-section-v4.jpg"
+                src="/hero-section-v4.png"
                 alt="Student preparing for the IELTS exam"
                 width={820}
                 height={820}
@@ -199,12 +190,6 @@ export function HomePage() {
                 unoptimized
                 sizes="(max-width: 960px) 100vw, 45vw"
               />
-              <div className="hero-badge hero-badge--top">
-                Trusted practice for target bands 6.5 to 8.5
-              </div>
-              <div className="hero-badge hero-badge--bottom">
-                Listening, Reading, Writing, Speaking
-              </div>
             </motion.div>
           </div>
         </section>

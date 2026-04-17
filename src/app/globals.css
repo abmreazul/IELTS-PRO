@@ -707,115 +707,12 @@ img {
 
 .hero-image {
   position: relative;
-  z-index: 3;
+  z-index: 1;
   width: clamp(520px, 56vw, 860px);
   max-width: min(100%, 860px);
   height: auto;
   display: block;
   object-fit: contain;
-}
-
-.hero-visual__halo {
-  position: absolute;
-  border-radius: 999px;
-  pointer-events: none;
-}
-
-.hero-visual__halo--blue {
-  right: 2%;
-  bottom: 4%;
-  width: clamp(280px, 36vw, 500px);
-  aspect-ratio: 1 / 1;
-  background:
-    radial-gradient(circle at center, rgba(147, 197, 253, 0.18) 0 44%, transparent 45% 100%),
-    radial-gradient(circle at center, transparent 0 56%, rgba(59, 130, 246, 0.18) 57% 58%, transparent 59% 100%),
-    radial-gradient(circle at center, transparent 0 70%, rgba(59, 130, 246, 0.16) 71% 72%, transparent 73% 100%);
-}
-
-.hero-visual__halo--soft {
-  left: 4%;
-  bottom: -10%;
-  width: clamp(180px, 26vw, 300px);
-  aspect-ratio: 1 / 1;
-  background: radial-gradient(circle at center, rgba(125, 211, 252, 0.34) 0%, rgba(186, 230, 253, 0.12) 58%, transparent 72%);
-}
-
-.hero-visual__dots {
-  position: absolute;
-  left: 10%;
-  bottom: 14%;
-  width: 118px;
-  height: 74px;
-  z-index: 1;
-  opacity: 0.9;
-  background-image: radial-gradient(circle, #244c75 2.2px, transparent 2.4px);
-  background-size: 24px 24px;
-}
-
-.hero-flag {
-  position: absolute;
-  z-index: 4;
-  display: grid;
-  place-items: center;
-  border-radius: 999px;
-  color: #fff;
-  font-size: 0.88rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  border: 10px solid rgba(255, 255, 255, 0.96);
-  box-shadow: 0 20px 40px rgba(37, 99, 235, 0.12);
-}
-
-.hero-flag--uk {
-  top: 3%;
-  left: 22%;
-  width: clamp(98px, 13vw, 164px);
-  aspect-ratio: 1 / 1;
-  background:
-    linear-gradient(90deg, transparent 42%, #fff 42% 58%, transparent 58%),
-    linear-gradient(transparent 42%, #fff 42% 58%, transparent 58%),
-    linear-gradient(34deg, transparent 43%, #fff 43% 49%, #d83434 49% 55%, #fff 55% 61%, transparent 61%),
-    linear-gradient(-34deg, transparent 43%, #fff 43% 49%, #d83434 49% 55%, #fff 55% 61%, transparent 61%),
-    linear-gradient(90deg, transparent 46%, #d83434 46% 54%, transparent 54%),
-    linear-gradient(transparent 46%, #d83434 46% 54%, transparent 54%),
-    #3c7ed1;
-  color: transparent;
-}
-
-.hero-flag--global {
-  left: 8%;
-  top: 38%;
-  width: clamp(92px, 12vw, 150px);
-  aspect-ratio: 1 / 1;
-  background: linear-gradient(135deg, #1d4ed8 0%, #60a5fa 100%);
-}
-
-.hero-badge {
-  position: absolute;
-  z-index: 4;
-  display: inline-flex;
-  align-items: center;
-  padding: 0.7rem 1rem;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(191, 219, 254, 0.9);
-  box-shadow: 0 14px 34px rgba(15, 39, 71, 0.08);
-  color: #26435f;
-  font-size: 0.84rem;
-  font-weight: 700;
-  line-height: 1.35;
-  max-width: 260px;
-}
-
-.hero-badge--top {
-  top: 7%;
-  right: 2%;
-}
-
-.hero-badge--bottom {
-  left: 4%;
-  bottom: 10%;
 }
 
 .dark .hero-title {
@@ -828,20 +725,6 @@ img {
 
 .dark .hero-point {
   color: color-mix(in srgb, var(--text) 84%, transparent);
-}
-
-.dark .hero-badge {
-  background: rgba(20, 23, 31, 0.88);
-  border-color: rgba(59, 130, 246, 0.22);
-  color: #dbeafe;
-}
-
-.dark .hero-flag {
-  border-color: rgba(17, 24, 39, 0.92);
-}
-
-.dark .hero-visual__dots {
-  background-image: radial-gradient(circle, #7fb0e7 2.2px, transparent 2.4px);
 }
 
 /* ——— Sections ——— */
@@ -1385,26 +1268,6 @@ img {
     flex-wrap: wrap;
   }
 
-  .hero-flag--uk {
-    left: 16%;
-    top: 4%;
-  }
-
-  .hero-flag--global {
-    left: 5%;
-    top: 38%;
-  }
-
-  .hero-badge--top {
-    right: 0;
-    top: 2%;
-  }
-
-  .hero-badge--bottom {
-    left: 2%;
-    bottom: 6%;
-  }
-
   .section-head {
     margin-bottom: 2rem;
   }
@@ -1476,20 +1339,6 @@ img {
   .hero-point {
     font-size: 0.88rem;
     line-height: 1.45;
-  }
-
-  .hero-badge {
-    font-size: 0.72rem;
-    padding: 0.55rem 0.75rem;
-    max-width: 180px;
-  }
-
-  .hero-visual__dots {
-    width: 84px;
-    height: 58px;
-    left: 1%;
-    bottom: 10%;
-    background-size: 18px 18px;
   }
 
   .section-title {
