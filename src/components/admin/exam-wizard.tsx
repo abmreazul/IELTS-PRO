@@ -263,6 +263,19 @@ function normalizeImportedTripleValue(value: unknown): string {
     .replace(/\s+/g, "_");
 }
 
+const IMPORTED_TEXT_ANSWER_TYPES = new Set([
+  "completion",
+  "short_answer",
+  "fill_in_blank",
+  "sentence_completion",
+  "matching_headings",
+  "matching_information",
+  "matching_features",
+  "sentence_endings",
+  "map_diagram_labeling",
+  "matching",
+]);
+
 function normalizeImportedQuestion(
   raw: unknown,
   module: "listening" | "reading",
@@ -289,7 +302,13 @@ function normalizeImportedQuestion(
     ? Number(value.correct_index)
     : Math.max(0, Math.floor(Number(value.correct_index) || 0));
   const correctTriple = normalizeImportedTripleValue(value.correct_triple ?? value.correct_value);
-  const correctText = String(value.correct_text ?? value.correct_value ?? "").trim();
+  let correctText = String(value.correct_text ?? value.correct_value ?? "").trim();
+
+  // Some AI-generated imports represent matching-style questions as options + correct_index.
+  // The publisher stores these families as text answer keys, so resolve the selected option.
+  if (!correctText && IMPORTED_TEXT_ANSWER_TYPES.has(questionType) && options.length > 0) {
+    correctText = String(options[correctIndex] ?? "").trim();
+  }
 
   return {
     tempId: crypto.randomUUID(),
