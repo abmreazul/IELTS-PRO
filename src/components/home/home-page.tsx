@@ -30,34 +30,34 @@ const heroSlides = [
 
 const features = [
   {
-    title: "Real-Time Practice",
-    text: "Timed sections mirror official pacing so you build stamina and accuracy under pressure.",
-    image: "https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=600&q=80",
+    category: "Full Mock Tests",
+    title: "Practice With Full-Length IELTS Mocks",
+    text: "Take realistic IELTS mocks under timed conditions.",
+    image: "/EverythingYouNeed/Full%20Mock%20Tests.png",
   },
   {
-    title: "AI Speaking Evaluation",
-    text: "Structured prompts with automated feedback on fluency, coherence, and lexical range.",
-    image: "https://images.unsplash.com/photo-1589903308904-1010c2294adc?w=600&q=80",
+    category: "Listening",
+    title: "Build Listening Confidence",
+    text: "Train with realistic audio and IELTS-style tasks.",
+    image: "/EverythingYouNeed/listening.png",
   },
   {
-    title: "Band Score Analytics",
-    text: "See skill-level breakdowns after every mock and track improvement over time.",
-    image: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=600&q=80",
+    category: "Reading",
+    title: "Sharpen Reading Accuracy",
+    text: "Improve passage skills and reading speed.",
+    image: "/EverythingYouNeed/reading%20.png",
   },
   {
-    title: "Full-Length Mock Tests",
-    text: "Complete Academic and General Training simulations in one uninterrupted session.",
-    image: "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?w=600&q=80",
+    category: "Writing",
+    title: "Strengthen Writing Responses",
+    text: "Practice clearer Task 1 and Task 2 responses.",
+    image: "/EverythingYouNeed/writting.png",
   },
   {
-    title: "Expert-Crafted Content",
-    text: "Questions aligned to IELTS task types, difficulty bands, and recent exam trends.",
-    image: "https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=600&q=80",
-  },
-  {
-    title: "Personal Study Paths",
-    text: "Prioritised next steps based on your weakest areas and target band.",
-    image: "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=600&q=80",
+    category: "Speaking",
+    title: "Prepare for Speaking Review",
+    text: "Record answers and get guided feedback.",
+    image: "/EverythingYouNeed/speaking.png",
   },
 ] as const;
 
@@ -186,6 +186,21 @@ const footerFaces = [
     alt: "Student portrait",
     className: "footer-cta__face footer-cta__face--4",
   },
+  {
+    src: "https://images.unsplash.com/photo-1504593811423-6dd665756598?w=240&q=80",
+    alt: "Student portrait",
+    className: "footer-cta__face footer-cta__face--5",
+  },
+  {
+    src: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=240&q=80",
+    alt: "Student portrait",
+    className: "footer-cta__face footer-cta__face--6",
+  },
+  {
+    src: "https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?w=240&q=80",
+    alt: "Student portrait",
+    className: "footer-cta__face footer-cta__face--7",
+  },
 ] as const;
 
 
@@ -254,57 +269,92 @@ export function HomePage() {
         </section>
 
         <section id="features" className="section section--alt">
-          <div className="container section-head">
-            <motion.h2
-              className="section-title"
-              initial="hidden"
-              whileInView="visible"
-              viewport={{ once: true, margin: "-80px" }}
-              variants={fadeUp}
-              custom={0}
-            >
-              Everything You Need to Ace IELTS
-            </motion.h2>
-            <motion.p
-              className="section-sub"
+          <div className="container feature-intro">
+            <div className="feature-intro__title-group">
+              <motion.h2
+                className="feature-title"
+                initial="hidden"
+                whileInView="visible"
+                viewport={{ once: true, margin: "-80px" }}
+                variants={fadeUp}
+                custom={0}
+              >
+                <span className="text-primary">Everything</span> You Need
+                <br />
+                To Ace <span className="text-primary">IELTS</span>
+              </motion.h2>
+            </div>
+            <motion.div
+              className="feature-intro__copy"
               initial="hidden"
               whileInView="visible"
               viewport={{ once: true, margin: "-80px" }}
               variants={fadeUp}
               custom={1}
             >
-              One platform for realistic practice, clear feedback, and steady progress toward your
-              target band.
-            </motion.p>
+              <p className="feature-intro__text">
+                Explore the tools that make IELTS practice clearer and more focused.
+              </p>
+              <Link href="/mock-exam" className="feature-intro__link">
+                Explore Mock Exams
+              </Link>
+            </motion.div>
           </div>
-          <div className="container feature-grid">
-            {features.map((f, i) => (
-              <motion.article
-                key={f.title}
-                className="feature-card"
-                initial="hidden"
-                whileInView="visible"
-                viewport={{ once: true, margin: "-40px" }}
-                variants={fadeUp}
-                custom={i}
-                whileHover={{ y: -6, transition: { duration: 0.25 } }}
-              >
-                <div className="feature-card__img">
-                  <Image
-                    src={f.image}
-                    alt={f.title}
-                    fill
-                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                    style={{ objectFit: "cover" }}
-                  />
-                  <div className="feature-card__overlay" />
-                </div>
-                <div className="feature-card__content">
-                  <h3>{f.title}</h3>
-                  <p>{f.text}</p>
-                </div>
-              </motion.article>
-            ))}
+          <div className="container feature-showcase">
+            <motion.article
+              className="feature-lead"
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, margin: "-40px" }}
+              variants={fadeUp}
+              custom={0}
+              whileHover={{ y: -4, transition: { duration: 0.25 } }}
+            >
+              <div className="feature-lead__image">
+                <Image
+                  src={features[0].image}
+                  alt={features[0].title}
+                  fill
+                  sizes="(max-width: 1024px) 100vw, 46vw"
+                  style={{ objectFit: "cover" }}
+                />
+              </div>
+              <div className="feature-lead__content">
+                <span className="feature-meta">{features[0].category}</span>
+                <h3>{features[0].title}</h3>
+                <p>{features[0].text}</p>
+              </div>
+            </motion.article>
+
+            <div className="feature-rail">
+              {features.slice(1).map((feature, index) => (
+                <motion.article
+                  key={feature.title}
+                  className="feature-mini"
+                  initial="hidden"
+                  whileInView="visible"
+                  viewport={{ once: true, margin: "-40px" }}
+                  variants={fadeUp}
+                  custom={index + 1}
+                  whileHover={{ y: -4, transition: { duration: 0.25 } }}
+                >
+                  <div className="feature-mini__image">
+                    <Image
+                      src={feature.image}
+                      alt={feature.title}
+                      fill
+                      sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 22vw"
+                      style={{ objectFit: "cover" }}
+                    />
+                  </div>
+                  <div className="feature-mini__content">
+                    <span className="feature-meta">{feature.category}</span>
+                    <h3>{feature.title}</h3>
+                    <p>{feature.text}</p>
+                  </div>
+                </motion.article>
+              ))}
+            </div>
           </div>
         </section>
 
@@ -365,7 +415,7 @@ export function HomePage() {
           <div className="container about-intro">
             <div className="about-intro__media about-intro__media--left">
               <Image
-                src="https://images.unsplash.com/photo-1544717305-2782549b5136?w=640&q=80"
+                src="/About%20Us/aboutus1.jpg"
                 alt="Student holding books"
                 fill
                 sizes="220px"
@@ -377,8 +427,7 @@ export function HomePage() {
               <motion.h2
                 className="about-intro__title"
                 initial="hidden"
-                whileInView="visible"
-                viewport={{ once: true, margin: "-80px" }}
+                animate="visible"
                 variants={fadeUp}
                 custom={0}
               >
@@ -389,8 +438,7 @@ export function HomePage() {
               <motion.p
                 className="about-intro__text"
                 initial="hidden"
-                whileInView="visible"
-                viewport={{ once: true, margin: "-80px" }}
+                animate="visible"
                 variants={fadeUp}
                 custom={1}
               >
@@ -403,7 +451,7 @@ export function HomePage() {
             <div className="about-intro__accent about-intro__accent--spark" aria-hidden />
             <div className="about-intro__media about-intro__media--right">
               <Image
-                src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=640&q=80"
+                src="/About%20Us/aboutus2.jpg"
                 alt="Smiling student"
                 fill
                 sizes="220px"
@@ -415,7 +463,7 @@ export function HomePage() {
           <div className="container about-values">
             <div className="about-values__image">
               <Image
-                src="https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=900&q=80"
+                src="/Our%20Values/our%20values.jpg"
                 alt="Students studying together"
                 fill
                 sizes="(max-width: 1024px) 100vw, 44vw"
