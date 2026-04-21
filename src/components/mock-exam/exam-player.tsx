@@ -9,7 +9,7 @@ import {
   getWritingTaskPromptPlaceholder,
   getWritingTaskTitle,
 } from "@/lib/exam/ielts-defaults";
-import { Clock, Send, Volume2, Pause, Play, ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from "lucide-react";
+import { Clock, Send, Volume2, Pause, Play, ChevronLeft, ChevronRight } from "lucide-react";
 
 /* ═══════════════════════════════════════════════════════════════════
    Types
@@ -131,12 +131,6 @@ type ListeningAudioSource =
   | { mode: "none" }
   | { mode: "master"; asset: { url: string; title: string } }
   | { mode: "legacy"; clips: ListeningClip[] };
-
-type ModuleGroup = {
-  module: string;
-  label: string;
-  items: Array<PartInfo & { tabIndex: number }>;
-};
 
 const MODULE_PART_COUNTS: Record<string, number> = {
   listening: 4,
@@ -272,23 +266,15 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
   const isSpeaking = currentPartInfo.module === "speaking";
   const readingVariant = coerceTestVariant(exam.structure_json?.exam_meta?.test_variant);
   const readingSectionLabel = getReadingSectionLabel(readingVariant);
-  const moduleGroups = useMemo<ModuleGroup[]>(
-    () =>
-      MODULE_ORDER.filter((module) => exam.modules.includes(module)).map((module) => {
-        const items = parts
-          .map((part, idx) => ({ ...part, tabIndex: idx + 1 }))
-          .filter((part) => part.module === module);
-        return {
-          module,
-          label: MODULE_LABELS[module] ?? module,
-          items,
-        };
-      }),
-    [exam.modules, parts],
-  );
   const listeningAudioSource = useMemo(
     () => parseListeningAudioSource(exam.listening_audio_json),
     [exam.listening_audio_json],
+  );
+  const currentModuleParts = useMemo(
+    () => parts
+      .map((part, idx) => ({ ...part, tabIndex: idx + 1 }))
+      .filter((part) => part.module === currentPartInfo.module),
+    [currentPartInfo.module, parts],
   );
   const isMasterListeningAudio = listeningAudioSource.mode === "master";
 
@@ -366,20 +352,11 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
       stopListeningAudio();
     }
     setActivePart(part);
-    if (targetPart) {
-      setExpandedModule(targetPart.module);
-    }
     if (isMasterListeningAudio && targetPart?.module === "listening") {
       setFurthestListeningPart((prev) => Math.max(prev, targetPart.part));
     }
     contentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   };
-
-  useEffect(() => {
-    if (currentPartInfo?.module) {
-      setExpandedModule(currentPartInfo.module);
-    }
-  }, [currentPartInfo.module]);
 
   // Scroll to a specific question
   const scrollToQuestion = (globalIdx: number) => {
@@ -772,14 +749,12 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
     <div className="ep">
       {/* Top bar */}
       <header className="ep-top">
-        <div className="ep-top__left">
-          <span className="ep-top__logo">The IELTS Exam</span>
-        </div>
-        <div className="ep-top__center">
+        <div className="ep-top__timer">
           <Clock size={15} />
-          <span className="ep-top__remaining">
-            <strong>{minsLeft}</strong> minutes remaining
-          </span>
+          <span className={`ep-top__time${timeIsLow ? " ep-top__time--low" : ""}`}>{timeDisplay}</span>
+        </div>
+        <div className="ep-top__track">
+          <div className="ep-top__fill" style={{ width: `${timePct}%` }} />
         </div>
         <div className="ep-top__right">
           <button className="ep-top__submit" onClick={() => setShowConfirm(true)} disabled={submitting}>
@@ -787,14 +762,6 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
           </button>
         </div>
       </header>
-
-      {/* Timer bar */}
-      <div className="ep-timerbar">
-        <span className={`ep-timerbar__time${timeIsLow ? " ep-timerbar__time--low" : ""}`}>{timeDisplay}</span>
-        <div className="ep-timerbar__track">
-          <div className="ep-timerbar__fill" style={{ width: `${timePct}%` }} />
-        </div>
-      </div>
 
       {/* Confirm modal */}
       {showConfirm ? (
@@ -1115,6 +1082,21 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
           <div className="ep-nav-panel__summary">
             {answeredInPart(currentPartInfo.questions)} / {currentPartInfo.questions.length} answered
           </div>
+          <div className="ep-nav-panel__sections">
+            {currentModuleParts.map((part) => {
+              const isActive = part.tabIndex === activePart;
+              return (
+                <button
+                  key={`${part.module}-${part.part}`}
+                  type="button"
+                  className={`ep-nav-panel__section-btn${isActive ? " ep-nav-panel__section-btn--active" : ""}`}
+                  onClick={() => goToPart(part.tabIndex)}
+                >
+                  {getPartLabel(part.module, part.part, readingSectionLabel)}
+                </button>
+              );
+            })}
+          </div>
         </aside>
       </div>
 
@@ -1128,87 +1110,6 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
         </button>
       </div>
 
-      {/* Bottom module dock */}
-      <nav className={`ep-dock${trayCollapsed ? " ep-dock--collapsed" : ""}`}>
-        <div className="ep-dock__top">
-          <div className="ep-dock__folders">
-            {moduleGroups.map((group) => {
-              const totalQuestions = group.items.reduce((sum, item) => sum + item.questions.length, 0);
-              const answeredQuestions = group.items.reduce(
-                (sum, item) => sum + answeredInPart(item.questions),
-                0,
-              );
-              const isExpanded = expandedModule === group.module && !trayCollapsed;
-              const isActiveModule = currentPartInfo.module === group.module;
-              return (
-                <button
-                  key={group.module}
-                  type="button"
-                  className={`ep-dock__folder${isExpanded ? " ep-dock__folder--expanded" : ""}${isActiveModule ? " ep-dock__folder--active" : ""}`}
-                  onClick={() => {
-                    setTrayCollapsed(false);
-                    setExpandedModule(group.module);
-                    if (!isActiveModule && group.items[0]) {
-                      goToPart(group.items[0].tabIndex);
-                    }
-                  }}
-                >
-                  <span className="ep-dock__folder-title">{group.label}</span>
-                  <span className="ep-dock__folder-meta">{answeredQuestions} / {totalQuestions}</span>
-                </button>
-              );
-            })}
-          </div>
-          <button
-            type="button"
-            className="ep-dock__toggle"
-            onClick={() => setTrayCollapsed((value) => !value)}
-            aria-label={trayCollapsed ? "Expand section navigator" : "Collapse section navigator"}
-          >
-            {trayCollapsed ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-          </button>
-        </div>
-
-        {!trayCollapsed ? (
-          <div className="ep-dock__panel">
-            {moduleGroups
-              .filter((group) => group.module === expandedModule)
-              .map((group) => (
-                <div key={group.module} className="ep-dock__items">
-                  {group.items.map((item) => {
-                    const isActive = item.tabIndex === activePart;
-                    const answered = answeredInPart(item.questions);
-                    const hasAudio = item.module === "listening" && (listeningAudioSource.mode === "master" || !!getAudioForPart(item.part));
-                    return (
-                      <button
-                        key={`${item.module}-${item.part}`}
-                        type="button"
-                        className={`ep-dock__item${isActive ? " ep-dock__item--active" : ""}`}
-                        onClick={() => goToPart(item.tabIndex)}
-                      >
-                        <span className="ep-dock__item-top">
-                          <span className="ep-dock__item-title">
-                            {getPartLabel(item.module, item.part, readingSectionLabel)}
-                            {hasAudio && ((isMasterListeningAudio && masterAudioPlaying && item.module === currentPartInfo.module) || (!isMasterListeningAudio && playingPart === item.part && item.module === "listening")) ? (
-                              <Volume2 size={12} className="ep-dock__audio-icon" />
-                            ) : null}
-                          </span>
-                          <span className="ep-dock__item-progress">{answered} / {item.questions.length}</span>
-                        </span>
-                        <div className="ep-dock__item-dots">
-                          {item.questions.map((q, i) => {
-                            const done = answers[q.id] !== undefined;
-                            return <span key={q.id} className={`ep-dock__item-dot${done ? " ep-dock__item-dot--done" : ""}`}>{i + 1}</span>;
-                          })}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              ))}
-          </div>
-        ) : null}
-      </nav>
     </div>
   );
 }
