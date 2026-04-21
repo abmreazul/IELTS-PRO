@@ -342,7 +342,7 @@ function readJsonText(text: string): unknown {
 }
 
 function ImportJsonButton({
-  label = "Upload JSON",
+  label = "JSON",
   disabled,
   onFile,
 }: {
@@ -371,7 +371,7 @@ function ImportJsonButton({
       <button
         type="button"
         className="btn btn-outline"
-        style={{ fontSize: "0.78rem", padding: "0.35rem 0.7rem" }}
+        style={{ fontSize: "0.78rem", padding: "0.45rem 0.8rem" }}
         disabled={disabled}
         onClick={() => inputRef.current?.click()}
       >
@@ -1733,13 +1733,26 @@ export function ExamWizard({
                             />
                           </div>
                           <div style={{ marginBottom: "1rem" }}>
-                            <label className="admin-label">{readingSectionLabel} image URL (optional)</label>
-                            <input
-                              className="admin-input"
-                              value={passage.image_url}
-                              onChange={(e) => updateReadingPassage(part, { image_url: e.target.value })}
-                              placeholder="https://…"
-                            />
+                            <label className="admin-label">{readingSectionLabel} image (optional)</label>
+                            <div className="admin-form-grid admin-form-grid--2">
+                              <div>
+                                <label className="admin-label" style={{ marginBottom: "0.35rem" }}>Paste URL</label>
+                                <input
+                                  className="admin-input"
+                                  value={passage.image_url}
+                                  onChange={(e) => updateReadingPassage(part, { image_url: e.target.value })}
+                                  placeholder="https://…"
+                                />
+                              </div>
+                              <div>
+                                <ExamLocalUpload
+                                  folder="covers"
+                                  accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
+                                  disabled={pending}
+                                  onUploaded={(url) => updateReadingPassage(part, { image_url: url })}
+                                />
+                              </div>
+                            </div>
                             {passage.image_url ? (
                               <img src={passage.image_url} alt="" style={{ marginTop: "0.5rem", maxWidth: "200px", borderRadius: "8px", border: "1px solid var(--border)" }} />
                             ) : null}
@@ -1855,16 +1868,34 @@ export function ExamWizard({
                           <label style={{ display: "block", marginTop: "0.75rem", marginBottom: "0.4rem", fontWeight: 600, fontSize: "0.85rem" }}>
                             {getWritingImageLabel(testVariant, part)}
                           </label>
-                          <input
-                            type="url"
-                            value={task.image_url}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setWritingTasks((prev) => prev.map((t) => t.part === part ? { ...t, image_url: val } : t));
-                            }}
-                            placeholder="https://example.com/chart.png"
-                            style={{ width: "100%", padding: "0.55rem 0.65rem", border: "1px solid var(--border)", borderRadius: "8px", fontSize: "0.9rem", boxSizing: "border-box" }}
-                          />
+                          <div className="admin-form-grid admin-form-grid--2">
+                            <div>
+                              <label className="admin-label" style={{ marginBottom: "0.35rem" }}>Paste URL</label>
+                              <input
+                                type="url"
+                                value={task.image_url}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setWritingTasks((prev) => prev.map((t) => t.part === part ? { ...t, image_url: val } : t));
+                                }}
+                                placeholder="https://example.com/chart.png"
+                                style={{ width: "100%", padding: "0.55rem 0.65rem", border: "1px solid var(--border)", borderRadius: "8px", fontSize: "0.9rem", boxSizing: "border-box" }}
+                              />
+                            </div>
+                            <div>
+                              <ExamLocalUpload
+                                folder="covers"
+                                accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
+                                disabled={pending}
+                                onUploaded={(url) => {
+                                  setWritingTasks((prev) => prev.map((t) => t.part === part ? { ...t, image_url: url } : t));
+                                }}
+                              />
+                            </div>
+                          </div>
+                          {task.image_url ? (
+                            <img src={task.image_url} alt="" style={{ marginTop: "0.5rem", maxWidth: "220px", borderRadius: "8px", border: "1px solid var(--border)" }} />
+                          ) : null}
 
                           {/* Min words */}
                           <label style={{ display: "block", marginTop: "0.75rem", marginBottom: "0.4rem", fontWeight: 600, fontSize: "0.85rem" }}>
