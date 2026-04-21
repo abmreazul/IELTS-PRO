@@ -680,8 +680,12 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
               {options.map((opt, i) => {
                 const selected = answers[q.id] === i;
                 return (
-                  <label key={i} className={`ep-q__radio${selected ? " ep-q__radio--sel" : ""}`}>
-                    <input type="radio" name={`q-${q.id}`} checked={selected} onChange={() => setAnswer(q.id, i)} />
+                  <label
+                    key={i}
+                    className={`ep-q__radio${selected ? " ep-q__radio--sel" : ""}`}
+                    onClick={() => setAnswer(q.id, selected ? undefined : i)}
+                  >
+                    <input type="radio" name={`q-${q.id}`} checked={selected} onChange={() => setAnswer(q.id, selected ? undefined : i)} />
                     <span className="ep-q__letter">{String.fromCharCode(65 + i)}</span>
                     <span>{opt}</span>
                   </label>
@@ -944,6 +948,7 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
               {isListening && getAudioForPart(currentPartInfo.part) ? (
                 <div className="ep-listen-bar ep-slide-up">
                   <span className="ep-listen-bar__label">
+                    <Volume2 size={15} />
                     IELTS Listening Paper
                   </span>
                   <span className="ep-listen-bar__meta">
@@ -951,10 +956,15 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
                     <span className="ep-listen-bar__meta-divider">•</span>
                     Questions {currentPartInfo.startIndex + 1}–{currentPartInfo.startIndex + currentPartInfo.questions.length}
                   </span>
-                  <button className="ep-listen-bar__btn" onClick={() => void toggleAudio(currentPartInfo.part)} type="button">
-                    {playingPart === currentPartInfo.part ? <Pause size={14} /> : <Play size={14} />}
-                    {playingPart === currentPartInfo.part ? "Pause paper" : currentPartInfo.part === 1 ? "Start paper" : `Play Part ${currentPartInfo.part}`}
-                  </button>
+                  <div className="ep-listen-bar__controls">
+                    <button className="ep-listen-bar__btn" onClick={() => void toggleAudio(currentPartInfo.part)} type="button">
+                      {playingPart === currentPartInfo.part ? <Pause size={14} /> : <Play size={14} />}
+                      {playingPart === currentPartInfo.part ? "Pause paper" : currentPartInfo.part === 1 ? "Start paper" : `Play Part ${currentPartInfo.part}`}
+                    </button>
+                    <div className="ep-listen-bar__progress">
+                      <div className="ep-listen-bar__progress-fill" style={{ width: `${audioProgress[currentPartInfo.part] ?? 0}%` }} />
+                    </div>
+                  </div>
                   <audio
                     ref={(el) => { audioRefs.current[currentPartInfo.part] = el; }}
                     src={getAudioForPart(currentPartInfo.part)!.url}
@@ -985,13 +995,11 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
                       contentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
                     }}
                   />
-                  <div className="ep-listen-bar__progress">
-                    <div className="ep-listen-bar__progress-fill" style={{ width: `${audioProgress[currentPartInfo.part] ?? 0}%` }} />
-                  </div>
                 </div>
               ) : isListening && listeningAudioSource.mode === "master" ? (
                 <div className="ep-listen-bar ep-slide-up">
                   <span className="ep-listen-bar__label">
+                    <Volume2 size={15} />
                     {listeningAudioSource.asset.title}
                   </span>
                   <span className="ep-listen-bar__meta">
@@ -999,10 +1007,15 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
                     <span className="ep-listen-bar__meta-divider">•</span>
                     Questions {currentPartInfo.startIndex + 1}–{currentPartInfo.startIndex + currentPartInfo.questions.length}
                   </span>
-                  <button className="ep-listen-bar__btn" onClick={() => void toggleAudio(currentPartInfo.part)} type="button">
-                    {masterAudioPlaying ? <Pause size={14} /> : <Play size={14} />}
-                    {masterAudioPlaying ? "Pause paper" : "Start paper"}
-                  </button>
+                  <div className="ep-listen-bar__controls">
+                    <button className="ep-listen-bar__btn" onClick={() => void toggleAudio(currentPartInfo.part)} type="button">
+                      {masterAudioPlaying ? <Pause size={14} /> : <Play size={14} />}
+                      {masterAudioPlaying ? "Pause paper" : "Start paper"}
+                    </button>
+                    <div className="ep-listen-bar__progress">
+                      <div className="ep-listen-bar__progress-fill" style={{ width: `${masterAudioProgress}%` }} />
+                    </div>
+                  </div>
                   <audio
                     ref={masterAudioRef}
                     src={listeningAudioSource.asset.url}
@@ -1027,9 +1040,6 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
                       }
                     }}
                   />
-                  <div className="ep-listen-bar__progress">
-                    <div className="ep-listen-bar__progress-fill" style={{ width: `${masterAudioProgress}%` }} />
-                  </div>
                 </div>
               ) : isSpeaking ? (
                 <>
