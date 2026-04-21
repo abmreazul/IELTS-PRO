@@ -141,6 +141,15 @@
   height: 1.35rem;
 }
 
+.admin-stat-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.admin-stat-link .admin-stat-card {
+  height: 100%;
+}
+
 /* Blue */
 .admin-stat-card--blue {
   border-left-color: var(--primary);
@@ -187,6 +196,16 @@
 }
 .admin-stat-card--orange .admin-stat-card__icon {
   color: #f97316;
+}
+
+.admin-stat-card--red {
+  border-left-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 6%, var(--surface));
+}
+
+.admin-stat-card--red .admin-stat-card__label,
+.admin-stat-card--red .admin-stat-card__icon {
+  color: var(--primary);
 }
 
 /* ——— Card (table container, form container) ——— */
@@ -1057,6 +1076,190 @@
   font-size: 0.95rem;
   font-weight: 600;
   color: var(--text);
+}
+
+.admin-empty-state {
+  display: grid;
+  place-items: center;
+  gap: 0.75rem;
+  min-height: 280px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.admin-empty-state svg {
+  width: 2.5rem;
+  height: 2.5rem;
+  color: var(--primary);
+}
+
+.admin-empty-state h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.15rem;
+}
+
+.admin-empty-state p {
+  margin: 0;
+  max-width: 32rem;
+}
+
+.admin-writing-review-list,
+.admin-speaking-review-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-review-answer-card {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 1rem 1.05rem;
+  background: var(--bg);
+}
+
+.admin-review-answer-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 0.85rem;
+}
+
+.admin-review-answer-card__eyebrow {
+  margin: 0 0 0.3rem;
+  color: var(--primary);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.admin-review-answer-card__header h3 {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.45;
+}
+
+.admin-review-answer-card__body {
+  white-space: pre-wrap;
+  color: var(--text);
+  line-height: 1.8;
+}
+
+.admin-review-form {
+  display: grid;
+  gap: 0;
+}
+
+.admin-success {
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  background: color-mix(in srgb, #22c55e 10%, var(--surface));
+  color: #15803d;
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+}
+
+.dark .admin-success {
+  color: #86efac;
+}
+
+.admin-review-submit {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.admin-review-submit__title {
+  margin: 0 0 0.25rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.admin-review-submit__copy {
+  margin: 0;
+  color: var(--muted);
+  max-width: 40rem;
+}
+
+.admin-review-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.52);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  z-index: 120;
+}
+
+.admin-review-dialog {
+  width: min(540px, 100%);
+  border-radius: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  padding: 1.5rem;
+  display: grid;
+  gap: 0.9rem;
+  text-align: center;
+}
+
+.admin-review-dialog__icon {
+  width: 3.5rem;
+  height: 3.5rem;
+  margin: 0 auto;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
+  color: var(--primary);
+}
+
+.admin-review-dialog__icon svg {
+  width: 1.8rem;
+  height: 1.8rem;
+}
+
+.admin-review-dialog h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.admin-review-dialog p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.admin-review-dialog__actions {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.admin-review-dialog__actions .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.admin-review-dialog__close {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.admin-review-dialog__close:hover {
+  color: var(--primary);
 }
 
 /* ——— Part cards (Listening parts) ——— */

@@ -114,6 +114,46 @@ function roundToNearestHalf(value: number): number {
   return Math.round(value * 2) / 2;
 }
 
+type ReviewFormState = {
+  ok: boolean;
+  message: string | null;
+  mailtoUrl?: string;
+};
+
+function parseBandValue(raw: FormDataEntryValue | null): number | null {
+  const text = String(raw ?? "").trim();
+  if (!text) return null;
+  const value = Number.parseFloat(text);
+  if (Number.isNaN(value)) return null;
+  return Math.max(0, Math.min(9, roundToNearestHalf(value)));
+}
+
+function buildReviewEmailUrl(input: {
+  email: string;
+  studentName: string;
+  examTitle: string;
+  overallBand: number | null;
+  moduleBands: Record<string, number | null>;
+}) {
+  const subject = `${input.examTitle} review complete`;
+  const lines = [
+    `Hello ${input.studentName || "Student"},`,
+    "",
+    `Your mock exam review for "${input.examTitle}" is complete.`,
+    "",
+    `Overall band: ${input.overallBand ?? "Pending"}`,
+    `Listening: ${input.moduleBands.listening ?? "—"}`,
+    `Reading: ${input.moduleBands.reading ?? "—"}`,
+    `Writing: ${input.moduleBands.writing ?? "—"}`,
+    `Speaking: ${input.moduleBands.speaking ?? "—"}`,
+    "",
+    "Best regards,",
+    "The IELTS Exam",
+  ];
+
+  return `mailto:${encodeURIComponent(input.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(lines.join("\n"))}`;
+}
+
 export async function reviewSpeakingAttempt(formData: FormData) {
   const reviewer = await requireAdmin();
   const attemptId = String(formData.get("attempt_id") ?? "").trim();
@@ -190,6 +230,114 @@ export async function reviewSpeakingAttempt(formData: FormData) {
   revalidatePath(`/admin/exams/${examId}/analytics`);
   revalidatePath("/admin");
   revalidatePath("/mock-exam");
+}
+
+export async function submitHumanReview(
+  _prevState: ReviewFormState,
+  formData: FormData,
+): Promise<ReviewFormState> {
+  try {
+    const reviewer = await requireAdmin();
+    const attemptId = String(formData.get("attempt_id") ?? "").trim();
+    const examId = String(formData.get("exam_id") ?? "").trim();
+    const studentEmail = String(formData.get("student_email") ?? "").trim();
+    const studentName = String(formData.get("student_name") ?? "").trim();
+    const notes = String(formData.get("review_notes") ?? "").trim() || null;
+    const writingBand = parseBandValue(formData.get("writing_band"));
+    const speakingBand = parseBandValue(formData.get("speaking_band"));
+
+    if (!attemptId || !examId) {
+      return { ok: false, message: "Attempt and exam are required." };
+    }
+
+    const admin = createServiceRoleClient();
+    const [{ data: attempt }, { data: exam }] = await Promise.all([
+      admin
+        .from("mock_attempts")
+        .select("id, exam_id, listening_band, reading_band, writing_band, speaking_band")
+        .eq("id", attemptId)
+        .single(),
+      admin
+        .from("mock_exams")
+        .select("id, title, modules")
+        .eq("id", examId)
+        .single(),
+    ]);
+
+    if (!attempt || attempt.exam_id !== examId || !exam) {
+      return { ok: false, message: "Review target not found." };
+    }
+
+    const modules = Array.isArray(exam.modules) ? exam.modules.map(String) : [];
+    const requiresWriting = modules.includes("writing");
+    const requiresSpeaking = modules.includes("speaking");
+
+    if (requiresWriting && writingBand == null) {
+      return { ok: false, message: "Writing band is required before submitting this review." };
+    }
+    if (requiresSpeaking && speakingBand == null) {
+      return { ok: false, message: "Speaking band is required before submitting this review." };
+    }
+
+    const nextBands: Record<string, number | null> = {
+      listening: attempt.listening_band != null ? Number(attempt.listening_band) : null,
+      reading: attempt.reading_band != null ? Number(attempt.reading_band) : null,
+      writing: requiresWriting ? writingBand : attempt.writing_band != null ? Number(attempt.writing_band) : null,
+      speaking: requiresSpeaking ? speakingBand : attempt.speaking_band != null ? Number(attempt.speaking_band) : null,
+    };
+
+    const reviewModules = modules.filter((module) =>
+      ["listening", "reading", "writing", "speaking"].includes(module),
+    );
+    const allModulesReady = reviewModules.every((module) => nextBands[module] != null);
+    const overallBand = allModulesReady && reviewModules.length > 0
+      ? roundToNearestHalf(
+          reviewModules.reduce((sum, module) => sum + Number(nextBands[module] ?? 0), 0) / reviewModules.length,
+        )
+      : null;
+
+    const { error } = await admin
+      .from("mock_attempts")
+      .update({
+        writing_band: nextBands.writing,
+        speaking_band: nextBands.speaking,
+        overall_band: overallBand,
+        review_status: allModulesReady ? "reviewed" : "pending",
+        speaking_review_notes: notes,
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: reviewer.id,
+      })
+      .eq("id", attemptId);
+
+    if (error) {
+      return { ok: false, message: error.message };
+    }
+
+    revalidatePath("/admin");
+    revalidatePath("/admin/reviews");
+    revalidatePath(`/admin/reviews/${attemptId}`);
+    revalidatePath(`/admin/exams/${examId}/analytics`);
+    revalidatePath("/mock-exam");
+
+    return {
+      ok: true,
+      message: "Review saved.",
+      mailtoUrl: studentEmail
+        ? buildReviewEmailUrl({
+            email: studentEmail,
+            studentName,
+            examTitle: exam.title,
+            overallBand,
+            moduleBands: nextBands,
+          })
+        : undefined,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : "Could not save review.",
+    };
+  }
 }
 
 const MODULE_SET = new Set(["listening", "reading", "writing", "speaking"]);

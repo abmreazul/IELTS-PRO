@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BookOpen, DollarSign, TrendingUp, Users } from "lucide-react";
+import { BookOpen, ClipboardCheck, DollarSign, TrendingUp, Users } from "lucide-react";
 import { unstable_cache } from "next/cache";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
 import {
@@ -32,7 +32,7 @@ const getAdminDashboardData = unstable_cache(
   async () => {
     const admin = createServiceRoleClient();
 
-    const [{ count: examCount }, { data: attempts }, { data: examsForRev }, { data: exams }] =
+    const [{ count: examCount }, { data: attempts }, { data: examsForRev }, { data: exams }, { count: pendingReviews }] =
       await Promise.all([
         admin.from("mock_exams").select("*", { count: "exact", head: true }),
         admin.from("mock_attempts").select("exam_id, overall_band, status"),
@@ -43,6 +43,7 @@ const getAdminDashboardData = unstable_cache(
             "id, title, slug, is_published, exam_type, modules, price_cents, currency, created_at, exam_categories(name)",
           )
           .order("created_at", { ascending: false }),
+        admin.from("mock_attempts").select("*", { count: "exact", head: true }).eq("review_status", "pending"),
       ]);
 
     /* ── Stats ─────────────────────────────────────────── */
@@ -107,14 +108,14 @@ const getAdminDashboardData = unstable_cache(
       };
     });
 
-    return { examCount: examCount ?? 0, totalAttempts, avgBand, revenue, rows };
+    return { examCount: examCount ?? 0, totalAttempts, avgBand, revenue, pendingReviews: pendingReviews ?? 0, rows };
   },
   ["admin-dashboard"],
   { revalidate: 30, tags: ["admin-dashboard"] },
 );
 
 export default async function AdminHomePage() {
-  const { examCount, totalAttempts, avgBand, revenue, rows } =
+  const { examCount, totalAttempts, avgBand, revenue, pendingReviews, rows } =
     await getAdminDashboardData();
 
   return (
@@ -168,6 +169,17 @@ export default async function AdminHomePage() {
             <DollarSign strokeWidth={2} />
           </div>
         </div>
+        <Link href="/admin/reviews" className="admin-stat-link">
+          <div className="admin-stat-card admin-stat-card--red">
+            <div className="admin-stat-card__body">
+              <div className="admin-stat-card__label">Pending Reviews</div>
+              <div className="admin-stat-card__value">{pendingReviews}</div>
+            </div>
+            <div className="admin-stat-card__icon" aria-hidden>
+              <ClipboardCheck strokeWidth={2} />
+            </div>
+          </div>
+        </Link>
       </div>
 
       {/* ── Exams table ────────────────────────────── */}
