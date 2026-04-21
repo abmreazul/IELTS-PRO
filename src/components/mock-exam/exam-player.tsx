@@ -9,7 +9,7 @@ import {
   getWritingTaskPromptPlaceholder,
   getWritingTaskTitle,
 } from "@/lib/exam/ielts-defaults";
-import { Clock, Send, Volume2, Pause, Play, ChevronLeft, ChevronRight } from "lucide-react";
+import { Clock, Send, Volume2, Pause, Play, ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from "lucide-react";
 
 /* ═══════════════════════════════════════════════════════════════════
    Types
@@ -132,6 +132,12 @@ type ListeningAudioSource =
   | { mode: "master"; asset: { url: string; title: string } }
   | { mode: "legacy"; clips: ListeningClip[] };
 
+type ModuleGroup = {
+  module: string;
+  label: string;
+  items: Array<PartInfo & { tabIndex: number }>;
+};
+
 const MODULE_PART_COUNTS: Record<string, number> = {
   listening: 4,
   reading: 3,
@@ -202,6 +208,13 @@ function parseListeningAudioSource(raw: ExamData["listening_audio_json"]): Liste
   };
 }
 
+function getPartLabel(module: string, part: number, readingSectionLabel: "Passage" | "Section") {
+  if (module === "reading") return `${readingSectionLabel} ${part}`;
+  if (module === "writing") return `Task ${part}`;
+  if (module === "speaking") return `Part ${part}`;
+  return `Part ${part}`;
+}
+
 /* ═══════════════════════════════════════════════════════════════════
    ExamPlayer
    ═══════════════════════════════════════════════════════════════════ */
@@ -235,6 +248,8 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
 
   const contentRef = useRef<HTMLDivElement>(null);
   const [navCollapsed, setNavCollapsed] = useState(false);
+  const [trayCollapsed, setTrayCollapsed] = useState(false);
+  const [expandedModule, setExpandedModule] = useState<string>(exam.modules[0] ?? "listening");
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const mediaChunksRef = useRef<Blob[]>([]);
@@ -257,6 +272,20 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
   const isSpeaking = currentPartInfo.module === "speaking";
   const readingVariant = coerceTestVariant(exam.structure_json?.exam_meta?.test_variant);
   const readingSectionLabel = getReadingSectionLabel(readingVariant);
+  const moduleGroups = useMemo<ModuleGroup[]>(
+    () =>
+      MODULE_ORDER.filter((module) => exam.modules.includes(module)).map((module) => {
+        const items = parts
+          .map((part, idx) => ({ ...part, tabIndex: idx + 1 }))
+          .filter((part) => part.module === module);
+        return {
+          module,
+          label: MODULE_LABELS[module] ?? module,
+          items,
+        };
+      }),
+    [exam.modules, parts],
+  );
   const listeningAudioSource = useMemo(
     () => parseListeningAudioSource(exam.listening_audio_json),
     [exam.listening_audio_json],
@@ -303,28 +332,9 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
   const canNavigateToPart = useCallback((targetPartIndex: number) => {
     const targetPart = parts[targetPartIndex - 1];
     if (!targetPart) return false;
-
-    const currentModule = currentPartInfo.module;
-    const targetModule = targetPart.module;
-
-    if (currentModule === "listening" && listeningStarted && !listeningFinished) {
-      if (targetModule !== "listening") return false;
-      if (isMasterListeningAudio) {
-        return targetPart.part >= currentPartInfo.part && targetPart.part <= furthestListeningPart + 1;
-      }
-      return targetPartIndex === activePart;
-    }
-
-    if (listeningFinished && targetModule === "listening" && targetPartIndex !== activePart) {
-      return false;
-    }
-
-    if (!listeningStarted && targetModule === "listening") {
-      return targetPart.part === 1;
-    }
-
+    if (recordingQuestionId || uploadingQuestionId) return false;
     return true;
-  }, [activePart, currentPartInfo.module, currentPartInfo.part, furthestListeningPart, isMasterListeningAudio, listeningFinished, listeningStarted, parts]);
+  }, [parts, recordingQuestionId, uploadingQuestionId]);
 
   const setAnswer = (questionId: string, value: unknown) => {
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
@@ -356,11 +366,20 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
       stopListeningAudio();
     }
     setActivePart(part);
+    if (targetPart) {
+      setExpandedModule(targetPart.module);
+    }
     if (isMasterListeningAudio && targetPart?.module === "listening") {
       setFurthestListeningPart((prev) => Math.max(prev, targetPart.part));
     }
     contentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   };
+
+  useEffect(() => {
+    if (currentPartInfo?.module) {
+      setExpandedModule(currentPartInfo.module);
+    }
+  }, [currentPartInfo.module]);
 
   // Scroll to a specific question
   const scrollToQuestion = (globalIdx: number) => {
@@ -1109,54 +1128,86 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
         </button>
       </div>
 
-      {/* Bottom part tabs */}
-      <nav className="ep-parts">
-        {parts.map((p, idx) => {
-          const tabIdx = idx + 1;
-          const isActive = tabIdx === activePart;
-          const answered = answeredInPart(p.questions);
-          const hasAudio = p.module === "listening" && (listeningAudioSource.mode === "master" || !!getAudioForPart(p.part));
-          const isDisabled = !canNavigateToPart(tabIdx);
-          const tabLabel = p.module === "reading" ? `Passage ${p.part}`
-            : p.module === "writing" ? `Task ${p.part}`
-            : p.module === "speaking" ? "Speaking"
-            : `Part ${p.part}`;
-          return (
-            <button
-              key={`${p.module}-${p.part}`}
-              className={`ep-parts__tab${isActive ? " ep-parts__tab--active" : ""}${isDisabled ? " ep-parts__tab--disabled" : ""}`}
-              onClick={() => goToPart(tabIdx)}
-              type="button"
-              disabled={isDisabled}
-            >
-              <span className="ep-parts__label">
-                {tabLabel}
-                {hasAudio && ((isMasterListeningAudio && masterAudioPlaying) || playingPart === p.part) ? <Volume2 size={11} className="ep-parts__audio-icon" /> : null}
-              </span>
-              {isActive ? (
-                <span className="ep-parts__nums">
-                  {p.questions.map((q, i) => {
-                    const gIdx = p.startIndex + i + 1;
-                    const isDone = answers[q.id] !== undefined;
+      {/* Bottom module dock */}
+      <nav className={`ep-dock${trayCollapsed ? " ep-dock--collapsed" : ""}`}>
+        <div className="ep-dock__top">
+          <div className="ep-dock__folders">
+            {moduleGroups.map((group) => {
+              const totalQuestions = group.items.reduce((sum, item) => sum + item.questions.length, 0);
+              const answeredQuestions = group.items.reduce(
+                (sum, item) => sum + answeredInPart(item.questions),
+                0,
+              );
+              const isExpanded = expandedModule === group.module && !trayCollapsed;
+              const isActiveModule = currentPartInfo.module === group.module;
+              return (
+                <button
+                  key={group.module}
+                  type="button"
+                  className={`ep-dock__folder${isExpanded ? " ep-dock__folder--expanded" : ""}${isActiveModule ? " ep-dock__folder--active" : ""}`}
+                  onClick={() => {
+                    setTrayCollapsed(false);
+                    setExpandedModule(group.module);
+                    if (!isActiveModule && group.items[0]) {
+                      goToPart(group.items[0].tabIndex);
+                    }
+                  }}
+                >
+                  <span className="ep-dock__folder-title">{group.label}</span>
+                  <span className="ep-dock__folder-meta">{answeredQuestions} / {totalQuestions}</span>
+                </button>
+              );
+            })}
+          </div>
+          <button
+            type="button"
+            className="ep-dock__toggle"
+            onClick={() => setTrayCollapsed((value) => !value)}
+            aria-label={trayCollapsed ? "Expand section navigator" : "Collapse section navigator"}
+          >
+            {trayCollapsed ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          </button>
+        </div>
+
+        {!trayCollapsed ? (
+          <div className="ep-dock__panel">
+            {moduleGroups
+              .filter((group) => group.module === expandedModule)
+              .map((group) => (
+                <div key={group.module} className="ep-dock__items">
+                  {group.items.map((item) => {
+                    const isActive = item.tabIndex === activePart;
+                    const answered = answeredInPart(item.questions);
+                    const hasAudio = item.module === "listening" && (listeningAudioSource.mode === "master" || !!getAudioForPart(item.part));
                     return (
-                      <span
-                        key={gIdx}
-                        className={`ep-parts__dot${isDone ? " ep-parts__dot--done" : ""}`}
-                        onClick={(e) => { e.stopPropagation(); scrollToQuestion(p.startIndex + i); }}
+                      <button
+                        key={`${item.module}-${item.part}`}
+                        type="button"
+                        className={`ep-dock__item${isActive ? " ep-dock__item--active" : ""}`}
+                        onClick={() => goToPart(item.tabIndex)}
                       >
-                        {gIdx}
-                      </span>
+                        <span className="ep-dock__item-top">
+                          <span className="ep-dock__item-title">
+                            {getPartLabel(item.module, item.part, readingSectionLabel)}
+                            {hasAudio && ((isMasterListeningAudio && masterAudioPlaying && item.module === currentPartInfo.module) || (!isMasterListeningAudio && playingPart === item.part && item.module === "listening")) ? (
+                              <Volume2 size={12} className="ep-dock__audio-icon" />
+                            ) : null}
+                          </span>
+                          <span className="ep-dock__item-progress">{answered} / {item.questions.length}</span>
+                        </span>
+                        <div className="ep-dock__item-dots">
+                          {item.questions.map((q, i) => {
+                            const done = answers[q.id] !== undefined;
+                            return <span key={q.id} className={`ep-dock__item-dot${done ? " ep-dock__item-dot--done" : ""}`}>{i + 1}</span>;
+                          })}
+                        </div>
+                      </button>
                     );
                   })}
-                </span>
-              ) : (
-                <span className="ep-parts__count">
-                  {answered} of {p.questions.length} questions
-                </span>
-              )}
-            </button>
-          );
-        })}
+                </div>
+              ))}
+          </div>
+        ) : null}
       </nav>
     </div>
   );

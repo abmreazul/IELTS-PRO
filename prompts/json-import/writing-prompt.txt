@@ -1,0 +1,43 @@
+Create a full IELTS Writing exam in valid JSON only.
+
+Return only raw JSON.
+Do not use markdown.
+Do not add explanations.
+Do not add comments.
+
+The JSON must match this exact shape:
+
+{
+  "tasks": [
+    {
+      "part": 1,
+      "prompt": "Task 1 prompt text",
+      "min_words": 150
+    },
+    {
+      "part": 2,
+      "prompt": "Task 2 prompt text",
+      "min_words": 250
+    }
+  ]
+}
+
+Rules:
+- Use either Academic or General Training style consistently.
+- Include exactly 2 tasks.
+- Task 1 must match the selected IELTS type:
+  - Academic: report/chart/graph/table/map/process style
+  - General Training: letter style
+- Task 2 must be an essay prompt.
+- Every task must include:
+  - "part"
+  - "prompt"
+  - "min_words"
+- Use exactly:
+  - 150 for part 1
+  - 250 for part 2
+- Do not include image URLs.
+- Do not include audio URLs.
+- Keep the prompts realistic for IELTS Writing.
+
+Output valid JSON only.

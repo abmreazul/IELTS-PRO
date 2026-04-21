@@ -1,0 +1,62 @@
+Create a full IELTS Speaking exam in valid JSON only.
+
+Return only raw JSON.
+Do not use markdown.
+Do not add explanations.
+Do not add comments.
+
+The JSON must match this exact shape:
+
+{
+  "part1": {
+    "topic_title": "Topic title",
+    "prompts": [
+      "Question 1",
+      "Question 2",
+      "Question 3",
+      "Question 4"
+    ]
+  },
+  "part2": {
+    "cue_card": "Describe ...",
+    "bullet_points": [
+      "Point 1",
+      "Point 2",
+      "Point 3"
+    ],
+    "follow_up_prompt": "Optional short follow-up question"
+  },
+  "part3": {
+    "topic_title": "Discussion theme",
+    "prompts": [
+      "Discussion question 1",
+      "Discussion question 2",
+      "Discussion question 3",
+      "Discussion question 4"
+    ]
+  }
+}
+
+Rules:
+- Include all 3 speaking parts:
+  - "part1"
+  - "part2"
+  - "part3"
+- Part 1:
+  - include "topic_title"
+  - include a non-empty "prompts" array
+  - use at least 4 short interview-style questions
+- Part 2:
+  - include "cue_card"
+  - include "bullet_points"
+  - include at least 3 bullet points
+  - include "follow_up_prompt" if useful
+- Part 3:
+  - include "topic_title"
+  - include a non-empty "prompts" array
+  - use at least 4 broader discussion questions
+- Do not include audio URLs.
+- Keep the content realistic for IELTS Speaking.
+- Make Part 3 clearly connected to Part 2.
+
+Output valid JSON only.

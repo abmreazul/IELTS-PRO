@@ -1,0 +1,90 @@
+Create a full IELTS Reading exam in valid JSON only.
+
+Return only raw JSON.
+Do not use markdown.
+Do not add explanations.
+Do not add comments.
+
+The JSON must match this exact shape:
+
+{
+  "passages": [
+    {
+      "part": 1,
+      "title": "Passage title",
+      "text": "Full passage text",
+      "questions": [
+        {
+          "question_type": "multiple_choice",
+          "prompt": "Question text",
+          "options": ["Option A", "Option B", "Option C", "Option D"],
+          "correct_index": 0,
+          "points": 1
+        }
+      ]
+    },
+    {
+      "part": 2,
+      "title": "Passage title",
+      "text": "Full passage text",
+      "questions": []
+    },
+    {
+      "part": 3,
+      "title": "Passage title",
+      "text": "Full passage text",
+      "questions": []
+    }
+  ]
+}
+
+Rules:
+- Use either Academic or General Training style consistently.
+- Include exactly 3 passages.
+- Total questions must be exactly 40.
+- Each passage must include:
+  - "part"
+  - "title"
+  - "text"
+  - "questions"
+- Every question must include:
+  - "question_type"
+  - "prompt"
+  - "points"
+- Set "points" to 1 for every question.
+- Use only these question_type values:
+  - "multiple_choice"
+  - "true_false_not_given"
+  - "yes_no_not_given"
+  - "matching_headings"
+  - "matching_information"
+  - "matching_features"
+  - "sentence_endings"
+  - "completion"
+  - "short_answer"
+  - "map_diagram_labeling"
+  - "fill_in_blank"
+  - "sentence_completion"
+  - "matching"
+- For "multiple_choice":
+  - include "options"
+  - include "correct_index"
+  - use at least 2 non-empty options
+- For "true_false_not_given":
+  - include "correct_triple"
+  - allowed values are exactly:
+    - "true"
+    - "false"
+    - "not_given"
+- For "yes_no_not_given":
+  - include "correct_triple"
+  - allowed values are exactly:
+    - "yes"
+    - "no"
+    - "not_given"
+- For all other question types:
+  - include "correct_text"
+- Do not include image URLs.
+- Keep the content realistic for IELTS Reading.
+
+Output valid JSON only.
