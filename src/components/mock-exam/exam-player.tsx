@@ -9,7 +9,7 @@ import {
   getWritingTaskPromptPlaceholder,
   getWritingTaskTitle,
 } from "@/lib/exam/ielts-defaults";
-import { Clock, Send, Volume2, Pause, Play, ChevronLeft, ChevronRight } from "lucide-react";
+import { Clock, Send, Volume2, Pause, Play, ChevronLeft, ChevronRight, Headphones, BookOpen, PenLine, Mic, Check } from "lucide-react";
 
 /* ═══════════════════════════════════════════════════════════════════
    Types
@@ -81,6 +81,13 @@ const MODULE_LABELS: Record<string, string> = {
   reading: "Reading",
   writing: "Writing",
   speaking: "Speaking",
+};
+
+const MODULE_ICONS: Record<string, typeof Headphones> = {
+  listening: Headphones,
+  reading: BookOpen,
+  writing: PenLine,
+  speaking: Mic,
 };
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -269,6 +276,16 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
   const listeningAudioSource = useMemo(
     () => parseListeningAudioSource(exam.listening_audio_json),
     [exam.listening_audio_json],
+  );
+  const moduleGroups = useMemo(
+    () =>
+      MODULE_ORDER.filter((module) => exam.modules.includes(module)).map((module) => ({
+        module,
+        items: parts
+          .map((part, idx) => ({ ...part, tabIndex: idx + 1 }))
+          .filter((part) => part.module === module),
+      })),
+    [exam.modules, parts],
   );
   const currentModuleParts = useMemo(
     () => parts
@@ -592,6 +609,19 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
 
   const answeredInPart = (partQuestions: ExamQuestion[]) =>
     partQuestions.filter((q) => answers[q.id] !== undefined).length;
+
+  const isPartFinished = useCallback(
+    (partQuestions: ExamQuestion[]) => partQuestions.length > 0 && answeredInPart(partQuestions) === partQuestions.length,
+    [answers],
+  );
+
+  const isModuleFinished = useCallback(
+    (module: string) => {
+      const moduleQuestions = questions.filter((question) => question.module === module);
+      return moduleQuestions.length > 0 && moduleQuestions.every((question) => answers[question.id] !== undefined);
+    },
+    [answers, questions],
+  );
 
   /* ── Results screen ────────────── */
   if (submitted && result) {
@@ -1082,17 +1112,42 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
           <div className="ep-nav-panel__summary">
             {answeredInPart(currentPartInfo.questions)} / {currentPartInfo.questions.length} answered
           </div>
+          <div className="ep-nav-panel__modules">
+            {moduleGroups.map((group) => {
+              const isActive = currentPartInfo.module === group.module;
+              const isDone = isModuleFinished(group.module);
+              const Icon = MODULE_ICONS[group.module] ?? BookOpen;
+              return (
+                <button
+                  key={group.module}
+                  type="button"
+                  className={`ep-nav-panel__module-btn${isActive ? " ep-nav-panel__module-btn--active" : ""}${isDone ? " ep-nav-panel__module-btn--done" : ""}`}
+                  onClick={() => group.items[0] && goToPart(group.items[0].tabIndex)}
+                >
+                  <span className="ep-nav-panel__module-btn-label">
+                    <Icon size={14} />
+                    {MODULE_LABELS[group.module] ?? group.module}
+                  </span>
+                  {isDone ? <Check size={14} className="ep-nav-panel__check" /> : null}
+                </button>
+              );
+            })}
+          </div>
           <div className="ep-nav-panel__sections">
             {currentModuleParts.map((part) => {
               const isActive = part.tabIndex === activePart;
+              const isDone = isPartFinished(part.questions);
               return (
                 <button
                   key={`${part.module}-${part.part}`}
                   type="button"
-                  className={`ep-nav-panel__section-btn${isActive ? " ep-nav-panel__section-btn--active" : ""}`}
+                  className={`ep-nav-panel__section-btn${isActive ? " ep-nav-panel__section-btn--active" : ""}${isDone ? " ep-nav-panel__section-btn--done" : ""}`}
                   onClick={() => goToPart(part.tabIndex)}
                 >
-                  {getPartLabel(part.module, part.part, readingSectionLabel)}
+                  <span className="ep-nav-panel__section-btn-label">
+                    {getPartLabel(part.module, part.part, readingSectionLabel)}
+                  </span>
+                  {isDone ? <Check size={13} className="ep-nav-panel__check" /> : null}
                 </button>
               );
             })}
