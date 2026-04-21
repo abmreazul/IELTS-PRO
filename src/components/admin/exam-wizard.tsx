@@ -333,6 +333,14 @@ async function readJsonFile(file: File): Promise<unknown> {
   }
 }
 
+function readJsonText(text: string): unknown {
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    throw new Error("Invalid JSON.");
+  }
+}
+
 function ImportJsonButton({
   label = "Upload JSON",
   disabled,
@@ -371,6 +379,49 @@ function ImportJsonButton({
         {label}
       </button>
     </>
+  );
+}
+
+function JsonImportControls({
+  disabled,
+  onFile,
+  onText,
+}: {
+  disabled?: boolean;
+  onFile: (file: File) => void;
+  onText: (text: string) => void;
+}) {
+  const [value, setValue] = useState("");
+
+  return (
+    <div className="admin-json-import">
+      <ImportJsonButton
+        disabled={disabled}
+        onFile={onFile}
+      />
+      <textarea
+        className="admin-input admin-json-import__textarea"
+        rows={2}
+        disabled={disabled}
+        value={value}
+        placeholder="Paste JSON here…"
+        onChange={(event) => setValue(event.target.value)}
+        onPaste={(event) => {
+          const pasted = event.clipboardData.getData("text");
+          const nextValue = pasted || event.currentTarget.value;
+          setValue(nextValue);
+          if (nextValue.trim()) {
+            onText(nextValue);
+          }
+        }}
+        onBlur={(event) => {
+          const nextValue = event.currentTarget.value.trim();
+          if (nextValue) {
+            onText(nextValue);
+          }
+        }}
+      />
+    </div>
   );
 }
 
@@ -684,9 +735,8 @@ export function ExamWizard({
     );
   }, []);
 
-  const importListeningJson = useCallback(async (file: File) => {
+  const importListeningJsonData = useCallback((parsed: unknown) => {
     try {
-      const parsed = await readJsonFile(file);
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
         throw new Error("Listening import must be a JSON object.");
       }
@@ -724,9 +774,12 @@ export function ExamWizard({
     }
   }, []);
 
-  const importReadingJson = useCallback(async (file: File) => {
+  const importListeningJson = useCallback(async (file: File) => {
+    importListeningJsonData(await readJsonFile(file));
+  }, [importListeningJsonData]);
+
+  const importReadingJsonData = useCallback((parsed: unknown) => {
     try {
-      const parsed = await readJsonFile(file);
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
         throw new Error("Reading import must be a JSON object.");
       }
@@ -774,9 +827,12 @@ export function ExamWizard({
     }
   }, [readingPassages]);
 
-  const importWritingJson = useCallback(async (file: File) => {
+  const importReadingJson = useCallback(async (file: File) => {
+    importReadingJsonData(await readJsonFile(file));
+  }, [importReadingJsonData]);
+
+  const importWritingJsonData = useCallback((parsed: unknown) => {
     try {
-      const parsed = await readJsonFile(file);
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
         throw new Error("Writing import must be a JSON object.");
       }
@@ -824,9 +880,12 @@ export function ExamWizard({
     }
   }, []);
 
-  const importSpeakingJson = useCallback(async (file: File) => {
+  const importWritingJson = useCallback(async (file: File) => {
+    importWritingJsonData(await readJsonFile(file));
+  }, [importWritingJsonData]);
+
+  const importSpeakingJsonData = useCallback((parsed: unknown) => {
     try {
-      const parsed = await readJsonFile(file);
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
         throw new Error("Speaking import must be a JSON object.");
       }
@@ -881,6 +940,10 @@ export function ExamWizard({
       });
     }
   }, []);
+
+  const importSpeakingJson = useCallback(async (file: File) => {
+    importSpeakingJsonData(await readJsonFile(file));
+  }, [importSpeakingJsonData]);
 
   const handleSurface = (s: Surface) => {
     setSurface(s);
@@ -1456,9 +1519,16 @@ export function ExamWizard({
                   <p style={{ color: "var(--muted)", fontSize: "0.85rem", margin: 0 }}>
                     IELTS Listening uses one master audio recording. Keep the 4 parts below only for question grouping.
                   </p>
-                  <ImportJsonButton
+                  <JsonImportControls
                     disabled={pending}
                     onFile={(file) => void importListeningJson(file)}
+                    onText={(text) => {
+                      try {
+                        importListeningJsonData(readJsonText(text));
+                      } catch (error) {
+                        setMessage({ type: "err", text: error instanceof Error ? error.message : "Listening JSON import failed." });
+                      }
+                    }}
                   />
                 </div>
 
@@ -1604,9 +1674,16 @@ export function ExamWizard({
                   <p style={{ color: "var(--muted)", fontSize: "0.9rem", margin: 0 }}>
                     {readingIntro}
                   </p>
-                  <ImportJsonButton
+                  <JsonImportControls
                     disabled={pending}
                     onFile={(file) => void importReadingJson(file)}
+                    onText={(text) => {
+                      try {
+                        importReadingJsonData(readJsonText(text));
+                      } catch (error) {
+                        setMessage({ type: "err", text: error instanceof Error ? error.message : "Reading JSON import failed." });
+                      }
+                    }}
                   />
                 </div>
 
@@ -1705,9 +1782,16 @@ export function ExamWizard({
             return (
               <div style={{ marginTop: "1.25rem" }}>
                 <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "0.85rem" }}>
-                  <ImportJsonButton
+                  <JsonImportControls
                     disabled={pending}
                     onFile={(file) => void importWritingJson(file)}
+                    onText={(text) => {
+                      try {
+                        importWritingJsonData(readJsonText(text));
+                      } catch (error) {
+                        setMessage({ type: "err", text: error instanceof Error ? error.message : "Writing JSON import failed." });
+                      }
+                    }}
                   />
                 </div>
                 {[1, 2].map((part) => {
@@ -1828,9 +1912,16 @@ export function ExamWizard({
               return (
                 <div style={{ marginTop: "1.25rem", display: "grid", gap: "1rem" }}>
                   <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                    <ImportJsonButton
+                    <JsonImportControls
                       disabled={pending}
                       onFile={(file) => void importSpeakingJson(file)}
+                      onText={(text) => {
+                        try {
+                          importSpeakingJsonData(readJsonText(text));
+                        } catch (error) {
+                          setMessage({ type: "err", text: error instanceof Error ? error.message : "Speaking JSON import failed." });
+                        }
+                      }}
                     />
                   </div>
                   <div className="admin-part-card">

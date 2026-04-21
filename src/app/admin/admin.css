@@ -846,6 +846,25 @@
   transition: width 0.2s ease;
 }
 
+.admin-json-import {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  width: min(100%, 34rem);
+}
+
+.admin-json-import__textarea {
+  min-height: 2.35rem;
+  max-height: 2.35rem;
+  resize: none;
+  overflow: hidden;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  padding-top: 0.55rem;
+  padding-bottom: 0.55rem;
+  white-space: nowrap;
+}
+
 /* ——— Thumbnail two-column grid ——— */
 .admin-thumb-grid {
   display: grid;
