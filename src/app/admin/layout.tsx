@@ -25,6 +25,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <span aria-hidden>·</span>
           <Link href="/admin/exams">Mock exams</Link>
           <span aria-hidden>·</span>
+          <Link href="/admin/courses">Courses</Link>
+          <span aria-hidden>·</span>
           <Link href="/admin/reviews">Reviews</Link>
           <span aria-hidden>·</span>
           <Link href="/mock-exam">Public catalog</Link>

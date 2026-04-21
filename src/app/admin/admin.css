@@ -1262,6 +1262,87 @@
   color: var(--primary);
 }
 
+.admin-course-cover-preview {
+  position: relative;
+  margin-top: 1rem;
+  width: min(240px, 100%);
+  aspect-ratio: 4 / 3;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.admin-course-lesson-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-course-lesson-card {
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--bg);
+  padding: 1rem;
+}
+
+.admin-course-lesson-card__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  margin-bottom: 0.9rem;
+}
+
+.admin-course-lesson-card__header h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.admin-course-lesson-card__eyebrow {
+  margin: 0 0 0.25rem;
+  color: var(--primary);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.admin-course-provider-switch {
+  display: inline-flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.admin-course-provider-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.admin-course-provider-btn--active {
+  border-color: color-mix(in srgb, var(--primary) 24%, var(--border));
+  background: color-mix(in srgb, var(--primary) 8%, var(--surface));
+  color: var(--primary);
+}
+
+.admin-course-lesson-card__preview {
+  margin-top: 1rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
 /* ——— Part cards (Listening parts) ——— */
 .admin-part-card {
   border: 1px solid var(--border);

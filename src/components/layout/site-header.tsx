@@ -33,6 +33,7 @@ export function SiteHeader({ adminNavActive = false }: SiteHeaderProps) {
 
           <nav className="nav nav--desktop" aria-label="Primary">
             <Link href="/">Home</Link>
+            <Link href="/courses">Courses</Link>
             <Link href="/mock-exam">Mock Exams</Link>
             <a href="/#features">Features</a>
             <a href="/#pricing">Pricing</a>
@@ -85,6 +86,9 @@ export function SiteHeader({ adminNavActive = false }: SiteHeaderProps) {
           >
             <Link href="/" onClick={() => setMobileOpen(false)}>
               Home
+            </Link>
+            <Link href="/courses" onClick={() => setMobileOpen(false)}>
+              Courses
             </Link>
             <Link href="/mock-exam" onClick={() => setMobileOpen(false)}>
               Mock Exams

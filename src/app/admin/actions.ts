@@ -110,6 +110,128 @@ export async function deleteExam(formData: FormData) {
   revalidatePath("/mock-exam");
 }
 
+type CourseLessonInput = {
+  title: string;
+  summary: string;
+  provider: "youtube" | "upload";
+  video_url: string;
+  duration_label: string;
+};
+
+type CourseSaveInput = {
+  id?: string;
+  title: string;
+  slug: string;
+  description: string | null;
+  instructor: string | null;
+  level: "all-levels" | "beginner" | "intermediate" | "advanced";
+  cover_image_url: string | null;
+  is_published: boolean;
+  lessons_json: CourseLessonInput[];
+};
+
+function slugify(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function parseCourseLessons(raw: string): CourseLessonInput[] {
+  if (!raw.trim()) return [];
+  const parsed = JSON.parse(raw) as unknown;
+  if (!Array.isArray(parsed)) return [];
+  return parsed
+    .map((lesson) => {
+      const row = lesson && typeof lesson === "object" ? lesson as Record<string, unknown> : {};
+      const provider: CourseLessonInput["provider"] = row.provider === "youtube" ? "youtube" : "upload";
+      return {
+        title: String(row.title ?? "").trim().slice(0, 180),
+        summary: String(row.summary ?? "").trim().slice(0, 600),
+        provider,
+        video_url: String(row.video_url ?? "").trim().slice(0, 2000),
+        duration_label: String(row.duration_label ?? "").trim().slice(0, 40),
+      };
+    })
+    .filter((lesson) => lesson.title && lesson.video_url);
+}
+
+function parseCourseForm(formData: FormData): CourseSaveInput {
+  const title = String(formData.get("title") ?? "").trim();
+  const slugInput = String(formData.get("slug") ?? "").trim();
+  const lessonsRaw = String(formData.get("lessons_json") ?? "[]");
+  const levelRaw = String(formData.get("level") ?? "all-levels").trim();
+  const level = ["all-levels", "beginner", "intermediate", "advanced"].includes(levelRaw)
+    ? levelRaw as CourseSaveInput["level"]
+    : "all-levels";
+
+  return {
+    id: String(formData.get("id") ?? "").trim() || undefined,
+    title,
+    slug: slugify(slugInput || title),
+    description: String(formData.get("description") ?? "").trim() || null,
+    instructor: String(formData.get("instructor") ?? "").trim() || null,
+    level,
+    cover_image_url: String(formData.get("cover_image_url") ?? "").trim() || null,
+    is_published: String(formData.get("is_published") ?? "") === "true",
+    lessons_json: parseCourseLessons(lessonsRaw),
+  };
+}
+
+export async function saveCourse(formData: FormData) {
+  await requireAdmin();
+  const input = parseCourseForm(formData);
+
+  if (!input.title || !input.slug) {
+    return { ok: false, message: "Title and slug are required." };
+  }
+  if (input.lessons_json.length === 0) {
+    return { ok: false, message: "Add at least one lesson before saving the course." };
+  }
+
+  const admin = createServiceRoleClient();
+  const payload = {
+    title: input.title,
+    slug: input.slug,
+    description: input.description,
+    instructor: input.instructor,
+    level: input.level,
+    cover_image_url: input.cover_image_url,
+    is_published: input.is_published,
+    lessons_json: input.lessons_json,
+  };
+
+  let courseId = input.id;
+  if (input.id) {
+    const { error } = await admin.from("courses").update(payload).eq("id", input.id);
+    if (error) return { ok: false, message: error.message };
+  } else {
+    const { data, error } = await admin.from("courses").insert(payload).select("id").single();
+    if (error || !data?.id) return { ok: false, message: error?.message ?? "Could not create course." };
+    courseId = data.id;
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/courses");
+  revalidatePath("/courses");
+  revalidatePath(`/courses/${input.slug}`);
+  if (courseId) revalidatePath(`/admin/courses/${courseId}`);
+  return { ok: true, id: courseId };
+}
+
+export async function deleteCourse(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) throw new Error("Missing course id");
+  const admin = createServiceRoleClient();
+  const { error } = await admin.from("courses").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/admin");
+  revalidatePath("/admin/courses");
+  revalidatePath("/courses");
+}
+
 function roundToNearestHalf(value: number): number {
   return Math.round(value * 2) / 2;
 }
@@ -1039,6 +1161,45 @@ export async function getSignedUploadUrl(
   }
 
   const { data: publicData } = admin.storage.from(EXAM_MEDIA_BUCKET).getPublicUrl(path);
+
+  return {
+    ok: true,
+    signedUrl: data.signedUrl,
+    path,
+    publicUrl: publicData.publicUrl,
+  };
+}
+
+const COURSE_MEDIA_BUCKET = "course-media";
+
+export async function getSignedCourseUploadUrl(
+  folder: "covers" | "videos",
+  fileName: string,
+): Promise<{ ok: true; signedUrl: string; path: string; publicUrl: string } | { ok: false; message: string }> {
+  try {
+    await requireAdmin();
+  } catch {
+    return { ok: false, message: "Unauthorized" };
+  }
+
+  let ext = (fileName.split(".").pop() || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (!ext) ext = folder === "covers" ? "jpg" : "mp4";
+  const objectName = `${crypto.randomUUID()}.${ext}`.slice(0, 200);
+  const path = `${folder}/${objectName}`;
+
+  const admin = createServiceRoleClient();
+  const { data, error } = await admin.storage
+    .from(COURSE_MEDIA_BUCKET)
+    .createSignedUploadUrl(path);
+
+  if (error || !data) {
+    if (error?.message?.includes("Bucket not found") || error?.message?.includes("not found")) {
+      return { ok: false, message: "Storage bucket 'course-media' missing. Apply the latest migration." };
+    }
+    return { ok: false, message: error?.message ?? "Failed to create upload URL" };
+  }
+
+  const { data: publicData } = admin.storage.from(COURSE_MEDIA_BUCKET).getPublicUrl(path);
 
   return {
     ok: true,

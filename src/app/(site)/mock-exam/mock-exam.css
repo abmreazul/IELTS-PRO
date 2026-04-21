@@ -47,7 +47,7 @@
 .me-card {
   display: flex;
   flex-direction: column;
-  border-radius: 16px;
+  border-radius: 18px;
   border: 1px solid var(--border);
   background: var(--surface);
   overflow: hidden;
@@ -64,7 +64,7 @@
 
 .me-card__media {
   position: relative;
-  aspect-ratio: 1 / 1;
+  aspect-ratio: 16 / 10;
   background: linear-gradient(
     145deg,
     color-mix(in srgb, var(--primary) 18%, var(--bg-alt)) 0%,
@@ -85,7 +85,7 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  padding: 0.75rem 0.75rem 0;
+  padding: 0.7rem 0.7rem 0;
   gap: 0.5rem;
 }
 
@@ -93,9 +93,9 @@
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  padding: 0.35rem 0.65rem;
+  padding: 0.35rem 0.7rem;
   border-radius: 999px;
-  font-size: 0.75rem;
+  font-size: 0.735rem;
   font-weight: 700;
   background: color-mix(in srgb, #22c55e 88%, #fff);
   color: #fff;
@@ -108,9 +108,9 @@
 
 .me-card__cat {
   margin-left: auto;
-  padding: 0.35rem 0.75rem;
+  padding: 0.35rem 0.72rem;
   border-radius: 999px;
-  font-size: 0.75rem;
+  font-size: 0.735rem;
   font-weight: 700;
   letter-spacing: 0.01em;
 }
@@ -164,17 +164,17 @@
   display: flex;
   flex-direction: column;
   flex: 1;
-  padding: 1.25rem 1.2rem 1.35rem;
-  gap: 0.65rem;
+  padding: 1rem 1rem 1.05rem;
+  gap: 0.5rem;
 }
 
 .me-card__title {
   margin: 0;
   font-family: var(--font-display), var(--font-sans), sans-serif;
-  font-size: 1.2rem;
+  font-size: 1.05rem;
   font-weight: 800;
   letter-spacing: -0.02em;
-  line-height: 1.25;
+  line-height: 1.2;
   color: var(--text);
 }
 
@@ -182,8 +182,8 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 1rem;
-  font-size: 0.875rem;
+  gap: 0.85rem;
+  font-size: 0.83rem;
   color: var(--muted);
   font-weight: 500;
 }
@@ -200,7 +200,7 @@
 
 .me-card__diff {
   margin: 0;
-  font-size: 0.875rem;
+  font-size: 0.84rem;
   color: var(--muted);
 }
 
@@ -210,16 +210,16 @@
 }
 
 .me-card__price {
-  margin: 0.15rem 0 0;
-  font-size: 1.65rem;
+  margin: 0.1rem 0 0;
+  font-size: 1.45rem;
   font-weight: 800;
   color: var(--primary);
   letter-spacing: -0.02em;
 }
 
 .me-card__score-box {
-  margin-top: 0.25rem;
-  padding: 0.85rem 1rem;
+  margin-top: 0.2rem;
+  padding: 0.75rem 0.9rem;
   border-radius: 12px;
   background: color-mix(in srgb, #22c55e 12%, var(--surface));
   border: 1px solid color-mix(in srgb, #22c55e 28%, var(--border));
@@ -231,10 +231,10 @@
 
 .me-card__score-label {
   display: block;
-  font-size: 0.78rem;
+  font-size: 0.74rem;
   font-weight: 600;
   color: #15803d;
-  margin-bottom: 0.15rem;
+  margin-bottom: 0.1rem;
 }
 
 .dark .me-card__score-label {
@@ -242,7 +242,7 @@
 }
 
 .me-card__score-value {
-  font-size: 1.75rem;
+  font-size: 1.35rem;
   font-weight: 800;
   color: #14532d;
   letter-spacing: -0.03em;
@@ -254,10 +254,10 @@
 
 .me-card__actions {
   margin-top: auto;
-  padding-top: 0.85rem;
+  padding-top: 0.65rem;
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
+  gap: 0.55rem;
 }
 
 .me-card__actions--row {
@@ -272,6 +272,15 @@
 .me-card .btn-topbar-cta {
   width: 100%;
   justify-content: center;
+}
+
+.me-card .btn,
+.me-card .btn-topbar-cta,
+.me-card .btn-outline {
+  min-height: 3rem;
+  padding-top: 0.72rem;
+  padding-bottom: 0.72rem;
+  border-radius: 14px;
 }
 
 .me-empty {
