@@ -1,3 +1,5 @@
+import type { WritingAiReview } from "@/lib/ai/writing-review";
+
 export type ExamCategoryRow = {
   id: string;
   slug: string;
@@ -34,6 +36,7 @@ export type MockAttemptRow = {
   listening_band: number | null;
   reading_band: number | null;
   writing_band: number | null;
+  ai_review_json?: WritingAiReview | null;
   completed_at: string | null;
   created_at: string;
 };

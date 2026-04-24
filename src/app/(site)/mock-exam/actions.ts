@@ -3,7 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { getAuthUser } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
-import { normalizeExamModules } from "@/lib/exam/ielts-defaults";
+import { evaluateWritingWithGemini } from "@/lib/ai/gemini-writing";
+import { roundBandToNearestHalf } from "@/lib/ai/writing-review";
+import { coerceTestVariant, normalizeExamModules } from "@/lib/exam/ielts-defaults";
 
 /* ═══════════════════════════════════════════════════════════════════
    IELTS Band Conversion (standard 40-question Listening / Reading)
@@ -23,6 +25,22 @@ function rawToBand(correct: number, total: number): number {
     if (normalised >= threshold) return band;
   }
   return 1.0;
+}
+
+function computeOverallBand(moduleBands: Record<string, number | null>, activeModules: string[]) {
+  const relevant = activeModules
+    .filter((module) => ["listening", "reading", "writing"].includes(module))
+    .map((module) => moduleBands[module])
+    .filter((value): value is number => value != null);
+
+  if (relevant.length === 0) return null;
+  if (relevant.length !== activeModules.filter((module) => ["listening", "reading", "writing"].includes(module)).length) {
+    return null;
+  }
+
+  return roundBandToNearestHalf(
+    relevant.reduce((sum, value) => sum + value, 0) / relevant.length,
+  );
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -111,7 +129,7 @@ export async function submitExamAttempt(
   // Fetch all questions for the exam
   const { data: questions } = await admin
     .from("exam_questions")
-    .select("id, module, question_type, correct_json, points")
+    .select("id, module, question_type, correct_json, points, sort_order, prompt")
     .eq("exam_id", attempt.exam_id)
     .order("sort_order");
 
@@ -121,7 +139,7 @@ export async function submitExamAttempt(
 
   const { data: exam } = await admin
     .from("mock_exams")
-    .select("modules")
+    .select("modules, structure_json")
     .eq("id", attempt.exam_id)
     .single();
   const activeModules = normalizeExamModules(exam?.modules);
@@ -133,6 +151,7 @@ export async function submitExamAttempt(
   const allModules = new Set<string>();
   const reviewPendingModules = new Set<string>();
   const subjectiveQuestionTypes = new Set(["essay"]);
+  let aiReviewJson: Record<string, unknown> | null = null;
 
   for (const q of scorableQuestions) {
     const mod = q.module || "reading";
@@ -190,16 +209,65 @@ export async function submitExamAttempt(
     }
   }
 
+  if (activeModuleSet.has("writing")) {
+    const structure = exam?.structure_json && typeof exam.structure_json === "object"
+      ? exam.structure_json as {
+          exam_meta?: { test_variant?: "academic" | "general" };
+          writing_tasks?: { part: number; prompt?: string; min_words?: number; image_url?: string }[];
+        }
+      : null;
+    const testVariant = coerceTestVariant(structure?.exam_meta?.test_variant);
+    const writingQuestions = scorableQuestions
+      .filter((question) => question.module === "writing")
+      .sort((a, b) => a.sort_order - b.sort_order);
+    const writingTasks = (structure?.writing_tasks ?? [])
+      .map((task) => {
+        const matchedQuestion = writingQuestions.find((question) => {
+          const decodedPart = question.sort_order >= 100 ? Math.floor(question.sort_order / 100) : 1;
+          return decodedPart === task.part;
+        });
+        return matchedQuestion
+          ? {
+              part: task.part,
+              prompt: String(task.prompt ?? matchedQuestion.prompt ?? "").trim(),
+              min_words: Number(task.min_words) || null,
+              image_url: String(task.image_url ?? "").trim() || null,
+              answer: typeof answers[matchedQuestion.id] === "string" ? String(answers[matchedQuestion.id]) : "",
+              test_variant: testVariant,
+            }
+          : null;
+      })
+      .filter((task): task is NonNullable<typeof task> => Boolean(task));
+
+    if (writingTasks.length > 0) {
+      const writingAiResult = await evaluateWritingWithGemini(writingTasks);
+      if (writingAiResult.ok) {
+        reviewPendingModules.delete("writing");
+        moduleBands.writing = writingAiResult.review.overall_band;
+        aiReviewJson = writingAiResult.review as unknown as Record<string, unknown>;
+      } else {
+        reviewPendingModules.add("writing");
+      }
+    } else {
+      reviewPendingModules.add("writing");
+    }
+  }
+
   const overallBand = reviewPendingModules.size > 0
     ? null
-    : rawToBand(totalCorrect, totalQuestions);
-  const reviewStatus = reviewPendingModules.size > 0 ? "pending" : "not_required";
+    : computeOverallBand(moduleBands, activeModules) ?? rawToBand(totalCorrect, totalQuestions);
+  const reviewStatus = reviewPendingModules.size > 0
+    ? "pending"
+    : aiReviewJson
+      ? "reviewed"
+      : "not_required";
 
   // Update attempt
   const { error: updateErr } = await admin
     .from("mock_attempts")
     .update({
       answers_json: answers,
+      ai_review_json: aiReviewJson,
       review_status: reviewStatus,
       status: "completed",
       overall_band: overallBand,

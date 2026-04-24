@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { createClient, getAuthUser } from "@/lib/supabase/server";
+import type { WritingAiReview } from "@/lib/ai/writing-review";
 
 export const metadata: Metadata = {
   title: "Review results | The IELTS Exam",
@@ -41,7 +42,7 @@ export default async function ReviewMockExamPage({
   const { data: attempt } = user
     ? await supabase
         .from("mock_attempts")
-        .select("status, review_status, overall_band, listening_band, reading_band, writing_band, completed_at, created_at")
+        .select("status, review_status, overall_band, listening_band, reading_band, writing_band, completed_at, created_at, ai_review_json")
         .eq("exam_id", exam.id)
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
@@ -50,6 +51,9 @@ export default async function ReviewMockExamPage({
     : { data: null };
 
   const reviewPending = attempt?.review_status === "pending";
+  const aiReview = attempt?.ai_review_json && typeof attempt.ai_review_json === "object"
+    ? attempt.ai_review_json as WritingAiReview
+    : null;
 
   return (
     <main className="page" style={{ padding: "3rem 1.5rem" }}>
@@ -106,6 +110,50 @@ export default async function ReviewMockExamPage({
                 <div style={{ marginTop: "0.35rem", fontSize: "1.4rem", fontWeight: 800 }}>{attempt.writing_band ?? "—"}</div>
               </div>
             </div>
+            {aiReview ? (
+              <div style={{ marginTop: "1rem", display: "grid", gap: "0.9rem" }}>
+                <div style={{ padding: "1rem", border: "1px solid var(--border)", borderRadius: "16px", background: "var(--surface)" }}>
+                  <div style={{ color: "var(--muted)", fontSize: "0.8rem", textTransform: "uppercase", letterSpacing: "0.08em" }}>AI writing summary</div>
+                  <p style={{ margin: "0.5rem 0 0", lineHeight: 1.7, color: "var(--text)" }}>{aiReview.summary}</p>
+                  {aiReview.strengths.length > 0 ? (
+                    <div style={{ marginTop: "0.85rem" }}>
+                      <div style={{ fontWeight: 700, marginBottom: "0.35rem" }}>Strengths</div>
+                      <ul style={{ margin: 0, paddingLeft: "1.1rem", color: "var(--muted)", lineHeight: 1.7 }}>
+                        {aiReview.strengths.map((item) => <li key={item}>{item}</li>)}
+                      </ul>
+                    </div>
+                  ) : null}
+                  {aiReview.improvements.length > 0 ? (
+                    <div style={{ marginTop: "0.85rem" }}>
+                      <div style={{ fontWeight: 700, marginBottom: "0.35rem" }}>Improve next</div>
+                      <ul style={{ margin: 0, paddingLeft: "1.1rem", color: "var(--muted)", lineHeight: 1.7 }}>
+                        {aiReview.improvements.map((item) => <li key={item}>{item}</li>)}
+                      </ul>
+                    </div>
+                  ) : null}
+                </div>
+
+                <div style={{ display: "grid", gap: "0.75rem", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+                  {aiReview.tasks.map((task) => (
+                    <div key={task.part} style={{ padding: "1rem", border: "1px solid var(--border)", borderRadius: "16px", background: "var(--surface)" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem", alignItems: "baseline" }}>
+                        <div style={{ fontWeight: 800 }}>Task {task.part}</div>
+                        <div style={{ color: "var(--primary)", fontWeight: 800 }}>Band {task.estimated_band.toFixed(1)}</div>
+                      </div>
+                      <div style={{ marginTop: "0.5rem", color: "var(--muted)", fontSize: "0.92rem" }}>
+                        {task.word_count} words
+                      </div>
+                      <div style={{ marginTop: "0.85rem", display: "grid", gap: "0.55rem" }}>
+                        <div><strong>Task response:</strong> {task.feedback.task_response}</div>
+                        <div><strong>Coherence:</strong> {task.feedback.coherence}</div>
+                        <div><strong>Lexical:</strong> {task.feedback.lexical}</div>
+                        <div><strong>Grammar:</strong> {task.feedback.grammar}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </>
         )}
 

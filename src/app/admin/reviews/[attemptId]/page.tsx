@@ -4,6 +4,7 @@ import { getAuthUser } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
 import { isAdminEmail } from "@/lib/auth/admin";
 import { ReviewAttemptForm } from "@/components/admin/review-attempt-form";
+import type { WritingAiReview } from "@/lib/ai/writing-review";
 import { normalizeExamModules } from "@/lib/exam/ielts-defaults";
 
 type EssayAnswer = string;
@@ -34,7 +35,7 @@ export default async function AdminReviewAttemptPage({
   const admin = createServiceRoleClient();
   const { data: attempt } = await admin
     .from("mock_attempts")
-    .select("id, exam_id, user_id, status, review_status, answers_json, created_at, completed_at, listening_band, reading_band, writing_band, overall_band, speaking_review_notes, reviewed_at")
+    .select("id, exam_id, user_id, status, review_status, answers_json, ai_review_json, created_at, completed_at, listening_band, reading_band, writing_band, overall_band, speaking_review_notes, reviewed_at")
     .eq("id", attemptId)
     .maybeSingle();
 
@@ -77,6 +78,9 @@ export default async function AdminReviewAttemptPage({
   const answers = attempt.answers_json && typeof attempt.answers_json === "object"
     ? attempt.answers_json as Record<string, unknown>
     : {};
+  const aiReview = attempt.ai_review_json && typeof attempt.ai_review_json === "object"
+    ? attempt.ai_review_json as WritingAiReview
+    : null;
 
   const writingTasks = ((exam.structure_json as { writing_tasks?: { part: number; prompt: string; min_words?: number }[] } | null)?.writing_tasks ?? [])
     .map((task) => ({
@@ -159,6 +163,49 @@ export default async function AdminReviewAttemptPage({
                 </div>
                 <div className="admin-review-answer-card__body">
                   {response.answer ? response.answer : "No writing answer submitted for this task."}
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {aiReview ? (
+        <div className="admin-card">
+          <h2>AI Writing Review</h2>
+          <p className="admin-lead" style={{ marginBottom: "1rem" }}>
+            Gemini estimated <strong>Band {aiReview.overall_band.toFixed(1)}</strong> for the writing section.
+          </p>
+          <div className="admin-review-answer-card" style={{ marginBottom: "1rem" }}>
+            <div className="admin-review-answer-card__body" style={{ whiteSpace: "normal" }}>
+              {aiReview.summary}
+            </div>
+          </div>
+          <div className="admin-review-grid" style={{ marginBottom: "1rem" }}>
+            <div className="admin-review-item">
+              <span className="admin-review-label">Model</span>
+              <span className="admin-review-value">{aiReview.model}</span>
+            </div>
+            <div className="admin-review-item">
+              <span className="admin-review-label">Graded at</span>
+              <span className="admin-review-value">{formatDateTime(aiReview.graded_at)}</span>
+            </div>
+          </div>
+          <div className="admin-writing-review-list">
+            {aiReview.tasks.map((task) => (
+              <article key={task.part} className="admin-review-answer-card">
+                <div className="admin-review-answer-card__header">
+                  <div>
+                    <p className="admin-review-answer-card__eyebrow">Task {task.part}</p>
+                    <h3>Estimated band {task.estimated_band.toFixed(1)}</h3>
+                  </div>
+                  <span className="admin-badge admin-badge--writing">{task.word_count} words</span>
+                </div>
+                <div className="admin-review-answer-card__body" style={{ whiteSpace: "normal", display: "grid", gap: "0.7rem" }}>
+                  <div><strong>Task response:</strong> {task.feedback.task_response}</div>
+                  <div><strong>Coherence:</strong> {task.feedback.coherence}</div>
+                  <div><strong>Lexical:</strong> {task.feedback.lexical}</div>
+                  <div><strong>Grammar:</strong> {task.feedback.grammar}</div>
                 </div>
               </article>
             ))}
