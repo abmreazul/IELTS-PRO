@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { ChevronLeft, Layers3 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { CoursePlaylist } from "@/components/courses/course-playlist";
-import "../courses.css";
+import "../../../courses/courses.css";
 
 type Lesson = {
   title: string;
@@ -58,7 +58,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ s
         </div>
       </section>
 
-      <section className="container">
+      <section className="container course-detail__content">
         <CoursePlaylist lessons={lessons} />
       </section>
     </main>

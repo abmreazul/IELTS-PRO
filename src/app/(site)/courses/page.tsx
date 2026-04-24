@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { PlayCircle, Video } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import "./courses.css";
+import "../../courses/courses.css";
 
 type CourseRow = {
   id: string;
@@ -34,10 +34,13 @@ export default async function CoursesPage() {
     <main className="courses-page">
       <section className="container courses-page__head">
         <p className="courses-page__eyebrow">Courses</p>
-        <h1>Video courses for IELTS prep</h1>
-        <p>
-          Study with playlist-style lessons, follow along at your own pace, and keep everything in the same platform as your mock exams.
-        </p>
+        <div className="courses-page__intro">
+          <h1>IELTS video courses.</h1>
+          <p>
+            Short, focused playlists for listening, reading, and writing prep. Keep the layout minimal,
+            keep the lessons easy to scan.
+          </p>
+        </div>
       </section>
 
       <section className="container courses-grid">
@@ -62,7 +65,7 @@ export default async function CoursesPage() {
               <div className="course-card__footer">
                 <span>{course.instructor || "The IELTS Exam Team"}</span>
                 <Link href={`/courses/${course.slug}`} className="course-card__cta">
-                  Start course
+                  Watch course
                   <PlayCircle size={16} />
                 </Link>
               </div>
@@ -72,8 +75,8 @@ export default async function CoursesPage() {
 
         {rows.length === 0 ? (
           <div className="courses-empty">
-            <h2>No courses published yet</h2>
-            <p>Create the first course from the admin area and it will appear here automatically.</p>
+            <h2>No published courses yet</h2>
+            <p>Publish a course from admin and it will appear here automatically.</p>
           </div>
         ) : null}
       </section>
