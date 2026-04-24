@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { BookOpen, ChevronDown, ChevronRight, Headphones, Mic, PenLine, Plus, Trash2, Upload } from "lucide-react";
+import { BookOpen, ChevronDown, ChevronRight, Headphones, ImagePlus, Mic, PenLine, Plus, Trash2, Upload, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
-import { saveExamWizard, type ExamWizardSaveInput, type WizardQuestionInput } from "@/app/admin/actions";
+import { getSignedUploadUrl, saveExamWizard, type ExamWizardSaveInput, type WizardQuestionInput } from "@/app/admin/actions";
 import { ExamLocalUpload } from "@/components/admin/exam-local-upload";
 import {
   coerceTestVariant,
@@ -79,6 +79,7 @@ type QuestionDraft = {
   correctTriple: string;
   correctText: string; // for fill-in/completion/short-answer/matching
   points: number;
+  image_url?: string;
 };
 
 type Surface = "full" | "listening" | "reading" | "writing";
@@ -198,7 +199,139 @@ function dbQuestionToDraft(q: DbQuestion): QuestionDraft {
     correctTriple,
     correctText,
     points: q.points ?? 1,
+    image_url: "",
   };
+}
+
+type QuestionMediaEntry = {
+  module: "listening" | "reading" | "writing";
+  part: number;
+  index: number;
+  image_url: string;
+};
+
+function parseQuestionMedia(raw: unknown): QuestionMediaEntry[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((row) => {
+      if (!row || typeof row !== "object") return null;
+      const value = row as Record<string, unknown>;
+      const module = String(value.module ?? "").trim();
+      const part = Math.floor(Number(value.part) || 0);
+      const index = Math.floor(Number(value.index) || -1);
+      const image_url = String(value.image_url ?? "").trim();
+      if (!["listening", "reading", "writing"].includes(module) || part < 1 || index < 0 || !image_url) {
+        return null;
+      }
+      return {
+        module: module as QuestionMediaEntry["module"],
+        part,
+        index,
+        image_url,
+      };
+    })
+    .filter((row): row is QuestionMediaEntry => Boolean(row));
+}
+
+function applyQuestionMediaToDrafts(drafts: QuestionDraft[], raw: unknown): QuestionDraft[] {
+  const media = parseQuestionMedia(raw);
+  if (media.length === 0) return drafts;
+
+  const groups = new Map<string, QuestionDraft[]>();
+  for (const draft of drafts) {
+    const key = `${draft.module}:${draft.part ?? 1}`;
+    const list = groups.get(key) ?? [];
+    list.push(draft);
+    groups.set(key, list);
+  }
+
+  const patched = drafts.map((draft) => ({ ...draft }));
+  for (const entry of media) {
+    const key = `${entry.module}:${entry.part}`;
+    const group = groups.get(key);
+    if (!group || !group[entry.index]) continue;
+    const targetId = group[entry.index].tempId;
+    const target = patched.find((draft) => draft.tempId === targetId);
+    if (target) target.image_url = entry.image_url;
+  }
+  return patched;
+}
+
+async function uploadExamImage(file: File): Promise<string> {
+  const mime = (file.type || "").toLowerCase();
+  if (!mime.startsWith("image/")) {
+    throw new Error("Question image must be an image file.");
+  }
+  const result = await getSignedUploadUrl("covers", file.name, file.type);
+  if (!result.ok) {
+    throw new Error(result.message);
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", result.signedUrl);
+    xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve();
+      } else {
+        reject(new Error(`Upload failed (${xhr.status})`));
+      }
+    };
+    xhr.onerror = () => reject(new Error("Network error during upload"));
+    xhr.send(file);
+  });
+
+  return result.publicUrl;
+}
+
+function CompactQuestionImageUpload({
+  disabled,
+  hasImage,
+  onUploaded,
+}: {
+  disabled?: boolean;
+  hasImage?: boolean;
+  onUploaded: (url: string) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  return (
+    <>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
+        style={{ display: "none" }}
+        disabled={disabled || uploading}
+        onChange={async (event) => {
+          const file = event.target.files?.[0];
+          event.target.value = "";
+          if (!file) return;
+          setUploading(true);
+          try {
+            const url = await uploadExamImage(file);
+            onUploaded(url);
+          } catch {
+            // Keep the lightweight control silent here; the preview/update is the primary feedback.
+          } finally {
+            setUploading(false);
+          }
+        }}
+      />
+      <button
+        type="button"
+        className={`admin-icon-btn${hasImage ? " admin-icon-btn--active" : ""}`}
+        onClick={() => inputRef.current?.click()}
+        title={hasImage ? "Replace question image" : "Upload question image"}
+        aria-label={hasImage ? "Replace question image" : "Upload question image"}
+        disabled={disabled || uploading}
+      >
+        <ImagePlus />
+      </button>
+    </>
+  );
 }
 
 const TEXT_ANSWER_TYPES = new Set([
@@ -489,13 +622,20 @@ export function ExamWizard({
     setSlug(slugify(title));
   }, [title, isSlugManual]);
 
-  const [questions, setQuestions] = useState<QuestionDraft[]>(() =>
-    initialQuestions.length
+  const [questions, setQuestions] = useState<QuestionDraft[]>(() => {
+    const drafts = initialQuestions.length
       ? initialQuestions
           .map(dbQuestionToDraft)
           .filter((question) => question.module !== "speaking")
-      : [],
-  );
+      : [];
+    const questionMedia =
+      initialExam?.structure_json &&
+      typeof initialExam.structure_json === "object" &&
+      "question_media" in (initialExam.structure_json as Record<string, unknown>)
+        ? (initialExam.structure_json as Record<string, unknown>).question_media
+        : [];
+    return applyQuestionMediaToDrafts(drafts, questionMedia);
+  });
 
   const [legacyListeningClips] = useState<ListeningClip[]>(() =>
     parseListeningClips(initialExam?.listening_audio_json),
@@ -1024,6 +1164,22 @@ export function ExamWizard({
         exam_meta: {
           test_variant: testVariant,
         },
+        question_media: payloadQuestions
+          .filter((question) => question.module !== "speaking" && String(question.image_url ?? "").trim())
+          .map((question) => {
+            const siblings = payloadQuestions.filter(
+              (candidate) =>
+                candidate.module === question.module &&
+                (candidate.part ?? 1) === (question.part ?? 1),
+            );
+            return {
+              module: question.module,
+              part: question.part ?? 1,
+              index: siblings.findIndex((candidate) => candidate.tempId === question.tempId),
+              image_url: String(question.image_url ?? "").trim(),
+            };
+          })
+          .filter((entry) => entry.index >= 0),
         reading_passages: hasReading ? readingPassages : [],
         writing_tasks: hasWriting ? writingTasks : [],
         speaking: hasSpeaking
@@ -1085,15 +1241,22 @@ export function ExamWizard({
         <span style={{ fontWeight: 700, fontSize: "0.85rem", color: "var(--muted)" }}>
           Q{qIdx + 1}
         </span>
-        <button
-          type="button"
-          className="admin-icon-btn"
-          onClick={() => removeQuestion(q.tempId)}
-          title="Remove"
-          aria-label="Remove question"
-        >
-          <Trash2 />
-        </button>
+        <div className="admin-question-card__actions">
+          <CompactQuestionImageUpload
+            disabled={pending}
+            hasImage={Boolean(q.image_url)}
+            onUploaded={(url) => updateQuestion(q.tempId, { image_url: url })}
+          />
+          <button
+            type="button"
+            className="admin-icon-btn"
+            onClick={() => removeQuestion(q.tempId)}
+            title="Remove"
+            aria-label="Remove question"
+          >
+            <Trash2 />
+          </button>
+        </div>
       </div>
 
       <div className="admin-form-grid admin-form-grid--2" style={{ marginBottom: "0.65rem" }}>
@@ -1133,6 +1296,23 @@ export function ExamWizard({
           placeholder="Enter your question here…"
         />
       </div>
+
+      {q.image_url ? (
+        <div className="admin-question-image">
+          <div className="admin-question-image__preview">
+            <img src={q.image_url} alt="" />
+          </div>
+          <button
+            type="button"
+            className="admin-btn-ghost"
+            style={{ fontSize: "0.78rem" }}
+            onClick={() => updateQuestion(q.tempId, { image_url: "" })}
+          >
+            <X style={{ width: "0.82rem", height: "0.82rem" }} />
+            Remove image
+          </button>
+        </div>
+      ) : null}
 
       {q.question_type === "true_false_not_given" || q.question_type === "yes_no_not_given" ? (
         <div style={{ marginTop: "0.65rem" }}>
@@ -1626,18 +1806,10 @@ export function ExamWizard({
                         <div className="admin-part-card__body">
                           {/* Questions for this part */}
                           <div style={{ marginTop: "1rem" }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem", position: "sticky", top: 0, background: "var(--surface)", zIndex: 2, padding: "0.5rem 0" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
                               <span style={{ fontWeight: 700, fontSize: "0.85rem" }}>
                                 Questions ({partQuestions.length})
                               </span>
-                              <button
-                                type="button"
-                                className="btn btn-primary btn-topbar-cta"
-                                style={{ fontSize: "0.78rem", padding: "0.35rem 0.7rem" }}
-                                onClick={() => addQuestion("listening", part)}
-                              >
-                                <Plus style={{ width: "0.8rem", height: "0.8rem" }} /> Add
-                              </button>
                             </div>
 
                             {partQuestions.length === 0 ? (
@@ -1645,6 +1817,17 @@ export function ExamWizard({
                             ) : null}
 
                             {partQuestions.map((q, qIdx) => renderQuestionCard(q, qIdx))}
+
+                            <div className="admin-question-add-row">
+                              <button
+                                type="button"
+                                className="btn btn-primary btn-topbar-cta"
+                                style={{ fontSize: "0.78rem", padding: "0.38rem 0.78rem" }}
+                                onClick={() => addQuestion("listening", part)}
+                              >
+                                <Plus style={{ width: "0.8rem", height: "0.8rem" }} /> Add
+                              </button>
+                            </div>
                           </div>
                         </div>
                       ) : null}

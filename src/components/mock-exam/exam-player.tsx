@@ -36,6 +36,7 @@ export type ExamData = {
   listening_audio_json?: { url: string; title?: string } | { part: number; url: string; title?: string }[] | null;
   structure_json?: {
     exam_meta?: { test_variant?: "academic" | "general" };
+    question_media?: { module: string; part: number; index: number; image_url: string }[];
     reading_passages?: { part: number; title: string; text: string; image_url?: string }[];
     writing_tasks?: { part: number; prompt: string; image_url?: string; min_words?: number }[];
     speaking?: {
@@ -246,6 +247,22 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
   const isWriting = currentPartInfo.module === "writing";
   const readingVariant = coerceTestVariant(exam.structure_json?.exam_meta?.test_variant);
   const readingSectionLabel = getReadingSectionLabel(readingVariant);
+  const questionMedia = useMemo(() => {
+    const rows = exam.structure_json?.question_media;
+    if (!Array.isArray(rows)) return [];
+    return rows
+      .map((row) => {
+        if (!row || typeof row !== "object") return null;
+        const value = row as Record<string, unknown>;
+        const module = String(value.module ?? "").trim();
+        const part = Math.floor(Number(value.part) || 0);
+        const index = Math.floor(Number(value.index) || -1);
+        const image_url = String(value.image_url ?? "").trim();
+        if (!module || part < 1 || index < 0 || !image_url) return null;
+        return { module, part, index, image_url };
+      })
+      .filter((row): row is { module: string; part: number; index: number; image_url: string } => Boolean(row));
+  }, [exam.structure_json?.question_media]);
   const listeningAudioSource = useMemo(
     () => parseListeningAudioSource(exam.listening_audio_json),
     [exam.listening_audio_json],
@@ -314,6 +331,19 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
   const setAnswer = (questionId: string, value: unknown) => {
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
   };
+
+  const getQuestionImageUrl = useCallback((question: ExamQuestion) => {
+    const localIndex = currentPartInfo.questions.findIndex((candidate) => candidate.id === question.id);
+    if (localIndex < 0) return "";
+    return (
+      questionMedia.find(
+        (entry) =>
+          entry.module === currentPartInfo.module &&
+          entry.part === currentPartInfo.part &&
+          entry.index === localIndex,
+      )?.image_url ?? ""
+    );
+  }, [currentPartInfo.module, currentPartInfo.part, currentPartInfo.questions, questionMedia]);
 
   const goToPart = (part: number) => {
     if (!canNavigateToPart(part)) return;
@@ -486,12 +516,14 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
   /* ── Render single question ────────────── */
   const renderQuestion = (q: ExamQuestion, globalIdx: number) => {
     const options = Array.isArray(q.options_json) ? (q.options_json as string[]) : [];
+    const questionImageUrl = getQuestionImageUrl(q);
 
     return (
       <div key={q.id} className="ep-q ep-slide-up" id={`q-${globalIdx + 1}`}>
         {(q.question_type === "multiple_choice" || q.question_type === "multiple_choice_multi") && options.length > 0 ? (
           <>
             <p className="ep-q__text"><strong>{globalIdx + 1}.</strong> {q.prompt}</p>
+            {questionImageUrl ? <img src={questionImageUrl} alt="" className="ep-q__img" /> : null}
             <div className="ep-q__opts">
               {options.map((opt, i) => {
                 const selected = answers[q.id] === i;
@@ -514,6 +546,7 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
         {(q.question_type === "true_false_not_given" || q.question_type === "yes_no_not_given") ? (
           <>
             <p className="ep-q__text"><strong>{globalIdx + 1}.</strong> {q.prompt}</p>
+            {questionImageUrl ? <img src={questionImageUrl} alt="" className="ep-q__img" /> : null}
             <div className="ep-q__tf-group">
               {(q.question_type === "true_false_not_given" ? ["true", "false", "not_given"] : ["yes", "no", "not_given"]).map((opt) => {
                 const selected = answers[q.id] === opt;
@@ -533,6 +566,7 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
           "sentence_endings", "map_diagram_labeling", "matching"].includes(q.question_type) ? (
           <div className="ep-q__fill-row">
             <p className="ep-q__text"><strong>{globalIdx + 1}.</strong> {q.prompt}</p>
+            {questionImageUrl ? <img src={questionImageUrl} alt="" className="ep-q__img" /> : null}
             <div className="ep-q__fill-inline">
               <input
                 className="ep-q__fill-input"
@@ -548,6 +582,7 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
         {q.question_type === "essay" ? (
           <>
             <p className="ep-q__text"><strong>{globalIdx + 1}.</strong> {q.prompt}</p>
+            {questionImageUrl ? <img src={questionImageUrl} alt="" className="ep-q__img" /> : null}
             <textarea className="ep-q__essay" rows={10} placeholder="Write your response here…"
               value={String(answers[q.id] ?? "")} onChange={(e) => setAnswer(q.id, e.target.value)} />
           </>

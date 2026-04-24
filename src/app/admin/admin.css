@@ -405,6 +405,12 @@
   background: color-mix(in srgb, var(--primary) 8%, var(--surface));
 }
 
+.admin-icon-btn--active {
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
+  border-color: color-mix(in srgb, var(--primary) 24%, var(--border));
+}
+
 .admin-icon-btn svg {
   width: 1rem;
   height: 1rem;
@@ -699,6 +705,41 @@
   align-items: center;
   justify-content: space-between;
   margin-bottom: 0.75rem;
+}
+
+.admin-question-card__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.admin-question-image {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.65rem;
+}
+
+.admin-question-image__preview {
+  width: 86px;
+  aspect-ratio: 1 / 1;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.admin-question-image__preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.admin-question-add-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.75rem;
 }
 
 .admin-wizard-nav {
