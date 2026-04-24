@@ -1,7 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
+import { unstable_noStore as noStore } from "next/cache";
 import { PlayCircle, Video } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
+import { createServiceRoleClient } from "@/lib/supabase/admin";
 import "../../courses/courses.css";
 
 type CourseRow = {
@@ -21,8 +22,9 @@ function levelLabel(level: string) {
 }
 
 export default async function CoursesPage() {
-  const supabase = await createClient();
-  const { data: courses } = await supabase
+  noStore();
+  const admin = createServiceRoleClient();
+  const { data: courses } = await admin
     .from("courses")
     .select("id, title, slug, description, instructor, level, cover_image_url, lessons_json")
     .eq("is_published", true)

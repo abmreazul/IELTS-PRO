@@ -1,8 +1,9 @@
 import Image from "next/image";
 import Link from "next/link";
+import { unstable_noStore as noStore } from "next/cache";
 import { notFound } from "next/navigation";
 import { ChevronLeft, Layers3 } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
+import { createServiceRoleClient } from "@/lib/supabase/admin";
 import { CoursePlaylist } from "@/components/courses/course-playlist";
 import "../../../courses/courses.css";
 
@@ -16,8 +17,9 @@ type Lesson = {
 
 export default async function CourseDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const supabase = await createClient();
-  const { data: course } = await supabase
+  noStore();
+  const admin = createServiceRoleClient();
+  const { data: course } = await admin
     .from("courses")
     .select("id, title, slug, description, instructor, level, cover_image_url, lessons_json")
     .eq("slug", slug)
