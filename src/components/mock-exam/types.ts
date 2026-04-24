@@ -34,7 +34,6 @@ export type MockAttemptRow = {
   listening_band: number | null;
   reading_band: number | null;
   writing_band: number | null;
-  speaking_band: number | null;
   completed_at: string | null;
   created_at: string;
 };

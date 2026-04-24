@@ -4,6 +4,7 @@ import { unstable_cache } from "next/cache";
 import { createClient, getAuthUser } from "@/lib/supabase/server";
 import { MockExamCatalog } from "@/components/mock-exam/mock-exam-catalog";
 import type { MockAttemptRow, MockExamRow } from "@/components/mock-exam/types";
+import { normalizeExamModules } from "@/lib/exam/ielts-defaults";
 import "./mock-exam.css";
 
 export const metadata: Metadata = {
@@ -36,7 +37,10 @@ const getCatalogData = unstable_cache(
         .eq("is_published", true),
     ]);
 
-    const exams = (examsRaw ?? []) as unknown as MockExamRow[];
+    const exams = ((examsRaw ?? []) as unknown as MockExamRow[]).map((exam) => ({
+      ...exam,
+      modules: normalizeExamModules(exam.modules),
+    }));
     const catList = categories ?? [];
     const examsByCategory = catList
       .map((cat) => ({
@@ -67,7 +71,7 @@ async function UserCatalog() {
       supabase
         .from("mock_attempts")
         .select(
-          "id, exam_id, status, review_status, overall_band, listening_band, reading_band, writing_band, speaking_band, completed_at, created_at",
+          "id, exam_id, status, review_status, overall_band, listening_band, reading_band, writing_band, completed_at, created_at",
         )
         .eq("user_id", user.id)
         .eq("status", "completed")

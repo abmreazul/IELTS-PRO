@@ -41,7 +41,7 @@ export default async function ReviewMockExamPage({
   const { data: attempt } = user
     ? await supabase
         .from("mock_attempts")
-        .select("status, review_status, overall_band, listening_band, reading_band, writing_band, speaking_band, completed_at, created_at")
+        .select("status, review_status, overall_band, listening_band, reading_band, writing_band, completed_at, created_at")
         .eq("exam_id", exam.id)
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })

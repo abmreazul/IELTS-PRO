@@ -3,8 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getAuthUser } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
-
-const ATTEMPT_MEDIA_BUCKET = "attempt-media";
+import { normalizeExamModules } from "@/lib/exam/ielts-defaults";
 
 /* ═══════════════════════════════════════════════════════════════════
    IELTS Band Conversion (standard 40-question Listening / Reading)
@@ -81,53 +80,6 @@ type SubmitResult = {
   reviewPendingModules: string[];
 };
 
-export async function getSignedSpeakingResponseUploadUrl(
-  attemptId: string,
-  questionId: string,
-  fileExt: string,
-  contentType: string,
-): Promise<
-  | { ok: true; signedUrl: string; path: string; bucket: string }
-  | { ok: false; message: string }
-> {
-  const { user, error } = await getAuthUser();
-  if (error || !user) {
-    return { ok: false, message: "Sign in required" };
-  }
-
-  const admin = createServiceRoleClient();
-  const { data: attempt } = await admin
-    .from("mock_attempts")
-    .select("id, user_id, status")
-    .eq("id", attemptId)
-    .single();
-
-  if (!attempt || attempt.user_id !== user.id) {
-    return { ok: false, message: "Attempt not found" };
-  }
-  if (attempt.status === "completed") {
-    return { ok: false, message: "This attempt is already submitted." };
-  }
-
-  const safeExt = (fileExt || "webm").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 10) || "webm";
-  const path = `speaking/${user.id}/${attemptId}/${questionId}-${crypto.randomUUID()}.${safeExt}`;
-
-  const { data, error: uploadErr } = await admin.storage
-    .from(ATTEMPT_MEDIA_BUCKET)
-    .createSignedUploadUrl(path);
-
-  if (uploadErr || !data) {
-    return { ok: false, message: uploadErr?.message ?? "Could not create upload URL" };
-  }
-
-  return {
-    ok: true,
-    signedUrl: data.signedUrl,
-    path,
-    bucket: ATTEMPT_MEDIA_BUCKET,
-  };
-}
-
 export async function submitExamAttempt(
   attemptId: string,
   answers: AnswerMap,
@@ -167,13 +119,22 @@ export async function submitExamAttempt(
     return { ok: false, message: "No questions found" };
   }
 
+  const { data: exam } = await admin
+    .from("mock_exams")
+    .select("modules")
+    .eq("id", attempt.exam_id)
+    .single();
+  const activeModules = normalizeExamModules(exam?.modules);
+  const activeModuleSet = new Set(activeModules);
+  const scorableQuestions = questions.filter((question) => activeModuleSet.has((question.module || "reading") as "listening" | "reading" | "writing"));
+
   // Score each question
   const moduleScores: Record<string, { correct: number; total: number }> = {};
   const allModules = new Set<string>();
   const reviewPendingModules = new Set<string>();
-  const subjectiveQuestionTypes = new Set(["essay", "speaking_prompt"]);
+  const subjectiveQuestionTypes = new Set(["essay"]);
 
-  for (const q of questions) {
+  for (const q of scorableQuestions) {
     const mod = q.module || "reading";
     allModules.add(mod);
     if (subjectiveQuestionTypes.has(String(q.question_type ?? ""))) {
@@ -245,7 +206,7 @@ export async function submitExamAttempt(
       listening_band: moduleBands.listening ?? null,
       reading_band: moduleBands.reading ?? null,
       writing_band: moduleBands.writing ?? null,
-      speaking_band: moduleBands.speaking ?? null,
+      speaking_band: null,
       completed_at: new Date().toISOString(),
     })
     .eq("id", attemptId);

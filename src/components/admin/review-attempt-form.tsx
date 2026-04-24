@@ -16,7 +16,6 @@ type Props = {
   listeningBand: number | null;
   readingBand: number | null;
   writingBand: number | null;
-  speakingBand: number | null;
   reviewNotes: string | null;
 };
 
@@ -51,14 +50,12 @@ export function ReviewAttemptForm({
   listeningBand,
   readingBand,
   writingBand,
-  speakingBand,
   reviewNotes,
 }: Props) {
   const router = useRouter();
   const [state, formAction, pending] = useActionState(submitHumanReview, INITIAL_STATE);
   const [showDialog, setShowDialog] = useState(false);
   const [writingValue, setWritingValue] = useState(writingBand?.toString() ?? "");
-  const [speakingValue, setSpeakingValue] = useState(speakingBand?.toString() ?? "");
 
   useEffect(() => {
     if (!state.ok) return;
@@ -71,12 +68,12 @@ export function ReviewAttemptForm({
       listening: listeningBand,
       reading: readingBand,
       writing: modules.includes("writing") ? parseBand(writingValue) : writingBand,
-      speaking: modules.includes("speaking") ? parseBand(speakingValue) : speakingBand,
+      speaking: null,
     };
-  }, [listeningBand, modules, readingBand, speakingBand, speakingValue, writingBand, writingValue]);
+  }, [listeningBand, modules, readingBand, writingBand, writingValue]);
 
   const previewOverall = useMemo(() => {
-    const relevant = modules.filter((module) => ["listening", "reading", "writing", "speaking"].includes(module));
+    const relevant = modules.filter((module) => ["listening", "reading", "writing"].includes(module));
     if (relevant.length === 0) return null;
     const values = relevant.map((module) => previewBands[module as keyof typeof previewBands]);
     if (values.some((value) => value == null)) return null;
@@ -126,24 +123,6 @@ export function ReviewAttemptForm({
               />
             </div>
           ) : null}
-          {modules.includes("speaking") ? (
-            <div>
-              <label className="admin-label" htmlFor="speaking-band">Speaking band</label>
-              <input
-                id="speaking-band"
-                name="speaking_band"
-                type="number"
-                min={0}
-                max={9}
-                step={0.5}
-                className="admin-input"
-                value={speakingValue}
-                onChange={(event) => setSpeakingValue(event.target.value)}
-                placeholder="e.g. 6.5"
-                required
-              />
-            </div>
-          ) : null}
         </div>
 
         <div style={{ marginTop: "1rem" }}>
@@ -154,7 +133,7 @@ export function ReviewAttemptForm({
             className="admin-textarea"
             rows={5}
             defaultValue={reviewNotes ?? ""}
-            placeholder="Internal notes for writing and speaking review…"
+            placeholder="Internal notes for writing review…"
           />
         </div>
 

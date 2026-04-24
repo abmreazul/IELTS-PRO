@@ -53,12 +53,6 @@ const features = [
     text: "Practice clearer Task 1 and Task 2 responses.",
     image: "/EverythingYouNeed/writting.png",
   },
-  {
-    category: "Speaking",
-    title: "Prepare for Speaking Review",
-    text: "Record answers and get guided feedback.",
-    image: "/EverythingYouNeed/speaking.png",
-  },
 ] as const;
 
 const steps = [
@@ -99,7 +93,7 @@ const plans = [
     features: [
       "Unlimited mock tests",
       "Detailed analytics",
-      "Speaking AI feedback",
+      "Writing review workflow",
       "Priority support",
     ],
     popular: true,
@@ -135,7 +129,7 @@ const testimonials = [
   },
   {
     quote:
-      "Speaking feedback was surprisingly detailed. It felt like having a coach available 24/7.",
+      "The writing review workflow made it clear where my band was slipping and what to fix next.",
     name: "Elena Vasquez",
     place: "Barcelona",
     band: "8.0",
@@ -690,7 +684,7 @@ export function HomePage() {
                 <span className="brand-text">The IELTS Exam</span>
               </a>
               <p>
-                Realistic IELTS practice for listening, reading, writing, and speaking in one focused
+                Realistic IELTS practice for listening, reading, and writing in one focused
                 platform.
               </p>
             </div>

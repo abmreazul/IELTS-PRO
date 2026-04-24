@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BarChart3, Copy, Eye, Pencil, Trash2 } from "lucide-react";
+import { Copy, Eye, Pencil, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { deleteExam, duplicateExam } from "@/app/admin/actions";
 
@@ -117,14 +117,6 @@ export function AdminExamsTable({ exams }: { exams: AdminExamRow[] }) {
                     <div className="admin-table-actions">
                       <Link href={`/admin/exams/${row.id}`} className="admin-icon-btn" title="Edit" aria-label="Edit">
                         <Pencil />
-                      </Link>
-                      <Link
-                        href={`/admin/exams/${row.id}/analytics`}
-                        className="admin-icon-btn"
-                        title="Analytics"
-                        aria-label="Analytics"
-                      >
-                        <BarChart3 />
                       </Link>
                       <form action={duplicateExam} style={{ display: "inline" }}>
                         <input type="hidden" name="id" value={row.id} />

@@ -20,6 +20,7 @@ import {
   type TestVariant,
   IELTS_QUESTION_TYPES,
   structureForModules,
+  normalizeExamModules,
 } from "@/lib/exam/ielts-defaults";
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -80,7 +81,7 @@ type QuestionDraft = {
   points: number;
 };
 
-type Surface = "full" | "listening" | "reading" | "writing" | "speaking";
+type Surface = "full" | "listening" | "reading" | "writing";
 
 /* ═══════════════════════════════════════════════════════════════════
    Helpers
@@ -88,16 +89,17 @@ type Surface = "full" | "listening" | "reading" | "writing" | "speaking";
 
 function surfaceFromExam(exam_type: string, modules: string[]): Surface {
   if (exam_type === "full") return "full";
-  if (modules?.length === 1 && modules[0]) {
-    const m = modules[0] as Surface;
-    if (m === "listening" || m === "reading" || m === "writing" || m === "speaking") return m;
+  const normalizedModules = normalizeExamModules(modules);
+  if (normalizedModules.length === 1 && normalizedModules[0]) {
+    const m = normalizedModules[0] as Surface;
+    if (m === "listening" || m === "reading" || m === "writing") return m;
   }
   return "full";
 }
 
 function modulesFromSurface(s: Surface): { exam_type: "full" | "partial"; modules: string[] } {
   if (s === "full") {
-    return { exam_type: "full", modules: ["listening", "reading", "writing", "speaking"] };
+    return { exam_type: "full", modules: ["listening", "reading", "writing"] };
   }
   return { exam_type: "partial", modules: [s] };
 }
@@ -448,7 +450,7 @@ export function ExamWizard({
   const [examId, setExamId] = useState<string | undefined>(initialExam?.id);
 
   const initialSurface = initialExam
-    ? surfaceFromExam(initialExam.exam_type, initialExam.modules ?? [])
+    ? surfaceFromExam(initialExam.exam_type, normalizeExamModules(initialExam.modules ?? []))
     : "full";
   const [surface, setSurface] = useState<Surface>(initialSurface);
 
@@ -488,7 +490,11 @@ export function ExamWizard({
   }, [title, isSlugManual]);
 
   const [questions, setQuestions] = useState<QuestionDraft[]>(() =>
-    initialQuestions.length ? initialQuestions.map(dbQuestionToDraft) : [],
+    initialQuestions.length
+      ? initialQuestions
+          .map(dbQuestionToDraft)
+          .filter((question) => question.module !== "speaking")
+      : [],
   );
 
   const [legacyListeningClips] = useState<ListeningClip[]>(() =>
@@ -1315,7 +1321,7 @@ export function ExamWizard({
             <div>
               <span className="admin-label">Exam Category</span>
               <div className="admin-segment" style={{ marginTop: "0.35rem" }}>
-                {(["full", "listening", "reading", "writing", "speaking"] as Surface[]).map((s) => (
+                {(["full", "listening", "reading", "writing"] as Surface[]).map((s) => (
                   <label key={s}>
                     <input
                       type="radio"

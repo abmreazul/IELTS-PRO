@@ -8,7 +8,7 @@ const jsonLd = {
   name: "The IELTS Exam",
   url: SITE_URL,
   description:
-    "Master the IELTS exam with full mock tests, AI speaking evaluation, band analytics, and personalised preparation.",
+    "Master the IELTS exam with full mock tests, band analytics, writing review, and personalised preparation.",
   applicationCategory: "EducationalApplication",
   operatingSystem: "Web",
   offers: {

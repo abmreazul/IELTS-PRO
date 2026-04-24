@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { getAuthUser } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
 import { isAdminEmail } from "@/lib/auth/admin";
+import { normalizeExamModules } from "@/lib/exam/ielts-defaults";
 
 type PendingAttemptRow = {
   id: string;
@@ -11,7 +12,6 @@ type PendingAttemptRow = {
   completed_at: string | null;
   created_at: string;
   writing_band: number | null;
-  speaking_band: number | null;
   mock_exams: {
     title: string;
     slug: string;
@@ -83,7 +83,6 @@ export default async function AdminReviewsPage() {
       completed_at,
       created_at,
       writing_band,
-      speaking_band,
       mock_exams (
         title,
         slug,
@@ -105,7 +104,7 @@ export default async function AdminReviewsPage() {
             Review Queue
           </h1>
           <p className="admin-lead" style={{ marginBottom: 0 }}>
-            Unfinished human-marking tasks for writing and speaking submissions.
+            Unfinished human-marking tasks for writing submissions.
           </p>
         </div>
         <Link href="/admin" className="btn btn-outline">
@@ -124,16 +123,7 @@ export default async function AdminReviewsPage() {
             <span className="admin-review-value">
               {rows.filter((row) => {
                 const exam = examRelation(row.mock_exams);
-                return Array.isArray(exam?.modules) && exam.modules.includes("writing");
-              }).length}
-            </span>
-          </div>
-          <div className="admin-review-item">
-            <span className="admin-review-label">Needs speaking review</span>
-            <span className="admin-review-value">
-              {rows.filter((row) => {
-                const exam = examRelation(row.mock_exams);
-                return Array.isArray(exam?.modules) && exam.modules.includes("speaking");
+                return normalizeExamModules(exam?.modules).includes("writing");
               }).length}
             </span>
           </div>
@@ -145,7 +135,7 @@ export default async function AdminReviewsPage() {
           <div className="admin-empty-state">
             <ClipboardCheck />
             <h2>Nothing waiting for review</h2>
-            <p>When students submit writing or speaking answers, they will show up here.</p>
+            <p>When students submit writing answers, they will show up here.</p>
           </div>
         ) : (
           <div className="admin-table-wrap">
@@ -163,10 +153,9 @@ export default async function AdminReviewsPage() {
               <tbody>
                 {rows.map((row) => {
                   const exam = examRelation(row.mock_exams);
-                  const modules = Array.isArray(exam?.modules) ? exam.modules : [];
+                  const modules = normalizeExamModules(exam?.modules);
                   const pendingModules = [
                     modules.includes("writing") && row.writing_band == null ? "writing" : null,
-                    modules.includes("speaking") && row.speaking_band == null ? "speaking" : null,
                   ].filter(Boolean) as string[];
 
                   return (

@@ -4,22 +4,9 @@ import { getAuthUser } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
 import { isAdminEmail } from "@/lib/auth/admin";
 import { ReviewAttemptForm } from "@/components/admin/review-attempt-form";
-
-type AudioAnswer = {
-  kind: "audio_recording";
-  bucket: string;
-  path: string;
-  mime_type?: string;
-  duration_seconds?: number;
-};
+import { normalizeExamModules } from "@/lib/exam/ielts-defaults";
 
 type EssayAnswer = string;
-
-function isAudioAnswer(value: unknown): value is AudioAnswer {
-  if (!value || typeof value !== "object") return false;
-  const row = value as Record<string, unknown>;
-  return row.kind === "audio_recording" && typeof row.bucket === "string" && typeof row.path === "string";
-}
 
 function formatDateTime(value: string | null) {
   if (!value) return "—";
@@ -47,7 +34,7 @@ export default async function AdminReviewAttemptPage({
   const admin = createServiceRoleClient();
   const { data: attempt } = await admin
     .from("mock_attempts")
-    .select("id, exam_id, user_id, status, review_status, answers_json, created_at, completed_at, listening_band, reading_band, writing_band, speaking_band, overall_band, speaking_review_notes, reviewed_at")
+    .select("id, exam_id, user_id, status, review_status, answers_json, created_at, completed_at, listening_band, reading_band, writing_band, overall_band, speaking_review_notes, reviewed_at")
     .eq("id", attemptId)
     .maybeSingle();
 
@@ -65,7 +52,7 @@ export default async function AdminReviewAttemptPage({
       .from("exam_questions")
       .select("id, module, prompt, sort_order, question_type")
       .eq("exam_id", attempt.exam_id)
-      .in("module", ["writing", "speaking"])
+      .eq("module", "writing")
       .order("sort_order"),
     admin
       .from("profiles")
@@ -106,24 +93,7 @@ export default async function AdminReviewAttemptPage({
     answer: typeof answers[task.question!.id] === "string" ? answers[task.question!.id] as EssayAnswer : "",
   }));
 
-  const speakingResponses = await Promise.all(
-    (questions ?? [])
-      .filter((question) => question.module === "speaking")
-      .map(async (question) => {
-        const answer = answers[question.id];
-        if (!isAudioAnswer(answer)) return null;
-        const { data } = await admin.storage.from(answer.bucket).createSignedUrl(answer.path, 60 * 60);
-        return {
-          questionId: question.id,
-          prompt: question.prompt,
-          part: Math.max(1, Math.floor(question.sort_order / 100) || 1),
-          durationSeconds: Number(answer.duration_seconds ?? 0),
-          signedUrl: data?.signedUrl ?? null,
-        };
-      }),
-  );
-
-  const moduleSummary = Array.isArray(exam.modules) ? exam.modules : [];
+  const moduleSummary = normalizeExamModules(exam.modules);
 
   return (
     <>
@@ -196,34 +166,6 @@ export default async function AdminReviewAttemptPage({
         </div>
       ) : null}
 
-      {speakingResponses.filter(Boolean).length > 0 ? (
-        <div className="admin-card">
-          <h2>Speaking Recordings</h2>
-          <div className="admin-speaking-review-list">
-            {speakingResponses.filter(Boolean).map((response) => (
-              <article key={response!.questionId} className="admin-review-answer-card">
-                <div className="admin-review-answer-card__header">
-                  <div>
-                    <p className="admin-review-answer-card__eyebrow">Speaking Part {response!.part}</p>
-                    <h3>{response!.prompt}</h3>
-                  </div>
-                  <span className="admin-badge admin-badge--speaking">
-                    {response!.durationSeconds ? `${response!.durationSeconds}s` : "Audio"}
-                  </span>
-                </div>
-                {response!.signedUrl ? (
-                  <audio controls src={response!.signedUrl} style={{ width: "100%" }} preload="metadata" />
-                ) : (
-                  <p style={{ margin: 0, color: "#b91c1c", fontWeight: 700 }}>
-                    Could not generate playback URL for this recording.
-                  </p>
-                )}
-              </article>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
       <div className="admin-card">
         <h2>Marking</h2>
         <ReviewAttemptForm
@@ -236,7 +178,6 @@ export default async function AdminReviewAttemptPage({
           listeningBand={attempt.listening_band != null ? Number(attempt.listening_band) : null}
           readingBand={attempt.reading_band != null ? Number(attempt.reading_band) : null}
           writingBand={attempt.writing_band != null ? Number(attempt.writing_band) : null}
-          speakingBand={attempt.speaking_band != null ? Number(attempt.speaking_band) : null}
           reviewNotes={attempt.speaking_review_notes}
         />
       </div>

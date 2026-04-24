@@ -22,7 +22,7 @@ export const metadata: Metadata = {
     template: "%s | The IELTS Exam",
   },
   description:
-    "Master the IELTS exam with full mock tests, AI speaking evaluation, band analytics, and personalised preparation trusted by 50,000+ students worldwide.",
+    "Master the IELTS exam with full mock tests, band analytics, writing review, and personalised preparation trusted by learners worldwide.",
   keywords: [
     "IELTS",
     "IELTS mock test",
@@ -31,7 +31,6 @@ export const metadata: Metadata = {
     "IELTS listening",
     "IELTS reading",
     "IELTS writing",
-    "IELTS speaking",
     "band score",
     "IELTS online",
     "IELTS Academic",
@@ -48,7 +47,7 @@ export const metadata: Metadata = {
     siteName: "The IELTS Exam",
     title: "The IELTS Exam — Full-Length Mock Tests & Band Score Analytics",
     description:
-      "Master the IELTS exam with full mock tests, AI speaking evaluation, band analytics, and personalised preparation.",
+      "Master the IELTS exam with full mock tests, band analytics, writing review, and personalised preparation.",
     images: [
       {
         url: "/og-image.png",

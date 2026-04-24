@@ -7,6 +7,7 @@ import { isAdminEmail } from "@/lib/auth/admin";
 import {
   coerceTestVariant,
   getReadingSectionLabel,
+  normalizeExamModules,
   SUPPORTED_QUESTION_TYPE_VALUES,
   type TestVariant,
 } from "@/lib/exam/ielts-defaults";
@@ -267,7 +268,6 @@ function buildReviewEmailUrl(input: {
     `Listening: ${input.moduleBands.listening ?? "—"}`,
     `Reading: ${input.moduleBands.reading ?? "—"}`,
     `Writing: ${input.moduleBands.writing ?? "—"}`,
-    `Speaking: ${input.moduleBands.speaking ?? "—"}`,
     "",
     "Best regards,",
     "The IELTS Exam",
@@ -366,8 +366,6 @@ export async function submitHumanReview(
     const studentName = String(formData.get("student_name") ?? "").trim();
     const notes = String(formData.get("review_notes") ?? "").trim() || null;
     const writingBand = parseBandValue(formData.get("writing_band"));
-    const speakingBand = parseBandValue(formData.get("speaking_band"));
-
     if (!attemptId || !examId) {
       return { ok: false, message: "Attempt and exam are required." };
     }
@@ -390,26 +388,22 @@ export async function submitHumanReview(
       return { ok: false, message: "Review target not found." };
     }
 
-    const modules = Array.isArray(exam.modules) ? exam.modules.map(String) : [];
+    const modules = normalizeExamModules(exam.modules);
     const requiresWriting = modules.includes("writing");
-    const requiresSpeaking = modules.includes("speaking");
 
     if (requiresWriting && writingBand == null) {
       return { ok: false, message: "Writing band is required before submitting this review." };
-    }
-    if (requiresSpeaking && speakingBand == null) {
-      return { ok: false, message: "Speaking band is required before submitting this review." };
     }
 
     const nextBands: Record<string, number | null> = {
       listening: attempt.listening_band != null ? Number(attempt.listening_band) : null,
       reading: attempt.reading_band != null ? Number(attempt.reading_band) : null,
       writing: requiresWriting ? writingBand : attempt.writing_band != null ? Number(attempt.writing_band) : null,
-      speaking: requiresSpeaking ? speakingBand : attempt.speaking_band != null ? Number(attempt.speaking_band) : null,
+      speaking: null,
     };
 
     const reviewModules = modules.filter((module) =>
-      ["listening", "reading", "writing", "speaking"].includes(module),
+      ["listening", "reading", "writing"].includes(module),
     );
     const allModulesReady = reviewModules.every((module) => nextBands[module] != null);
     const overallBand = allModulesReady && reviewModules.length > 0
@@ -422,7 +416,7 @@ export async function submitHumanReview(
       .from("mock_attempts")
       .update({
         writing_band: nextBands.writing,
-        speaking_band: nextBands.speaking,
+        speaking_band: null,
         overall_band: overallBand,
         review_status: allModulesReady ? "reviewed" : "pending",
         speaking_review_notes: notes,
@@ -462,7 +456,7 @@ export async function submitHumanReview(
   }
 }
 
-const MODULE_SET = new Set(["listening", "reading", "writing", "speaking"]);
+const MODULE_SET = new Set(["listening", "reading", "writing"]);
 
 export type WizardQuestionInput = {
   module: string;
@@ -932,7 +926,7 @@ export async function saveExamWizard(
   const exam_type = input.exam_type === "full" ? "full" : "partial";
   let modules = (input.modules ?? []).filter((m) => MODULE_SET.has(m));
   if (exam_type === "full") {
-    modules = ["listening", "reading", "writing", "speaking"];
+    modules = ["listening", "reading", "writing"];
   }
   if (exam_type === "partial" && modules.length === 0) {
     return { ok: false, message: "Select at least one module for a partial exam" };
@@ -1320,7 +1314,7 @@ function parseExamForm(formData: FormData) {
     throw new Error("Category, title, and slug are required");
   }
 
-  let mod = exam_type === "full" ? ["listening", "reading", "writing", "speaking"] : modules;
+  let mod = exam_type === "full" ? ["listening", "reading", "writing"] : modules;
   if (exam_type === "partial" && mod.length === 0) {
     throw new Error("Select at least one module for partial exams");
   }
