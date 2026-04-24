@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import { unstable_noStore as noStore } from "next/cache";
 import { notFound } from "next/navigation";
@@ -50,12 +49,6 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ s
                 {lessons.length} lessons
               </span>
             </div>
-          </div>
-
-          <div className="course-detail__hero-cover">
-            {course.cover_image_url ? (
-              <Image src={course.cover_image_url} alt="" fill sizes="(max-width: 900px) 100vw, 420px" className="object-cover" />
-            ) : null}
           </div>
         </div>
       </section>

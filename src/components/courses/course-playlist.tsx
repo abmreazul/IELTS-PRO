@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { PlayCircle, Clock, Youtube, Video } from "lucide-react";
+import { PlayCircle, Clock } from "lucide-react";
 
 type Lesson = {
   title: string;
@@ -58,10 +58,6 @@ export function CoursePlaylist({ lessons }: { lessons: Lesson[] }) {
         </div>
         <div className="course-player__meta">
           <div className="course-player__meta-row">
-            <span className="course-player__pill">
-              {activeLesson.provider === "youtube" ? <Youtube size={16} /> : <Video size={16} />}
-              {activeLesson.provider === "youtube" ? "YouTube lesson" : "Uploaded lesson"}
-            </span>
             {activeLesson.duration_label ? (
               <span className="course-player__duration">
                 <Clock size={14} />

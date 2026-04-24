@@ -38,10 +38,6 @@ export default async function CoursesPage() {
         <p className="courses-page__eyebrow">Courses</p>
         <div className="courses-page__intro">
           <h1>IELTS video courses.</h1>
-          <p>
-            Short, focused playlists for listening, reading, and writing prep. Keep the layout minimal,
-            keep the lessons easy to scan.
-          </p>
         </div>
       </section>
 
@@ -50,7 +46,7 @@ export default async function CoursesPage() {
           <article key={course.id} className="course-card">
             <Link href={`/courses/${course.slug}`} className="course-card__media">
               {course.cover_image_url ? (
-                <Image src={course.cover_image_url} alt="" fill sizes="(max-width: 768px) 100vw, 420px" className="object-cover" />
+                <Image src={course.cover_image_url} alt="" fill sizes="(max-width: 768px) 100vw, 420px" className="course-card__image" />
               ) : (
                 <div className="course-card__media-fallback">
                   <Video />
