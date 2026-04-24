@@ -33,11 +33,19 @@ export default async function AdminReviewAttemptPage({
   }
 
   const admin = createServiceRoleClient();
-  const { data: attempt } = await admin
+  const primaryAttempt = await admin
     .from("mock_attempts")
     .select("id, exam_id, user_id, status, review_status, answers_json, ai_review_json, created_at, completed_at, listening_band, reading_band, writing_band, overall_band, speaking_review_notes, reviewed_at")
     .eq("id", attemptId)
     .maybeSingle();
+  const fallbackAttempt = primaryAttempt.error && primaryAttempt.error.message.includes("ai_review_json")
+    ? await admin
+        .from("mock_attempts")
+        .select("id, exam_id, user_id, status, review_status, answers_json, created_at, completed_at, listening_band, reading_band, writing_band, overall_band, speaking_review_notes, reviewed_at")
+        .eq("id", attemptId)
+        .maybeSingle()
+    : null;
+  const attempt = (fallbackAttempt?.data ?? primaryAttempt.data) as (typeof primaryAttempt.data & { ai_review_json?: WritingAiReview | null }) | null;
 
   if (!attempt) {
     notFound();

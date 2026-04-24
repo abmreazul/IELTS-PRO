@@ -39,16 +39,42 @@ export default async function ReviewMockExamPage({
     );
   }
 
-  const { data: attempt } = user
-    ? await supabase
+  let attempt: {
+    status: string;
+    review_status: string | null;
+    overall_band: number | null;
+    listening_band: number | null;
+    reading_band: number | null;
+    writing_band: number | null;
+    completed_at: string | null;
+    created_at: string;
+    ai_review_json?: WritingAiReview | null;
+  } | null = null;
+
+  if (user) {
+    const primary = await supabase
+      .from("mock_attempts")
+      .select("status, review_status, overall_band, listening_band, reading_band, writing_band, completed_at, created_at, ai_review_json")
+      .eq("exam_id", exam.id)
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (primary.error && primary.error.message.includes("ai_review_json")) {
+      const fallback = await supabase
         .from("mock_attempts")
-        .select("status, review_status, overall_band, listening_band, reading_band, writing_band, completed_at, created_at, ai_review_json")
+        .select("status, review_status, overall_band, listening_band, reading_band, writing_band, completed_at, created_at")
         .eq("exam_id", exam.id)
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
         .limit(1)
-        .maybeSingle()
-    : { data: null };
+        .maybeSingle();
+      attempt = fallback.data;
+    } else {
+      attempt = primary.data;
+    }
+  }
 
   const reviewPending = attempt?.review_status === "pending";
   const aiReview = attempt?.ai_review_json && typeof attempt.ai_review_json === "object"

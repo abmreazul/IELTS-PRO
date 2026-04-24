@@ -139,6 +139,15 @@ function slugify(value: string) {
     .replace(/^-+|-+$/g, "");
 }
 
+function randomSlugSuffix(length = 6) {
+  return Math.random().toString(36).slice(2, 2 + length);
+}
+
+function buildRandomSlug(baseValue: string) {
+  const base = slugify(baseValue) || "item";
+  return `${base}-${randomSlugSuffix()}`.slice(0, 200);
+}
+
 function parseCourseLessons(raw: string): CourseLessonInput[] {
   if (!raw.trim()) return [];
   const parsed = JSON.parse(raw) as unknown;
@@ -184,17 +193,20 @@ export async function saveCourse(formData: FormData) {
   await requireAdmin();
   const input = parseCourseForm(formData);
 
-  if (!input.title || !input.slug) {
-    return { ok: false, message: "Title and slug are required." };
+  if (!input.title) {
+    return { ok: false, message: "Title is required." };
   }
   if (input.lessons_json.length === 0) {
     return { ok: false, message: "Add at least one lesson before saving the course." };
   }
 
   const admin = createServiceRoleClient();
+  const finalSlug = input.id
+    ? (input.slug || buildRandomSlug(input.title))
+    : buildRandomSlug(input.title);
   const payload = {
     title: input.title,
-    slug: input.slug,
+    slug: finalSlug,
     description: input.description,
     instructor: input.instructor,
     level: input.level,
@@ -206,17 +218,27 @@ export async function saveCourse(formData: FormData) {
   let courseId = input.id;
   if (input.id) {
     const { error } = await admin.from("courses").update(payload).eq("id", input.id);
-    if (error) return { ok: false, message: error.message };
+    if (error) {
+      if (error.message.includes("schema cache") || error.message.includes("public.courses")) {
+        return { ok: false, message: "Courses table is missing in Supabase. Apply the latest courses migration first." };
+      }
+      return { ok: false, message: error.message };
+    }
   } else {
     const { data, error } = await admin.from("courses").insert(payload).select("id").single();
-    if (error || !data?.id) return { ok: false, message: error?.message ?? "Could not create course." };
+    if (error || !data?.id) {
+      if (error?.message?.includes("schema cache") || error?.message?.includes("public.courses")) {
+        return { ok: false, message: "Courses table is missing in Supabase. Apply the latest courses migration first." };
+      }
+      return { ok: false, message: error?.message ?? "Could not create course." };
+    }
     courseId = data.id;
   }
 
   revalidatePath("/admin");
   revalidatePath("/admin/courses");
   revalidatePath("/courses");
-  revalidatePath(`/courses/${input.slug}`);
+  revalidatePath(`/courses/${finalSlug}`);
   if (courseId) revalidatePath(`/admin/courses/${courseId}`);
   return { ok: true, id: courseId };
 }
@@ -905,23 +927,12 @@ export async function saveExamWizard(
   }
 
   const title = String(input.title ?? "").trim();
-  let slug = String(input.slug ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, "-");
+  let slug = String(input.slug ?? "").trim();
   const category_id = String(input.category_id ?? "").trim();
   if (!category_id || !title) {
     return { ok: false, message: "Category and title are required" };
   }
-  if (!slug) {
-    slug = title
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "");
-  }
-  if (!slug) {
-    return { ok: false, message: "Could not derive slug" };
-  }
+  slug = input.id ? (slug || buildRandomSlug(title)) : buildRandomSlug(title);
 
   const exam_type = input.exam_type === "full" ? "full" : "partial";
   let modules = (input.modules ?? []).filter((m) => MODULE_SET.has(m));
@@ -992,7 +1003,7 @@ export async function saveExamWizard(
     const { error: upErr } = await admin.from("mock_exams").update(examPayload).eq("id", examId);
     if (upErr) {
       if (upErr.code === "23505") {
-        return { ok: false, message: "Slug already in use. Change the slug." };
+        return { ok: false, message: "A generated exam slug collided. Try saving again." };
       }
       return { ok: false, message: upErr.message };
     }
@@ -1004,7 +1015,7 @@ export async function saveExamWizard(
       .single();
     if (insErr) {
       if (insErr.code === "23505") {
-        return { ok: false, message: "Slug already in use. Change the slug." };
+        return { ok: false, message: "A generated exam slug collided. Try saving again." };
       }
       return { ok: false, message: insErr.message };
     }
@@ -1166,6 +1177,63 @@ export async function getSignedUploadUrl(
 
 const COURSE_MEDIA_BUCKET = "course-media";
 
+export async function uploadCourseMedia(
+  formData: FormData,
+): Promise<{ ok: true; url: string } | { ok: false; message: string }> {
+  try {
+    await requireAdmin();
+  } catch {
+    return { ok: false, message: "Unauthorized" };
+  }
+
+  const file = formData.get("file");
+  const folderRaw = String(formData.get("folder") ?? "").trim();
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false, message: "No file selected" };
+  }
+
+  const folder = folderRaw === "videos" ? "videos" : "covers";
+  const mime = (file.type || "").toLowerCase();
+  const isImage = mime.startsWith("image/");
+  const isVideo = mime.startsWith("video/");
+  if (folder === "covers" && !isImage) {
+    return { ok: false, message: "Course cover must be an image." };
+  }
+  if (folder === "videos" && !isVideo) {
+    return { ok: false, message: "Lesson uploads must be video files." };
+  }
+
+  const maxBytes = folder === "covers" ? 8 * 1024 * 1024 : 250 * 1024 * 1024;
+  if (file.size > maxBytes) {
+    return {
+      ok: false,
+      message: `File too large. Max ${Math.round(maxBytes / 1024 / 1024)} MB.`,
+    };
+  }
+
+  let ext = (file.name.split(".").pop() || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (!ext) ext = folder === "covers" ? "jpg" : "mp4";
+  const objectName = `${crypto.randomUUID()}.${ext}`.slice(0, 200);
+  const path = `${folder}/${objectName}`;
+
+  const admin = createServiceRoleClient();
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const { error } = await admin.storage.from(COURSE_MEDIA_BUCKET).upload(path, buffer, {
+    contentType: file.type || undefined,
+    upsert: false,
+  });
+
+  if (error) {
+    if (error.message.includes("not found") || error.message.includes("The related resource does not exist")) {
+      return { ok: false, message: "Course media storage is missing in Supabase. Apply the latest courses migration first." };
+    }
+    return { ok: false, message: error.message };
+  }
+
+  const { data } = admin.storage.from(COURSE_MEDIA_BUCKET).getPublicUrl(path);
+  return { ok: true, url: data.publicUrl };
+}
+
 export async function getSignedCourseUploadUrl(
   folder: "covers" | "videos",
   fileName: string,
@@ -1292,10 +1360,7 @@ function sanitizeListeningAudioJson(raw: unknown): SanitizedListeningAudio {
 function parseExamForm(formData: FormData) {
   const category_id = String(formData.get("category_id") ?? "");
   const title = String(formData.get("title") ?? "").trim();
-  const slug = String(formData.get("slug") ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, "-");
+  const slug = buildRandomSlug(String(formData.get("slug") ?? "").trim() || title);
   const description = String(formData.get("description") ?? "").trim() || null;
   const exam_type = String(formData.get("exam_type") ?? "partial") as "full" | "partial";
   const modules = formData.getAll("modules").map(String) as string[];
@@ -1311,7 +1376,7 @@ function parseExamForm(formData: FormData) {
   const is_published = formData.has("is_published");
 
   if (!category_id || !title || !slug) {
-    throw new Error("Category, title, and slug are required");
+    throw new Error("Category and title are required");
   }
 
   let mod = exam_type === "full" ? ["listening", "reading", "writing"] : modules;

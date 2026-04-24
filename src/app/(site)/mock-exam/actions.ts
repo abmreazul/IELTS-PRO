@@ -43,6 +43,14 @@ function computeOverallBand(moduleBands: Record<string, number | null>, activeMo
   );
 }
 
+function isMissingAiReviewColumn(message: string | undefined) {
+  return Boolean(
+    message &&
+      message.includes("ai_review_json") &&
+      (message.includes("schema cache") || message.includes("Could not find the")),
+  );
+}
+
 /* ═══════════════════════════════════════════════════════════════════
    Start Attempt
    ═══════════════════════════════════════════════════════════════════ */
@@ -263,21 +271,31 @@ export async function submitExamAttempt(
       : "not_required";
 
   // Update attempt
-  const { error: updateErr } = await admin
+  const attemptUpdatePayload = {
+    answers_json: answers,
+    ai_review_json: aiReviewJson,
+    review_status: reviewStatus,
+    status: "completed",
+    overall_band: overallBand,
+    listening_band: moduleBands.listening ?? null,
+    reading_band: moduleBands.reading ?? null,
+    writing_band: moduleBands.writing ?? null,
+    speaking_band: null,
+    completed_at: new Date().toISOString(),
+  };
+  let { error: updateErr } = await admin
     .from("mock_attempts")
-    .update({
-      answers_json: answers,
-      ai_review_json: aiReviewJson,
-      review_status: reviewStatus,
-      status: "completed",
-      overall_band: overallBand,
-      listening_band: moduleBands.listening ?? null,
-      reading_band: moduleBands.reading ?? null,
-      writing_band: moduleBands.writing ?? null,
-      speaking_band: null,
-      completed_at: new Date().toISOString(),
-    })
+    .update(attemptUpdatePayload)
     .eq("id", attemptId);
+
+  if (updateErr && isMissingAiReviewColumn(updateErr.message)) {
+    const { ai_review_json: _ignored, ...fallbackPayload } = attemptUpdatePayload;
+    const retry = await admin
+      .from("mock_attempts")
+      .update(fallbackPayload)
+      .eq("id", attemptId);
+    updateErr = retry.error;
+  }
 
   if (updateErr) {
     return { ok: false, message: updateErr.message };

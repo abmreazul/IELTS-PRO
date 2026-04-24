@@ -118,6 +118,10 @@ function slugify(value: string): string {
     .replace(/^-|-$/g, "");
 }
 
+function randomSlugSuffix(length = 6): string {
+  return Math.random().toString(36).slice(2, 2 + length);
+}
+
 function parseTestVariant(raw: unknown): TestVariant {
   if (raw && typeof raw === "object" && "exam_meta" in (raw as Record<string, unknown>)) {
     const meta = (raw as { exam_meta?: unknown }).exam_meta;
@@ -591,8 +595,8 @@ export function ExamWizard({
     initialExam?.category_id ?? categoryForSurface(initialSurface, categories) ?? categories[0]?.id ?? "",
   );
   const [title, setTitle] = useState(initialExam?.title ?? "");
+  const [slugSeed] = useState(() => initialExam?.slug?.split("-").slice(-1)[0] || randomSlugSuffix());
   const [slug, setSlug] = useState(initialExam?.slug ?? "");
-  const [isSlugManual] = useState(Boolean(initialExam?.id || initialExam?.slug));
   const [description, setDescription] = useState(initialExam?.description ?? "");
   const [difficulty, setDifficulty] = useState(initialExam?.difficulty ?? "intermediate");
   const [durationMinutes, setDurationMinutes] = useState(initialExam?.duration_minutes ?? 60);
@@ -618,9 +622,13 @@ export function ExamWizard({
   const readingIntro = getReadingIntro(testVariant);
 
   useEffect(() => {
-    if (isSlugManual) return;
-    setSlug(slugify(title));
-  }, [title, isSlugManual]);
+    if (initialExam?.slug) {
+      setSlug(initialExam.slug);
+      return;
+    }
+    const base = slugify(title) || "mock-exam";
+    setSlug(`${base}-${slugSeed}`);
+  }, [initialExam?.slug, slugSeed, title]);
 
   const [questions, setQuestions] = useState<QuestionDraft[]>(() => {
     const drafts = initialQuestions.length

@@ -59,9 +59,13 @@ function slugify(value: string) {
     .replace(/^-+|-+$/g, "");
 }
 
+function randomSlugSuffix(length = 6) {
+  return Math.random().toString(36).slice(2, 2 + length);
+}
+
 export function CourseEditor({ course }: { course?: Course | null }) {
   const [title, setTitle] = useState(course?.title ?? "");
-  const [slug, setSlug] = useState(course?.slug ?? "");
+  const [slugSeed] = useState(() => course?.slug?.split("-").slice(-1)[0] || randomSlugSuffix());
   const [description, setDescription] = useState(course?.description ?? "");
   const [instructor, setInstructor] = useState(course?.instructor ?? "");
   const [level, setLevel] = useState<Course["level"]>(course?.level ?? "all-levels");
@@ -82,7 +86,11 @@ export function CourseEditor({ course }: { course?: Course | null }) {
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const normalizedSlug = useMemo(() => slugify(slug || title), [slug, title]);
+  const normalizedSlug = useMemo(() => {
+    if (course?.slug) return course.slug;
+    const base = slugify(title) || "course";
+    return `${base}-${slugSeed}`;
+  }, [course?.slug, slugSeed, title]);
 
   function updateLesson(tempId: string, patch: Partial<Lesson>) {
     setLessons((current) => current.map((lesson) => (lesson.tempId === tempId ? { ...lesson, ...patch } : lesson)));
@@ -142,10 +150,6 @@ export function CourseEditor({ course }: { course?: Course | null }) {
               <input id="course-title" name="title" className="admin-input" value={title} onChange={(event) => setTitle(event.target.value)} required />
             </div>
             <div>
-              <label className="admin-label" htmlFor="course-slug">Slug</label>
-              <input id="course-slug" name="slug" className="admin-input" value={slug} onChange={(event) => setSlug(event.target.value)} placeholder={normalizedSlug} />
-            </div>
-            <div>
               <label className="admin-label" htmlFor="course-instructor">Instructor</label>
               <input id="course-instructor" name="instructor" className="admin-input" value={instructor} onChange={(event) => setInstructor(event.target.value)} placeholder="IELTS Team" />
             </div>
@@ -158,6 +162,15 @@ export function CourseEditor({ course }: { course?: Course | null }) {
                 <option value="advanced">Advanced</option>
               </select>
             </div>
+          </div>
+          <div style={{ marginTop: "1rem" }}>
+            <label className="admin-label">Slug</label>
+            <div className="admin-input" style={{ display: "flex", alignItems: "center", color: "var(--muted)", fontWeight: 600 }}>
+              {normalizedSlug}
+            </div>
+            <p style={{ margin: "0.45rem 0 0", color: "var(--muted)", fontSize: "0.78rem" }}>
+              Generated automatically so duplicate course titles never block publishing.
+            </p>
           </div>
           <div style={{ marginTop: "1rem" }}>
             <label className="admin-label" htmlFor="course-description">Description</label>

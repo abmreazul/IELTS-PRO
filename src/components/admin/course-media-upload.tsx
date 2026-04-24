@@ -2,7 +2,7 @@
 
 import { Upload, Video, Image as ImageIcon } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
-import { getSignedCourseUploadUrl } from "@/app/admin/actions";
+import { uploadCourseMedia } from "@/app/admin/actions";
 
 type Props = {
   folder: "covers" | "videos";
@@ -45,36 +45,17 @@ export function CourseMediaUpload({ folder, accept, label, disabled, onUploaded 
       setProgress(0);
 
       try {
-        const result = await getSignedCourseUploadUrl(folder, file.name);
+        const formData = new FormData();
+        formData.set("folder", folder);
+        formData.set("file", file);
+        const result = await uploadCourseMedia(formData);
         if (!result.ok) {
           setErr(result.message);
           setUploading(false);
           return;
         }
-
-        const { signedUrl, publicUrl } = result;
-
-        await new Promise<void>((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          xhr.open("PUT", signedUrl);
-          xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
-          xhr.upload.onprogress = (event) => {
-            if (event.lengthComputable) {
-              setProgress(Math.round((event.loaded / event.total) * 100));
-            }
-          };
-          xhr.onload = () => {
-            if (xhr.status >= 200 && xhr.status < 300) {
-              resolve();
-            } else {
-              reject(new Error(`Upload failed (${xhr.status})`));
-            }
-          };
-          xhr.onerror = () => reject(new Error("Network error during upload"));
-          xhr.send(file);
-        });
-
-        onUploaded(publicUrl);
+        setProgress(100);
+        onUploaded(result.url);
       } catch (error) {
         setErr(error instanceof Error ? error.message : "Upload failed");
       } finally {
