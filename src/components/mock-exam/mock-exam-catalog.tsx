@@ -29,6 +29,14 @@ function moduleLabel(exam: MockExamRow) {
   return exam.modules.map((m) => m.charAt(0).toUpperCase() + m.slice(1)).join(" · ");
 }
 
+function modulePillClass(exam: MockExamRow) {
+  if (exam.exam_type === "full") return "me-card__module-pill me-card__module-pill--full";
+  if (exam.modules.includes("listening")) return "me-card__module-pill me-card__module-pill--listening";
+  if (exam.modules.includes("reading")) return "me-card__module-pill me-card__module-pill--reading";
+  if (exam.modules.includes("writing")) return "me-card__module-pill me-card__module-pill--writing";
+  return "me-card__module-pill me-card__module-pill--default";
+}
+
 type ExamCardProps = {
   exam: MockExamRow;
   latestAttempt: MockAttemptRow | null;
@@ -105,7 +113,7 @@ export function ExamCard({ exam, latestAttempt, entitled, isLoggedIn }: ExamCard
         </div>
 
         <div className="me-card__eyebrow">
-          <span className="me-card__module-pill">
+          <span className={modulePillClass(exam)}>
             <Layers3 size={14} strokeWidth={2.1} aria-hidden />
             {moduleLabel(exam)}
           </span>

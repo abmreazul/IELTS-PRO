@@ -202,7 +202,7 @@
 
 .me-card__title-row {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 0.62rem;
 }
@@ -253,13 +253,57 @@
 }
 
 .me-card__module-pill {
-  background: color-mix(in srgb, #0f766e 92%, #fff);
-  color: #ecfeff;
+  color: #fff;
 }
 
-.dark .me-card__module-pill {
-  background: color-mix(in srgb, #134e4a 90%, #0f172a);
-  color: #ccfbf1;
+.me-card__module-pill--full {
+  background: color-mix(in srgb, #c50c2f 88%, #fff);
+  color: #fff1f2;
+}
+
+.dark .me-card__module-pill--full {
+  background: color-mix(in srgb, #9f1239 88%, #0f172a);
+  color: #ffe4e6;
+}
+
+.me-card__module-pill--listening {
+  background: color-mix(in srgb, #0284c7 88%, #fff);
+  color: #eff6ff;
+}
+
+.dark .me-card__module-pill--listening {
+  background: color-mix(in srgb, #0369a1 90%, #0f172a);
+  color: #e0f2fe;
+}
+
+.me-card__module-pill--reading {
+  background: color-mix(in srgb, #16a34a 88%, #fff);
+  color: #f0fdf4;
+}
+
+.dark .me-card__module-pill--reading {
+  background: color-mix(in srgb, #15803d 90%, #0f172a);
+  color: #dcfce7;
+}
+
+.me-card__module-pill--writing {
+  background: color-mix(in srgb, #9333ea 88%, #fff);
+  color: #faf5ff;
+}
+
+.dark .me-card__module-pill--writing {
+  background: color-mix(in srgb, #7e22ce 90%, #0f172a);
+  color: #f3e8ff;
+}
+
+.me-card__module-pill--default {
+  background: color-mix(in srgb, #334155 88%, #fff);
+  color: #f8fafc;
+}
+
+.dark .me-card__module-pill--default {
+  background: color-mix(in srgb, #334155 90%, #0f172a);
+  color: #e2e8f0;
 }
 
 .me-card__difficulty-pill {
