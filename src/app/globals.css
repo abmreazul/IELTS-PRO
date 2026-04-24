@@ -779,6 +779,18 @@ img {
   line-height: 1.65;
 }
 
+.home-mock-row {
+  padding-top: clamp(2.1rem, 5vw, 3rem);
+}
+
+.home-mock-row__head {
+  margin-bottom: 1.65rem;
+}
+
+.home-mock-row__grid {
+  justify-content: center;
+}
+
 .feature-intro {
   display: grid;
   grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.95fr);

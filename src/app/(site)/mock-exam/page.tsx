@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { unstable_cache } from "next/cache";
 import { createClient, getAuthUser } from "@/lib/supabase/server";
 import { MockExamCatalog } from "@/components/mock-exam/mock-exam-catalog";
-import type { MockAttemptRow, MockExamRow } from "@/components/mock-exam/types";
+import type { MockAttemptRow, MockExamRow, MockPaymentRequestRow } from "@/components/mock-exam/types";
 import { normalizeExamModules } from "@/lib/exam/ielts-defaults";
 import "./mock-exam.css";
 
@@ -63,11 +63,12 @@ async function UserCatalog() {
   ]);
 
   const attemptsByExamId: Record<string, MockAttemptRow> = {};
+  const paymentRequestsByExamId: Record<string, MockPaymentRequestRow> = {};
   const entitledExamIds = new Set<string>();
 
   if (user) {
     const supabase = await createClient();
-    const [{ data: attempts }, { data: ents }] = await Promise.all([
+    const [{ data: attempts }, { data: ents }, { data: paymentRequests }] = await Promise.all([
       supabase
         .from("mock_attempts")
         .select(
@@ -77,6 +78,11 @@ async function UserCatalog() {
         .eq("status", "completed")
         .order("created_at", { ascending: false }),
       supabase.from("exam_entitlements").select("exam_id").eq("user_id", user.id),
+      supabase
+        .from("payment_requests")
+        .select("id, exam_id, payment_method, transaction_id, proof_url, amount_cents, currency, status, admin_note, created_at, updated_at")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false }),
     ]);
 
     for (const row of attempts ?? []) {
@@ -89,6 +95,13 @@ async function UserCatalog() {
     for (const e of ents ?? []) {
       entitledExamIds.add((e as { exam_id: string }).exam_id);
     }
+
+    for (const row of paymentRequests ?? []) {
+      const request = row as MockPaymentRequestRow;
+      if (!paymentRequestsByExamId[request.exam_id]) {
+        paymentRequestsByExamId[request.exam_id] = request;
+      }
+    }
   }
 
   return (
@@ -96,6 +109,7 @@ async function UserCatalog() {
       examsByCategory={examsByCategory}
       attemptsByExamId={attemptsByExamId}
       entitledExamIds={entitledExamIds}
+      paymentRequestsByExamId={paymentRequestsByExamId}
       isLoggedIn={!!user}
     />
   );

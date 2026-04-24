@@ -5,7 +5,6 @@ import Link from "next/link";
 import {
   ArrowRight,
   BookOpen,
-  Check,
   ClipboardCheck,
   GraduationCap,
   HeartHandshake,
@@ -15,6 +14,8 @@ import {
   Sparkles,
 } from "lucide-react";
 import { LogoMark } from "@/components/layout/logo-mark";
+import { ExamCard } from "@/components/mock-exam/mock-exam-catalog";
+import type { MockExamRow } from "@/components/mock-exam/types";
 import { MotionConfig, motion, useScroll, useSpring } from "framer-motion";
 import { useEffect, useState } from "react";
 import { fadeUp, heroImage, staggerContainer, staggerItem } from "./motion-variants";
@@ -75,40 +76,6 @@ const steps = [
     title: "Reach Your Band",
     text: "Keep improving until you hit your goal.",
     icon: Rocket,
-  },
-] as const;
-
-const plans = [
-  {
-    name: "Starter",
-    monthly: 29,
-    yearly: 249,
-    features: ["4 full mock tests", "Basic score reports", "Email support"],
-    popular: false,
-  },
-  {
-    name: "Professional",
-    monthly: 59,
-    yearly: 499,
-    features: [
-      "Unlimited mock tests",
-      "Detailed analytics",
-      "Writing review workflow",
-      "Priority support",
-    ],
-    popular: true,
-  },
-  {
-    name: "Premium",
-    monthly: 99,
-    yearly: 799,
-    features: [
-      "Everything in Professional",
-      "1:1 tutor review credits",
-      "Custom study plan",
-      "Exam-day checklist",
-    ],
-    popular: false,
   },
 ] as const;
 
@@ -198,8 +165,11 @@ const footerFaces = [
 ] as const;
 
 
-export function HomePage() {
-  const [billing, setBilling] = useState<"monthly" | "yearly">("monthly");
+type HomePageProps = {
+  featuredExams?: MockExamRow[];
+};
+
+export function HomePage({ featuredExams = [] }: HomePageProps) {
   const [activeHeroSlide, setActiveHeroSlide] = useState(0);
   const { scrollYProgress } = useScroll();
   const scaleX = useSpring(scrollYProgress, { stiffness: 100, damping: 30, restDelta: 0.001 });
@@ -261,6 +231,38 @@ export function HomePage() {
             </motion.div>
           </div>
         </section>
+
+        {featuredExams.length > 0 ? (
+          <section className="section home-mock-row">
+            <div className="container section-head home-mock-row__head">
+              <motion.h2
+                className="section-title"
+                initial="hidden"
+                whileInView="visible"
+                viewport={{ once: true, margin: "-80px" }}
+                variants={fadeUp}
+                custom={0}
+              >
+                Start with a Mock Test
+              </motion.h2>
+            </div>
+            <div className="container">
+              <div className="me-grid home-mock-row__grid">
+                {featuredExams.map((exam) => (
+                  <ExamCard
+                    key={exam.id}
+                    exam={exam}
+                    latestAttempt={null}
+                    entitled
+                    isLoggedIn
+                    actionHrefOverride="/mock-exam"
+                    actionLabelOverride="Open in Mock Exams"
+                  />
+                ))}
+              </div>
+            </div>
+          </section>
+        ) : null}
 
         <section id="features" className="section section--alt">
           <div className="container feature-intro">
@@ -499,104 +501,6 @@ export function HomePage() {
           </div>
         </section>
 
-        <section id="pricing" className="section section--alt">
-          <div className="container section-head">
-            <motion.h2
-              className="section-title"
-              initial="hidden"
-              whileInView="visible"
-              viewport={{ once: true, margin: "-80px" }}
-              variants={fadeUp}
-              custom={0}
-            >
-              Choose Your Perfect Plan
-            </motion.h2>
-            <motion.p
-              className="section-sub"
-              initial="hidden"
-              whileInView="visible"
-              viewport={{ once: true, margin: "-80px" }}
-              variants={fadeUp}
-              custom={1}
-            >
-              Flexible billing. Upgrade or cancel anytime.
-            </motion.p>
-            <motion.div
-              className="billing-toggle"
-              role="group"
-              aria-label="Billing period"
-              initial={{ opacity: 0, y: 12 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.4 }}
-            >
-              <button
-                type="button"
-                className={billing === "monthly" ? "is-active" : ""}
-                onClick={() => setBilling("monthly")}
-              >
-                Monthly
-              </button>
-              <button
-                type="button"
-                className={billing === "yearly" ? "is-active" : ""}
-                onClick={() => setBilling("yearly")}
-              >
-                Yearly
-                <span className="billing-save">Save 20%</span>
-              </button>
-            </motion.div>
-          </div>
-          <div className="container pricing-grid">
-            {plans.map((plan, i) => (
-              <motion.article
-                key={plan.name}
-                className={`pricing-card${plan.popular ? " pricing-card--popular" : ""}`}
-                initial="hidden"
-                whileInView="visible"
-                viewport={{ once: true, margin: "-40px" }}
-                variants={fadeUp}
-                custom={i}
-                whileHover={{ y: -8, transition: { duration: 0.25 } }}
-              >
-                {plan.popular ? <span className="pricing-badge">Most Popular</span> : null}
-                <h3>{plan.name}</h3>
-                <p className="pricing-price">
-                  <span className="pricing-amount">
-                    ${billing === "monthly" ? plan.monthly : Math.round(plan.yearly / 12)}
-                  </span>
-                  <span className="pricing-period">/month</span>
-                </p>
-                {billing === "yearly" ? (
-                  <p className="pricing-billed">${plan.yearly} billed yearly</p>
-                ) : null}
-                <ul className="pricing-features">
-                  {plan.features.map((line) => (
-                    <li key={line}>
-                      <span className="pricing-check" aria-hidden>
-                        <Check strokeWidth={2.5} />
-                      </span>
-                      {line}
-                    </li>
-                  ))}
-                </ul>
-                <motion.div
-                  style={{ width: "100%" }}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  <Link
-                    href="/create-account"
-                    className={plan.popular ? "btn btn-primary btn-block" : "btn btn-outline btn-block"}
-                  >
-                    Get Started
-                  </Link>
-                </motion.div>
-              </motion.article>
-            ))}
-          </div>
-        </section>
-
         <section id="testimonials" className="section">
           <div className="container section-head">
             <motion.h2
@@ -696,9 +600,6 @@ export function HomePage() {
                 </li>
                 <li>
                   <a href="#how">How It Works</a>
-                </li>
-                <li>
-                  <a href="#pricing">Pricing</a>
                 </li>
                 <li>
                   <Link href="/sign-in">Sign In</Link>

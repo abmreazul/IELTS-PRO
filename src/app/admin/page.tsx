@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BookOpen, ClipboardCheck, DollarSign, TrendingUp, Users } from "lucide-react";
+import { BookOpen, ClipboardCheck, DollarSign, TrendingUp, Users, Wallet } from "lucide-react";
 import { unstable_cache } from "next/cache";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
 import {
@@ -32,7 +32,7 @@ const getAdminDashboardData = unstable_cache(
   async () => {
     const admin = createServiceRoleClient();
 
-    const [{ count: examCount }, { data: attempts }, { data: examsForRev }, { data: exams }, { count: pendingReviews }] =
+    const [{ count: examCount }, { data: attempts }, { data: examsForRev }, { data: exams }, { count: pendingReviews }, { count: pendingPayments }] =
       await Promise.all([
         admin.from("mock_exams").select("*", { count: "exact", head: true }),
         admin.from("mock_attempts").select("exam_id, overall_band, status"),
@@ -44,6 +44,7 @@ const getAdminDashboardData = unstable_cache(
           )
           .order("created_at", { ascending: false }),
         admin.from("mock_attempts").select("*", { count: "exact", head: true }).eq("review_status", "pending"),
+        admin.from("payment_requests").select("*", { count: "exact", head: true }).eq("status", "pending"),
       ]);
 
     /* ── Stats ─────────────────────────────────────────── */
@@ -108,14 +109,22 @@ const getAdminDashboardData = unstable_cache(
       };
     });
 
-    return { examCount: examCount ?? 0, totalAttempts, avgBand, revenue, pendingReviews: pendingReviews ?? 0, rows };
+    return {
+      examCount: examCount ?? 0,
+      totalAttempts,
+      avgBand,
+      revenue,
+      pendingReviews: pendingReviews ?? 0,
+      pendingPayments: pendingPayments ?? 0,
+      rows,
+    };
   },
   ["admin-dashboard"],
   { revalidate: 30, tags: ["admin-dashboard"] },
 );
 
 export default async function AdminHomePage() {
-  const { examCount, totalAttempts, avgBand, revenue, pendingReviews, rows } =
+  const { examCount, totalAttempts, avgBand, revenue, pendingReviews, pendingPayments, rows } =
     await getAdminDashboardData();
 
   return (
@@ -169,6 +178,17 @@ export default async function AdminHomePage() {
             <DollarSign strokeWidth={2} />
           </div>
         </div>
+        <Link href="/admin/payments" className="admin-stat-link">
+          <div className="admin-stat-card admin-stat-card--green">
+            <div className="admin-stat-card__body">
+              <div className="admin-stat-card__label">Pending Payments</div>
+              <div className="admin-stat-card__value">{pendingPayments}</div>
+            </div>
+            <div className="admin-stat-card__icon" aria-hidden>
+              <Wallet strokeWidth={2} />
+            </div>
+          </div>
+        </Link>
         <Link href="/admin/reviews" className="admin-stat-link">
           <div className="admin-stat-card admin-stat-card--red">
             <div className="admin-stat-card__body">

@@ -1,4 +1,8 @@
 import { HomePage } from "@/components/home/home-page";
+import type { MockExamRow } from "@/components/mock-exam/types";
+import { normalizeExamModules } from "@/lib/exam/ielts-defaults";
+import { createClient } from "@/lib/supabase/server";
+import "../(site)/mock-exam/mock-exam.css";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://ielts-pro.vercel.app";
 
@@ -20,14 +24,47 @@ const jsonLd = {
   },
 };
 
-export default function Home() {
+async function getFeaturedExams(): Promise<MockExamRow[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("mock_exams")
+    .select(
+      `id, category_id, title, slug, description, exam_type, modules,
+       duration_minutes, question_count, difficulty, price_cents, currency,
+       cover_image_url, listening_audio_json, is_published,
+       exam_categories ( id, slug, name, sort_order )`,
+    )
+    .eq("is_published", true)
+    .order("created_at", { ascending: false });
+
+  const exams = ((data ?? []) as unknown as MockExamRow[]).map((exam) => ({
+    ...exam,
+    modules: normalizeExamModules(exam.modules),
+  }));
+
+  const seenCategories = new Set<string>();
+  const featured: MockExamRow[] = [];
+
+  for (const exam of exams) {
+    const key = exam.exam_categories?.id ?? exam.category_id;
+    if (!key || seenCategories.has(key)) continue;
+    seenCategories.add(key);
+    featured.push(exam);
+  }
+
+  return featured.slice(0, 4);
+}
+
+export default async function Home() {
+  const featuredExams = await getFeaturedExams();
+
   return (
     <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <HomePage />
+      <HomePage featuredExams={featuredExams} />
     </>
   );
 }

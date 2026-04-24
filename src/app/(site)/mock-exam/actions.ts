@@ -6,6 +6,7 @@ import { createServiceRoleClient } from "@/lib/supabase/admin";
 import { evaluateWritingWithGemini } from "@/lib/ai/gemini-writing";
 import { roundBandToNearestHalf } from "@/lib/ai/writing-review";
 import { coerceTestVariant, normalizeExamModules } from "@/lib/exam/ielts-defaults";
+import type { ManualPaymentMethodId } from "@/lib/payments/manual-payment";
 
 /* ═══════════════════════════════════════════════════════════════════
    IELTS Band Conversion (standard 40-question Listening / Reading)
@@ -51,6 +52,154 @@ function isMissingAiReviewColumn(message: string | undefined) {
   );
 }
 
+function isMissingPaymentTable(message: string | undefined) {
+  return Boolean(
+    message &&
+      message.includes("payment_requests") &&
+      (message.includes("schema cache") || message.includes("Could not find the")),
+  );
+}
+
+function isMissingPaymentBucket(message: string | undefined) {
+  return Boolean(message && message.includes("payment-proofs"));
+}
+
+const PAYMENT_PROOF_BUCKET = "payment-proofs";
+
+export async function uploadPaymentProof(formData: FormData) {
+  const { user, error } = await getAuthUser();
+  if (error || !user) {
+    return { ok: false, message: "Sign in required." };
+  }
+
+  const file = formData.get("file");
+  if (!(file instanceof File)) {
+    return { ok: false, message: "Receipt file is required." };
+  }
+
+  const mime = (file.type || "").toLowerCase();
+  const allowed = mime.startsWith("image/") || mime === "application/pdf";
+  if (!allowed) {
+    return { ok: false, message: "Upload a receipt image or PDF." };
+  }
+
+  const maxBytes = 10 * 1024 * 1024;
+  if (file.size > maxBytes) {
+    return { ok: false, message: "Receipt is too large. Max 10 MB." };
+  }
+
+  const ext = (file.name.split(".").pop() || (mime === "application/pdf" ? "pdf" : "jpg"))
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+  const path = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${ext || "jpg"}`;
+
+  const admin = createServiceRoleClient();
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const { error: uploadError } = await admin.storage.from(PAYMENT_PROOF_BUCKET).upload(path, buffer, {
+    contentType: mime || undefined,
+    upsert: false,
+  });
+
+  if (uploadError) {
+    if (isMissingPaymentBucket(uploadError.message)) {
+      return { ok: false, message: "Payment proof storage is missing in Supabase. Apply the latest payment migration first." };
+    }
+    return { ok: false, message: uploadError.message };
+  }
+
+  const { data } = admin.storage.from(PAYMENT_PROOF_BUCKET).getPublicUrl(path);
+  return { ok: true, url: data.publicUrl };
+}
+
+type SubmitPaymentInput = {
+  examId: string;
+  paymentMethod: ManualPaymentMethodId;
+  transactionId: string;
+  proofUrl?: string | null;
+};
+
+export async function submitPaymentRequest(input: SubmitPaymentInput) {
+  const { user, error } = await getAuthUser();
+  if (error || !user) {
+    return { ok: false, message: "Sign in required." };
+  }
+
+  const transactionId = String(input.transactionId ?? "").trim();
+  if (!input.examId || !input.paymentMethod || !transactionId) {
+    return { ok: false, message: "Payment method and transaction ID are required." };
+  }
+
+  const admin = createServiceRoleClient();
+  const { data: exam } = await admin
+    .from("mock_exams")
+    .select("id, title, price_cents, currency, is_published")
+    .eq("id", input.examId)
+    .eq("is_published", true)
+    .single();
+
+  if (!exam) {
+    return { ok: false, message: "Exam not found." };
+  }
+
+  if ((exam.price_cents ?? 0) <= 0) {
+    return { ok: false, message: "This exam does not require payment." };
+  }
+
+  const { data: entitlement } = await admin
+    .from("exam_entitlements")
+    .select("exam_id")
+    .eq("user_id", user.id)
+    .eq("exam_id", input.examId)
+    .maybeSingle();
+
+  if (entitlement) {
+    return { ok: false, message: "You already have access to this exam." };
+  }
+
+  const { data: latestRequest, error: latestError } = await admin
+    .from("payment_requests")
+    .select("id, status")
+    .eq("user_id", user.id)
+    .eq("exam_id", input.examId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (latestError) {
+    if (isMissingPaymentTable(latestError.message)) {
+      return { ok: false, message: "Payment requests are not set up in Supabase. Apply the latest payment migration first." };
+    }
+    return { ok: false, message: latestError.message };
+  }
+
+  if (latestRequest?.status === "pending") {
+    return { ok: false, message: "A payment verification request is already pending for this exam." };
+  }
+
+  const { error: insertError } = await admin.from("payment_requests").insert({
+    user_id: user.id,
+    exam_id: input.examId,
+    payment_method: input.paymentMethod,
+    transaction_id: transactionId,
+    proof_url: input.proofUrl?.trim() || null,
+    amount_cents: exam.price_cents,
+    currency: exam.currency,
+    status: "pending",
+  });
+
+  if (insertError) {
+    if (isMissingPaymentTable(insertError.message)) {
+      return { ok: false, message: "Payment requests are not set up in Supabase. Apply the latest payment migration first." };
+    }
+    return { ok: false, message: insertError.message };
+  }
+
+  revalidatePath("/mock-exam");
+  revalidatePath("/admin");
+  revalidatePath("/admin/payments");
+  return { ok: true, message: `Payment request sent for ${exam.title}. We will verify it shortly.` };
+}
+
 /* ═══════════════════════════════════════════════════════════════════
    Start Attempt
    ═══════════════════════════════════════════════════════════════════ */
@@ -68,13 +217,26 @@ export async function startExamAttempt(
   // Check exam exists
   const { data: exam } = await admin
     .from("mock_exams")
-    .select("id")
+    .select("id, price_cents")
     .eq("id", examId)
     .eq("is_published", true)
     .single();
 
   if (!exam) {
     return { ok: false, message: "Exam not found" };
+  }
+
+  if ((exam.price_cents ?? 0) > 0) {
+    const { data: entitlement } = await admin
+      .from("exam_entitlements")
+      .select("exam_id")
+      .eq("user_id", user.id)
+      .eq("exam_id", examId)
+      .maybeSingle();
+
+    if (!entitlement) {
+      return { ok: false, message: "Purchase approval is required before starting this exam." };
+    }
   }
 
   // Create attempt

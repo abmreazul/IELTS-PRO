@@ -40,3 +40,19 @@ export type MockAttemptRow = {
   completed_at: string | null;
   created_at: string;
 };
+
+export type PaymentRequestStatus = "pending" | "approved" | "rejected";
+
+export type MockPaymentRequestRow = {
+  id: string;
+  exam_id: string;
+  payment_method: "bkash" | "touchngo" | "ebl" | "maybank";
+  transaction_id: string;
+  proof_url: string | null;
+  amount_cents: number;
+  currency: string;
+  status: PaymentRequestStatus;
+  admin_note: string | null;
+  created_at: string;
+  updated_at?: string | null;
+};

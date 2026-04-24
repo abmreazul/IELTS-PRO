@@ -1467,3 +1467,36 @@
   padding-bottom: 1rem;
   border-bottom: 1px solid var(--border);
 }
+
+.admin-payment-proof {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-payment-proof__preview {
+  position: relative;
+  min-height: 360px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.admin-payment-proof__preview iframe {
+  width: 100%;
+  min-height: 360px;
+  border: 0;
+  display: block;
+}
+
+.admin-payment-review-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-payment-review-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}

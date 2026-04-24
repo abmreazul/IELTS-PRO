@@ -26,7 +26,7 @@ export default async function TakeMockExamPage({
   const supabase = await createClient();
   const { data: exam } = await supabase
     .from("mock_exams")
-    .select("id, title, slug, modules, duration_minutes, listening_audio_json, structure_json, is_published")
+    .select("id, title, slug, modules, duration_minutes, listening_audio_json, structure_json, is_published, price_cents")
     .eq("slug", slug)
     .eq("is_published", true)
     .single();
@@ -47,6 +47,33 @@ export default async function TakeMockExamPage({
         </div>
       </main>
     );
+  }
+
+  if ((exam.price_cents ?? 0) > 0) {
+    const { data: entitlement } = await supabase
+      .from("exam_entitlements")
+      .select("exam_id")
+      .eq("user_id", user.id)
+      .eq("exam_id", exam.id)
+      .maybeSingle();
+
+    if (!entitlement) {
+      return (
+        <main className="page" style={{ padding: "3rem 1.5rem" }}>
+          <div className="container" style={{ maxWidth: "36rem", textAlign: "center" }}>
+            <h1 style={{ fontFamily: "var(--font-display), sans-serif", fontSize: "1.5rem", fontWeight: 800 }}>
+              Payment verification required
+            </h1>
+            <p style={{ color: "var(--muted)", marginTop: "0.75rem" }}>
+              This premium mock exam becomes available after your manual payment is approved by the admin team.
+            </p>
+            <a href="/mock-exam" className="btn btn-primary btn-topbar-cta" style={{ marginTop: "1.5rem" }}>
+              Back to mock exams
+            </a>
+          </div>
+        </main>
+      );
+    }
   }
 
   // Fetch questions

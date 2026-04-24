@@ -1,7 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Check, Clock3, Layers3, Star, Users } from "lucide-react";
-import type { MockAttemptRow, MockExamRow } from "./types";
+import { ManualPaymentDialog } from "./manual-payment-dialog";
+import type { MockAttemptRow, MockExamRow, MockPaymentRequestRow } from "./types";
 
 function categoryBadgeClass(slug: string): string {
   const s = slug.toLowerCase();
@@ -42,9 +43,20 @@ type ExamCardProps = {
   latestAttempt: MockAttemptRow | null;
   entitled: boolean;
   isLoggedIn: boolean;
+  paymentRequest?: MockPaymentRequestRow | null;
+  actionHrefOverride?: string;
+  actionLabelOverride?: string;
 };
 
-export function ExamCard({ exam, latestAttempt, entitled, isLoggedIn }: ExamCardProps) {
+export function ExamCard({
+  exam,
+  latestAttempt,
+  entitled,
+  isLoggedIn,
+  paymentRequest,
+  actionHrefOverride,
+  actionLabelOverride,
+}: ExamCardProps) {
   const category = exam.exam_categories;
   const categoryName = category?.name ?? "Exam";
   const slug = category?.slug ?? "exam";
@@ -55,6 +67,10 @@ export function ExamCard({ exam, latestAttempt, entitled, isLoggedIn }: ExamCard
   const completed = Boolean(hasCompletedAttempt && latestAttempt?.overall_band != null);
   const band = latestAttempt?.overall_band ?? null;
   const isFree = exam.price_cents === 0;
+  const accessGranted = entitled || isFree;
+  const paymentPending = paymentRequest?.status === "pending";
+  const defaultHref = actionHrefOverride ?? `/mock-exam/${exam.slug}/take`;
+  const defaultLabel = actionLabelOverride ?? (isLoggedIn ? "Start Exam" : "Sign in to start");
 
   const cover = exam.cover_image_url;
 
@@ -135,13 +151,27 @@ export function ExamCard({ exam, latestAttempt, entitled, isLoggedIn }: ExamCard
                 Retake
               </Link>
             </>
-          ) : isLoggedIn ? (
-            <Link href={`/mock-exam/${exam.slug}/take`} className="btn btn-topbar-cta btn-primary">
-              Start Exam
+          ) : accessGranted && isLoggedIn ? (
+            <Link href={defaultHref} className="btn btn-topbar-cta btn-primary">
+              {defaultLabel}
             </Link>
+          ) : !accessGranted && isLoggedIn ? (
+            paymentPending ? (
+              <button type="button" className="btn btn-outline me-card__pending-btn" disabled>
+                Verification pending
+              </button>
+            ) : (
+              <ManualPaymentDialog
+                examId={exam.id}
+                examTitle={exam.title}
+                amountCents={exam.price_cents}
+                currency={exam.currency}
+                existingRequest={paymentRequest ?? null}
+              />
+            )
           ) : (
-            <Link href="/sign-in" className="btn btn-topbar-cta btn-primary">
-              Sign in to start
+            <Link href="/sign-in?next=/mock-exam" className="btn btn-topbar-cta btn-primary">
+              {isFree ? defaultLabel : "Buy now"}
             </Link>
           )}
         </div>
@@ -154,6 +184,7 @@ type CatalogProps = {
   examsByCategory: { category: { id: string; name: string; sort_order: number }; exams: MockExamRow[] }[];
   attemptsByExamId: Record<string, MockAttemptRow>;
   entitledExamIds: Set<string>;
+  paymentRequestsByExamId?: Record<string, MockPaymentRequestRow>;
   isLoggedIn: boolean;
 };
 
@@ -161,6 +192,7 @@ export function MockExamCatalog({
   examsByCategory,
   attemptsByExamId,
   entitledExamIds,
+  paymentRequestsByExamId = {},
   isLoggedIn,
 }: CatalogProps) {
   if (examsByCategory.length === 0) {
@@ -184,6 +216,7 @@ export function MockExamCatalog({
                 exam={exam}
                 latestAttempt={attemptsByExamId[exam.id] ?? null}
                 entitled={entitledExamIds.has(exam.id)}
+                paymentRequest={paymentRequestsByExamId[exam.id] ?? null}
                 isLoggedIn={isLoggedIn}
               />
             ))}

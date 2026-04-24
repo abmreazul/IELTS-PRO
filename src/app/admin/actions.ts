@@ -24,6 +24,14 @@ async function requireAdmin() {
   return user;
 }
 
+function isMissingPaymentTable(message: string | undefined) {
+  return Boolean(
+    message &&
+      message.includes("payment_requests") &&
+      (message.includes("schema cache") || message.includes("Could not find the")),
+  );
+}
+
 export async function createCategory(formData: FormData) {
   await requireAdmin();
   const name = String(formData.get("name") ?? "").trim();
@@ -253,6 +261,66 @@ export async function deleteCourse(formData: FormData) {
   revalidatePath("/admin");
   revalidatePath("/admin/courses");
   revalidatePath("/courses");
+}
+
+export async function reviewPaymentRequest(formData: FormData) {
+  const reviewer = await requireAdmin();
+  const requestId = String(formData.get("request_id") ?? "").trim();
+  const decision = String(formData.get("decision") ?? "").trim();
+  const adminNote = String(formData.get("admin_note") ?? "").trim() || null;
+
+  if (!requestId || !["approve", "reject"].includes(decision)) {
+    throw new Error("Invalid payment review request.");
+  }
+
+  const admin = createServiceRoleClient();
+  const { data: request, error } = await admin
+    .from("payment_requests")
+    .select("id, user_id, exam_id, payment_method, status")
+    .eq("id", requestId)
+    .single();
+
+  if (error) {
+    if (isMissingPaymentTable(error.message)) {
+      throw new Error("Payment requests are missing in Supabase. Apply the latest payment migration first.");
+    }
+    throw new Error(error.message);
+  }
+  if (!request) {
+    throw new Error("Payment request not found.");
+  }
+
+  const nextStatus = decision === "approve" ? "approved" : "rejected";
+  const { error: updateError } = await admin
+    .from("payment_requests")
+    .update({
+      status: nextStatus,
+      admin_note: adminNote,
+      reviewed_at: new Date().toISOString(),
+      reviewed_by: reviewer.id,
+    })
+    .eq("id", requestId);
+
+  if (updateError) {
+    throw new Error(updateError.message);
+  }
+
+  if (decision === "approve") {
+    const { error: entitlementError } = await admin.from("exam_entitlements").upsert({
+      user_id: request.user_id,
+      exam_id: request.exam_id,
+      source: `manual_payment:${request.payment_method}`,
+    });
+    if (entitlementError) {
+      throw new Error(entitlementError.message);
+    }
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/payments");
+  revalidatePath(`/admin/payments/${requestId}`);
+  revalidatePath("/mock-exam");
+  redirect("/admin/payments");
 }
 
 function roundToNearestHalf(value: number): number {
