@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Check, Clock3, Hourglass, Layers3, Star, Users } from "lucide-react";
+import { Check, Clock3, Layers3, Star, Users } from "lucide-react";
 import type { MockAttemptRow, MockExamRow } from "./types";
 
 function categoryBadgeClass(slug: string): string {
@@ -55,12 +55,6 @@ export function ExamCard({ exam, latestAttempt, entitled, isLoggedIn }: ExamCard
   const completed = Boolean(hasCompletedAttempt && latestAttempt?.overall_band != null);
   const band = latestAttempt?.overall_band ?? null;
   const isFree = exam.price_cents === 0;
-  const statusLabel = completed ? "Attempted" : reviewPending ? "Pending review" : "Ready to start";
-  const statusToneClass = completed
-    ? "me-card__status-panel me-card__status-panel--completed"
-    : reviewPending
-      ? "me-card__status-panel me-card__status-panel--pending"
-      : "me-card__status-panel";
 
   const cover = exam.cover_image_url;
 
@@ -91,6 +85,12 @@ export function ExamCard({ exam, latestAttempt, entitled, isLoggedIn }: ExamCard
             <span aria-hidden />
           )}
         </div>
+        {completed && band != null ? (
+          <div className="me-card__band-chip">
+            <span className="me-card__band-chip-label">Band</span>
+            <span className="me-card__band-chip-value">{Number(band).toFixed(1)}</span>
+          </div>
+        ) : null}
       </div>
 
       <div className="me-card__body">
@@ -123,36 +123,13 @@ export function ExamCard({ exam, latestAttempt, entitled, isLoggedIn }: ExamCard
           </span>
         </div>
 
-        {completed || reviewPending ? (
-          <div className={statusToneClass}>
-            <div className="me-card__status-copy">
-              <span className="me-card__status-kicker">Submission status</span>
-              <span className="me-card__status-value">{statusLabel}</span>
-            </div>
-            <span className="me-card__status-mark" aria-hidden>
-              {completed ? (
-                <Check size={20} strokeWidth={2.5} />
-              ) : reviewPending ? (
-                <Hourglass size={20} strokeWidth={2.2} />
-              ) : null}
-            </span>
-          </div>
-        ) : null}
-
-        {completed && band != null ? (
-          <div className="me-card__score-box">
-            <span className="me-card__score-label">Your band score</span>
-            <span className="me-card__score-value">{Number(band).toFixed(1)}</span>
-          </div>
-        ) : null}
-
         <div
           className={`me-card__actions${completed || reviewPending ? " me-card__actions--row" : ""}`}
         >
           {completed || reviewPending ? (
             <>
               <Link href={`/mock-exam/${exam.slug}/review`} className="btn btn-outline">
-                {reviewPending ? "Review submission" : "Review results"}
+                Review results
               </Link>
               <Link href={`/mock-exam/${exam.slug}/take`} className="btn btn-topbar-cta btn-primary">
                 Retake
