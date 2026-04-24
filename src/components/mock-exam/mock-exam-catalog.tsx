@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Check, Clock, Users } from "lucide-react";
+import { Check, Clock3, Hourglass, Layers3, Star, Users } from "lucide-react";
 import type { MockAttemptRow, MockExamRow } from "./types";
 
 function categoryBadgeClass(slug: string): string {
@@ -46,6 +46,13 @@ export function ExamCard({ exam, latestAttempt, entitled, isLoggedIn }: ExamCard
   const reviewPending = Boolean(hasCompletedAttempt && latestAttempt?.review_status === "pending");
   const completed = Boolean(hasCompletedAttempt && latestAttempt?.overall_band != null);
   const band = latestAttempt?.overall_band ?? null;
+  const isFree = exam.price_cents === 0;
+  const statusLabel = completed ? "Attempted" : reviewPending ? "Pending review" : "Ready to start";
+  const statusToneClass = completed
+    ? "me-card__status-panel me-card__status-panel--completed"
+    : reviewPending
+      ? "me-card__status-panel me-card__status-panel--pending"
+      : "me-card__status-panel";
 
   const cover = exam.cover_image_url;
 
@@ -58,7 +65,7 @@ export function ExamCard({ exam, latestAttempt, entitled, isLoggedIn }: ExamCard
             alt=""
             fill
             className="object-cover"
-            sizes="(max-width: 768px) 100vw, 320px"
+            sizes="(max-width: 768px) 100vw, 512px"
           />
         ) : null}
         <div className="me-card__badge-row">
@@ -75,15 +82,20 @@ export function ExamCard({ exam, latestAttempt, entitled, isLoggedIn }: ExamCard
           ) : (
             <span aria-hidden />
           )}
-          <span className={categoryBadgeClass(slug)}>{categoryName}</span>
         </div>
       </div>
 
       <div className="me-card__body">
-        <h2 className="me-card__title">{exam.title}</h2>
+        <div className="me-card__title-row">
+          <h2 className="me-card__title">{exam.title}</h2>
+          <span className="me-card__price-pill">
+            {isFree ? "FREE" : formatPrice(exam.price_cents, exam.currency)}
+          </span>
+        </div>
+
         <div className="me-card__meta">
           <span>
-            <Clock size={16} strokeWidth={2} aria-hidden />
+            <Clock3 size={15} strokeWidth={2} aria-hidden />
             {exam.duration_minutes}m
           </span>
           <span>
@@ -91,26 +103,40 @@ export function ExamCard({ exam, latestAttempt, entitled, isLoggedIn }: ExamCard
             {exam.question_count} questions
           </span>
         </div>
-        <p className="me-card__diff">
-          Difficulty: <strong>{formatDifficulty(exam.difficulty)}</strong>
-        </p>
-        <p className="me-card__diff" style={{ fontSize: "0.8125rem", marginTop: "-0.25rem" }}>
-          {moduleLabel(exam)}
-        </p>
+
+        <div className="me-card__eyebrow">
+          <span className="me-card__module-pill">
+            <Layers3 size={14} strokeWidth={2.1} aria-hidden />
+            {moduleLabel(exam)}
+          </span>
+          <span className="me-card__difficulty-pill">
+            <Star size={13} strokeWidth={2.1} aria-hidden />
+            {formatDifficulty(exam.difficulty)}
+          </span>
+        </div>
+
+        {completed || reviewPending ? (
+          <div className={statusToneClass}>
+            <div className="me-card__status-copy">
+              <span className="me-card__status-kicker">Submission status</span>
+              <span className="me-card__status-value">{statusLabel}</span>
+            </div>
+            <span className="me-card__status-mark" aria-hidden>
+              {completed ? (
+                <Check size={20} strokeWidth={2.5} />
+              ) : reviewPending ? (
+                <Hourglass size={20} strokeWidth={2.2} />
+              ) : null}
+            </span>
+          </div>
+        ) : null}
 
         {completed && band != null ? (
           <div className="me-card__score-box">
             <span className="me-card__score-label">Your band score</span>
             <span className="me-card__score-value">{Number(band).toFixed(1)}</span>
           </div>
-        ) : reviewPending ? (
-          <div className="me-card__score-box">
-            <span className="me-card__score-label">Submission status</span>
-            <span className="me-card__score-value" style={{ fontSize: "1rem" }}>Pending review</span>
-          </div>
-        ) : (
-          <p className="me-card__price">{formatPrice(exam.price_cents, exam.currency)}</p>
-        )}
+        ) : null}
 
         <div
           className={`me-card__actions${completed || reviewPending ? " me-card__actions--row" : ""}`}

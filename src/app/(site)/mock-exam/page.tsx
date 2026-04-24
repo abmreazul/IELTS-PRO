@@ -105,14 +105,6 @@ export default function MockExamPage() {
   return (
     <main className="page me-page">
       <div className="container">
-        <header className="me-page__head">
-          <h1 className="me-page__title">Mock exams</h1>
-          <p className="me-page__lead">
-            Full tests and single-skill practice, organised by category. Complete a test to see your
-            band here on the card.
-          </p>
-        </header>
-
         <Suspense
           fallback={
             <>
