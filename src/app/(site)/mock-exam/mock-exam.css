@@ -429,10 +429,10 @@
 }
 
 .manual-pay {
-  width: min(720px, 100%);
-  max-height: min(92vh, 960px);
+  width: min(540px, 100%);
+  max-height: min(82vh, 720px);
   overflow: auto;
-  border-radius: 24px;
+  border-radius: 22px;
   border: 1px solid rgba(90, 111, 155, 0.28);
   background: linear-gradient(180deg, #0f1730 0%, #0b1329 100%);
   box-shadow: 0 36px 90px rgba(0, 0, 0, 0.45);
@@ -442,21 +442,9 @@
 .manual-pay__head {
   display: flex;
   align-items: flex-start;
-  gap: 1rem;
-  padding: 1.4rem 1.5rem 1.2rem;
+  gap: 0.7rem;
+  padding: 0.88rem 1rem 0.8rem;
   border-bottom: 1px solid rgba(90, 111, 155, 0.2);
-}
-
-.manual-pay__head-badge {
-  width: 48px;
-  height: 48px;
-  display: grid;
-  place-items: center;
-  border-radius: 16px;
-  background: linear-gradient(135deg, #8a2cff, #ff3f9f);
-  color: #fff;
-  font-weight: 900;
-  font-size: 1.25rem;
 }
 
 .manual-pay__head-copy {
@@ -466,7 +454,7 @@
 
 .manual-pay__head-copy h2 {
   margin: 0;
-  font-size: clamp(1.3rem, 2.5vw, 1.9rem);
+  font-size: clamp(1rem, 1.9vw, 1.4rem);
   font-weight: 800;
   letter-spacing: -0.03em;
 }
@@ -474,12 +462,12 @@
 .manual-pay__head-copy p {
   margin: 0.2rem 0 0;
   color: #94a3b8;
-  font-size: 0.98rem;
+  font-size: 0.82rem;
 }
 
 .manual-pay__close {
-  width: 42px;
-  height: 42px;
+  width: 38px;
+  height: 38px;
   display: grid;
   place-items: center;
   border: 0;
@@ -494,19 +482,19 @@
 }
 
 .manual-pay__section {
-  padding: 1.35rem 1.5rem 0;
+  padding: 0.85rem 1rem 0;
 }
 
 .manual-pay__step {
   display: flex;
   align-items: center;
-  gap: 0.8rem;
-  margin-bottom: 1rem;
+  gap: 0.65rem;
+  margin-bottom: 0.7rem;
 }
 
 .manual-pay__step span {
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   display: grid;
   place-items: center;
   border-radius: 999px;
@@ -517,28 +505,28 @@
 
 .manual-pay__step h3 {
   margin: 0;
-  font-size: 1.05rem;
+  font-size: 0.92rem;
   font-weight: 800;
 }
 
 .manual-pay__methods {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.9rem;
+  gap: 0.6rem;
 }
 
 .manual-pay__method {
-  min-height: 108px;
+  min-height: 78px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.7rem;
+  gap: 0.55rem;
   border-radius: 18px;
   border: 1px solid rgba(93, 118, 168, 0.24);
   background: rgba(21, 31, 58, 0.98);
   color: #f8fbff;
-  padding: 1rem;
+  padding: 0.65rem;
   transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -549,14 +537,14 @@
 }
 
 .manual-pay__method-logo {
-  min-height: 34px;
+  min-height: 22px;
   display: grid;
   place-items: center;
 }
 
 .manual-pay__method-logo img {
   width: auto;
-  height: 34px;
+  height: 22px;
   object-fit: contain;
 }
 
@@ -574,38 +562,39 @@
 }
 
 .manual-pay__method span:last-child {
-  font-size: 0.98rem;
+  font-size: 0.82rem;
   font-weight: 700;
 }
 
 .manual-pay__panel {
-  margin: 1.2rem 1.5rem 0;
-  padding: 1.3rem 1.35rem;
-  border-radius: 20px;
+  margin: 0.8rem 1rem 0;
+  padding: 0.88rem 0.95rem;
+  border-radius: 16px;
   border: 1px solid rgba(93, 118, 168, 0.18);
   background: rgba(18, 27, 52, 0.98);
+  text-align: center;
 }
 
 .manual-pay__muted {
   margin: 0;
   color: #8fa0c4;
-  font-size: 0.95rem;
+  font-size: 0.84rem;
 }
 
 .manual-pay__muted--qr {
-  margin-top: 1rem;
+  margin-top: 0.7rem;
 }
 
 .manual-pay__number-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   gap: 1rem;
   margin-top: 0.5rem;
 }
 
 .manual-pay__number {
-  font-size: clamp(1.35rem, 3.2vw, 2rem);
+  font-size: clamp(1.05rem, 2.6vw, 1.5rem);
   font-weight: 900;
   letter-spacing: 0.04em;
 }
@@ -631,23 +620,25 @@
   background: transparent;
   color: #4aa3ff;
   font-weight: 700;
+  font-size: 0.88rem;
 }
 
 .manual-pay__hint {
-  margin: 0.55rem 0 0;
+  margin: 0.35rem 0 0;
   color: #9eacc7;
-  font-size: 0.98rem;
+  font-size: 0.84rem;
 }
 
 .manual-pay__qr {
   position: relative;
-  width: min(220px, 100%);
-  margin: 0.95rem auto 0;
-  border-radius: 18px;
+  width: min(156px, 100%);
+  margin: 0.65rem auto 0;
+  border-radius: 16px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: #fff;
   padding: 0.2rem;
+  cursor: zoom-in;
 }
 
 .manual-pay__qr img {
@@ -657,14 +648,50 @@
   display: block;
 }
 
+.manual-pay__qr-preview-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(1, 7, 18, 0.72);
+  backdrop-filter: blur(10px);
+}
+
+.manual-pay__qr-preview {
+  position: relative;
+  width: min(560px, 100%);
+  padding: 0.75rem;
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.42);
+}
+
+.manual-pay__qr-preview img {
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  display: block;
+  border-radius: 18px;
+}
+
+.manual-pay__qr-preview-close {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  background: rgba(15, 23, 42, 0.12);
+  color: #0f172a;
+}
+
 .manual-pay__input {
   width: 100%;
-  border-radius: 18px;
+  border-radius: 14px;
   border: 1px solid rgba(93, 118, 168, 0.24);
   background: rgba(18, 27, 52, 0.98);
   color: #f8fbff;
-  padding: 1rem 1.1rem;
-  font-size: 1rem;
+  padding: 0.74rem 0.9rem;
+  font-size: 0.88rem;
 }
 
 .manual-pay__input::placeholder {
@@ -676,12 +703,13 @@
   display: inline-flex;
   align-items: center;
   gap: 0.8rem;
-  border-radius: 18px;
+  border-radius: 14px;
   border: 1px dashed rgba(93, 118, 168, 0.35);
   background: rgba(11, 19, 41, 0.72);
   color: #7f91b3;
-  padding: 1rem 1.05rem;
+  padding: 0.74rem 0.9rem;
   font-weight: 600;
+  font-size: 0.86rem;
 }
 
 .manual-pay__upload.is-done {
@@ -691,10 +719,10 @@
 }
 
 .manual-pay__alert {
-  margin: 1rem 1.5rem 0;
-  padding: 0.9rem 1rem;
-  border-radius: 16px;
-  font-size: 0.92rem;
+  margin: 0.7rem 1rem 0;
+  padding: 0.72rem 0.85rem;
+  border-radius: 12px;
+  font-size: 0.82rem;
   font-weight: 600;
 }
 
@@ -717,18 +745,18 @@
 }
 
 .manual-pay__submit {
-  width: calc(100% - 3rem);
-  margin: 1rem 1.5rem 1.5rem;
+  width: calc(100% - 2rem);
+  margin: 0.7rem 1rem 1rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.7rem;
-  min-height: 60px;
+  min-height: 46px;
   border: 0;
-  border-radius: 18px;
+  border-radius: 14px;
   background: linear-gradient(90deg, #8a2cff, #ff3f9f);
   color: #fff;
-  font-size: 1.1rem;
+  font-size: 0.88rem;
   font-weight: 800;
   box-shadow: 0 18px 42px rgba(159, 66, 255, 0.25);
 }
@@ -789,7 +817,7 @@
   }
 
   .manual-pay__head {
-    padding: 1.1rem 1rem 1rem;
+    padding: 1rem;
   }
 
   .manual-pay__section {
