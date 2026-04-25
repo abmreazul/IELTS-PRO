@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getAuthUser } from "@/lib/supabase/server";
 import { isAdminEmail } from "@/lib/auth/admin";
+import { enforceActionRateLimit } from "@/lib/security/rate-limit";
 import {
   coerceTestVariant,
   getReadingSectionLabel,
@@ -13,7 +14,7 @@ import {
 } from "@/lib/exam/ielts-defaults";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
 
-async function requireAdmin() {
+async function requireAdmin(actionName = "admin-action") {
   const { user, error } = await getAuthUser();
   if (error || !user?.email) {
     throw new Error("Unauthorized");
@@ -21,6 +22,12 @@ async function requireAdmin() {
   if (!isAdminEmail(user.email)) {
     throw new Error("Forbidden");
   }
+  await enforceActionRateLimit({
+    action: `admin:${actionName}`,
+    subject: `user:${user.id}`,
+    limit: 120,
+    windowMs: 60_000,
+  });
   return user;
 }
 
@@ -33,7 +40,7 @@ function isMissingPaymentTable(message: string | undefined) {
 }
 
 export async function createCategory(formData: FormData) {
-  await requireAdmin();
+  await requireAdmin("create-category");
   const name = String(formData.get("name") ?? "").trim();
   const slug = String(formData.get("slug") ?? "")
     .trim()
@@ -52,7 +59,7 @@ export async function createCategory(formData: FormData) {
 }
 
 export async function updateCategory(formData: FormData) {
-  await requireAdmin();
+  await requireAdmin("update-category");
   const id = String(formData.get("id") ?? "");
   const name = String(formData.get("name") ?? "").trim();
   const slug = String(formData.get("slug") ?? "")
@@ -74,7 +81,7 @@ export async function updateCategory(formData: FormData) {
 }
 
 export async function deleteCategory(formData: FormData) {
-  await requireAdmin();
+  await requireAdmin("delete-category");
   const id = String(formData.get("id") ?? "");
   if (!id) throw new Error("Missing id");
   const admin = createServiceRoleClient();
@@ -86,7 +93,7 @@ export async function deleteCategory(formData: FormData) {
 }
 
 export async function createExam(formData: FormData) {
-  await requireAdmin();
+  await requireAdmin("create-exam");
   const payload = parseExamForm(formData);
   const admin = createServiceRoleClient();
   const { error } = await admin.from("mock_exams").insert(payload);
@@ -96,7 +103,7 @@ export async function createExam(formData: FormData) {
 }
 
 export async function updateExam(formData: FormData) {
-  await requireAdmin();
+  await requireAdmin("update-exam");
   const id = String(formData.get("id") ?? "");
   if (!id) throw new Error("Missing exam id");
   const payload = parseExamForm(formData);
@@ -108,7 +115,7 @@ export async function updateExam(formData: FormData) {
 }
 
 export async function deleteExam(formData: FormData) {
-  await requireAdmin();
+  await requireAdmin("delete-exam");
   const id = String(formData.get("id") ?? "");
   if (!id) throw new Error("Missing id");
   const admin = createServiceRoleClient();
@@ -198,7 +205,7 @@ function parseCourseForm(formData: FormData): CourseSaveInput {
 }
 
 export async function saveCourse(formData: FormData) {
-  await requireAdmin();
+  await requireAdmin("save-course");
   const input = parseCourseForm(formData);
 
   if (!input.title) {
@@ -252,7 +259,7 @@ export async function saveCourse(formData: FormData) {
 }
 
 export async function deleteCourse(formData: FormData) {
-  await requireAdmin();
+  await requireAdmin("delete-course");
   const id = String(formData.get("id") ?? "").trim();
   if (!id) throw new Error("Missing course id");
   const admin = createServiceRoleClient();
@@ -264,7 +271,7 @@ export async function deleteCourse(formData: FormData) {
 }
 
 export async function reviewPaymentRequest(formData: FormData) {
-  const reviewer = await requireAdmin();
+  const reviewer = await requireAdmin("review-payment-request");
   const requestId = String(formData.get("request_id") ?? "").trim();
   const decision = String(formData.get("decision") ?? "").trim();
   const adminNote = String(formData.get("admin_note") ?? "").trim() || null;
@@ -367,7 +374,7 @@ function buildReviewEmailUrl(input: {
 }
 
 export async function reviewSpeakingAttempt(formData: FormData) {
-  const reviewer = await requireAdmin();
+  const reviewer = await requireAdmin("review-speaking-attempt");
   const attemptId = String(formData.get("attempt_id") ?? "").trim();
   const examId = String(formData.get("exam_id") ?? "").trim();
   const speakingBandRaw = Number.parseFloat(String(formData.get("speaking_band") ?? ""));
@@ -449,7 +456,7 @@ export async function submitHumanReview(
   formData: FormData,
 ): Promise<ReviewFormState> {
   try {
-    const reviewer = await requireAdmin();
+    const reviewer = await requireAdmin("submit-human-review");
     const attemptId = String(formData.get("attempt_id") ?? "").trim();
     const examId = String(formData.get("exam_id") ?? "").trim();
     const studentEmail = String(formData.get("student_email") ?? "").trim();
@@ -989,7 +996,7 @@ export async function saveExamWizard(
   input: ExamWizardSaveInput,
 ): Promise<{ ok: true; id: string } | { ok: false; message: string }> {
   try {
-    await requireAdmin();
+    await requireAdmin("save-exam-wizard");
   } catch {
     return { ok: false, message: "Unauthorized" };
   }
@@ -1141,7 +1148,7 @@ export async function saveExamWizard(
 }
 
 export async function duplicateExam(formData: FormData) {
-  await requireAdmin();
+  await requireAdmin("duplicate-exam");
   const id = String(formData.get("id") ?? "").trim();
   if (!id) throw new Error("Missing exam id");
 
@@ -1211,7 +1218,7 @@ export async function getSignedUploadUrl(
   contentType: string,
 ): Promise<{ ok: true; signedUrl: string; path: string; publicUrl: string } | { ok: false; message: string }> {
   try {
-    await requireAdmin();
+    await requireAdmin("get-signed-upload-url");
   } catch {
     return { ok: false, message: "Unauthorized" };
   }
@@ -1249,7 +1256,7 @@ export async function uploadCourseMedia(
   formData: FormData,
 ): Promise<{ ok: true; url: string } | { ok: false; message: string }> {
   try {
-    await requireAdmin();
+    await requireAdmin("upload-course-media");
   } catch {
     return { ok: false, message: "Unauthorized" };
   }
@@ -1307,7 +1314,7 @@ export async function getSignedCourseUploadUrl(
   fileName: string,
 ): Promise<{ ok: true; signedUrl: string; path: string; publicUrl: string } | { ok: false; message: string }> {
   try {
-    await requireAdmin();
+    await requireAdmin("get-signed-course-upload-url");
   } catch {
     return { ok: false, message: "Unauthorized" };
   }
@@ -1346,7 +1353,7 @@ export async function uploadExamMedia(
   formData: FormData,
 ): Promise<{ ok: true; url: string } | { ok: false; message: string }> {
   try {
-    await requireAdmin();
+    await requireAdmin("upload-exam-media");
   } catch {
     return { ok: false, message: "Unauthorized" };
   }

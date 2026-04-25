@@ -72,6 +72,17 @@ const MODULE_ICONS: Record<string, typeof Headphones> = {
   writing: PenLine,
 };
 
+type ExamDraft = {
+  answers: AnswerMap;
+  activePart: number;
+  expandedModule: string;
+  savedAt: number;
+};
+
+function getExamDraftKey(examId: string) {
+  return `ielts-exam-draft:${examId}`;
+}
+
 /* ═══════════════════════════════════════════════════════════════════
    Timer Hook
    ═══════════════════════════════════════════════════════════════════ */
@@ -226,6 +237,7 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
   const [trayCollapsed, setTrayCollapsed] = useState(false);
   const activeModules = useMemo(() => normalizeExamModules(exam.modules), [exam.modules]);
   const [expandedModule, setExpandedModule] = useState<string>(activeModules[0] ?? "listening");
+  const hydratedDraftRef = useRef(false);
 
   const totalSeconds = exam.duration_minutes * 60;
   const handleTimeEnd = useCallback(() => {
@@ -331,6 +343,60 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
   const setAnswer = (questionId: string, value: unknown) => {
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
   };
+
+  useEffect(() => {
+    if (hydratedDraftRef.current || typeof window === "undefined") return;
+    hydratedDraftRef.current = true;
+
+    try {
+      const raw = window.localStorage.getItem(getExamDraftKey(exam.id));
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as Partial<ExamDraft> | null;
+      if (!parsed || typeof parsed !== "object") return;
+
+      const nextAnswers =
+        parsed.answers && typeof parsed.answers === "object"
+          ? Object.fromEntries(
+              Object.entries(parsed.answers).filter(([questionId]) =>
+                questions.some((question) => question.id === questionId),
+              ),
+            )
+          : {};
+
+      setAnswers(nextAnswers);
+
+      const nextActivePart =
+        typeof parsed.activePart === "number" && parsed.activePart >= 1 && parsed.activePart <= parts.length
+          ? parsed.activePart
+          : 1;
+      setActivePart(nextActivePart);
+
+      const nextExpandedModule =
+        typeof parsed.expandedModule === "string" &&
+        activeModules.includes(parsed.expandedModule as "listening" | "reading" | "writing")
+          ? parsed.expandedModule
+          : activeModules[0] ?? "listening";
+      setExpandedModule(nextExpandedModule);
+    } catch {
+      window.localStorage.removeItem(getExamDraftKey(exam.id));
+    }
+  }, [activeModules, exam.id, parts.length, questions]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !hydratedDraftRef.current || submitted) return;
+    const draft: ExamDraft = {
+      answers,
+      activePart,
+      expandedModule,
+      savedAt: Date.now(),
+    };
+    window.localStorage.setItem(getExamDraftKey(exam.id), JSON.stringify(draft));
+  }, [activePart, answers, exam.id, expandedModule, submitted]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !submitted) return;
+    window.localStorage.removeItem(getExamDraftKey(exam.id));
+  }, [exam.id, submitted]);
 
   const getQuestionImageUrl = useCallback((question: ExamQuestion) => {
     const localIndex = currentPartInfo.questions.findIndex((candidate) => candidate.id === question.id);

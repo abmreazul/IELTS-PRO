@@ -1,12 +1,12 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { sanitizeRelativeRedirectPath } from "@/lib/security/redirect";
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  const nextRaw = searchParams.get("next") ?? "/";
-  const next = nextRaw.startsWith("/") ? nextRaw : "/";
+  const next = sanitizeRelativeRedirectPath(searchParams.get("next"), origin);
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;

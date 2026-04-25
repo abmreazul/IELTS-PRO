@@ -7,6 +7,7 @@ import { evaluateWritingWithGemini } from "@/lib/ai/gemini-writing";
 import { roundBandToNearestHalf } from "@/lib/ai/writing-review";
 import { coerceTestVariant, normalizeExamModules } from "@/lib/exam/ielts-defaults";
 import type { ManualPaymentMethodId } from "@/lib/payments/manual-payment";
+import { enforceActionRateLimit } from "@/lib/security/rate-limit";
 
 /* ═══════════════════════════════════════════════════════════════════
    IELTS Band Conversion (standard 40-question Listening / Reading)
@@ -71,6 +72,16 @@ export async function uploadPaymentProof(formData: FormData) {
   if (error || !user) {
     return { ok: false, message: "Sign in required." };
   }
+  try {
+    await enforceActionRateLimit({
+      action: "mock-exam:upload-payment-proof",
+      subject: `user:${user.id}`,
+      limit: 10,
+      windowMs: 5 * 60_000,
+    });
+  } catch (rateError) {
+    return { ok: false, message: rateError instanceof Error ? rateError.message : "Too many requests." };
+  }
 
   const file = formData.get("file");
   if (!(file instanceof File)) {
@@ -122,6 +133,16 @@ export async function submitPaymentRequest(input: SubmitPaymentInput) {
   const { user, error } = await getAuthUser();
   if (error || !user) {
     return { ok: false, message: "Sign in required." };
+  }
+  try {
+    await enforceActionRateLimit({
+      action: "mock-exam:submit-payment-request",
+      subject: `user:${user.id}`,
+      limit: 6,
+      windowMs: 10 * 60_000,
+    });
+  } catch (rateError) {
+    return { ok: false, message: rateError instanceof Error ? rateError.message : "Too many requests." };
   }
 
   const transactionId = String(input.transactionId ?? "").trim();
@@ -211,6 +232,16 @@ export async function startExamAttempt(
   if (error || !user) {
     return { ok: false, message: "Sign in required" };
   }
+  try {
+    await enforceActionRateLimit({
+      action: "mock-exam:start-attempt",
+      subject: `user:${user.id}`,
+      limit: 20,
+      windowMs: 10 * 60_000,
+    });
+  } catch (rateError) {
+    return { ok: false, message: rateError instanceof Error ? rateError.message : "Too many requests." };
+  }
 
   const admin = createServiceRoleClient();
 
@@ -278,6 +309,16 @@ export async function submitExamAttempt(
   const { user, error } = await getAuthUser();
   if (error || !user) {
     return { ok: false, message: "Sign in required" };
+  }
+  try {
+    await enforceActionRateLimit({
+      action: "mock-exam:submit-attempt",
+      subject: `user:${user.id}`,
+      limit: 10,
+      windowMs: 15 * 60_000,
+    });
+  } catch (rateError) {
+    return { ok: false, message: rateError instanceof Error ? rateError.message : "Too many requests." };
   }
 
   const admin = createServiceRoleClient();
