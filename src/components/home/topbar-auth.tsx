@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
 import { motion } from "framer-motion";
-import { LogOut, UserRound } from "lucide-react";
+import { LayoutDashboard, LogOut, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore } from "react";
@@ -106,6 +106,15 @@ export function TopbarAuthDesktop() {
               <span className="topbar-profile__name">{displayName(user)}</span>
               <span className="topbar-profile__email">{user.email}</span>
             </div>
+            <Link
+              href="/dashboard"
+              className="topbar-profile__logout"
+              role="menuitem"
+              onClick={() => setOpen(false)}
+            >
+              <LayoutDashboard size={18} strokeWidth={2} aria-hidden />
+              Dashboard
+            </Link>
             <button
               type="button"
               className="topbar-profile__logout"
@@ -160,6 +169,10 @@ export function TopbarAuthMobile({ onNavigate }: { onNavigate: () => void }) {
           <span className="mobile-drawer__user-name">{displayName(user)}</span>
           <span className="mobile-drawer__user-email">{user.email}</span>
         </div>
+        <Link href="/dashboard" className="btn btn-ghost btn-block" onClick={onNavigate} style={{ justifyContent: "center", gap: "0.5rem" }}>
+          <LayoutDashboard size={18} strokeWidth={2} aria-hidden />
+          Dashboard
+        </Link>
         <button type="button" className="btn btn-ghost btn-block mobile-drawer__logout" onClick={signOut}>
           <LogOut size={18} strokeWidth={2} aria-hidden />
           Log out

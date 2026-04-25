@@ -296,9 +296,12 @@ export async function reviewPaymentRequest(formData: FormData) {
   if (!request) {
     throw new Error("Payment request not found.");
   }
+  if (request.status !== "pending") {
+    throw new Error("This payment request has already been reviewed.");
+  }
 
   const nextStatus = decision === "approve" ? "approved" : "rejected";
-  const { error: updateError } = await admin
+  const { data: updatedRows, error: updateError } = await admin
     .from("payment_requests")
     .update({
       status: nextStatus,
@@ -306,10 +309,15 @@ export async function reviewPaymentRequest(formData: FormData) {
       reviewed_at: new Date().toISOString(),
       reviewed_by: reviewer.id,
     })
-    .eq("id", requestId);
+    .eq("id", requestId)
+    .eq("status", "pending")
+    .select("id");
 
   if (updateError) {
     throw new Error(updateError.message);
+  }
+  if (!updatedRows || updatedRows.length === 0) {
+    throw new Error("This payment request was already reviewed by another admin.");
   }
 
   if (decision === "approve") {
