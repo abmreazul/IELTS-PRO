@@ -10,9 +10,10 @@ import { ThemeToggle } from "./theme-toggle";
 type SiteHeaderProps = {
   /** Highlights Admin when you are in /admin (marketing-style top bar). */
   adminNavActive?: boolean;
+  showAdminLink?: boolean;
 };
 
-export function SiteHeader({ adminNavActive = false }: SiteHeaderProps) {
+export function SiteHeader({ adminNavActive = false, showAdminLink = false }: SiteHeaderProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
@@ -37,9 +38,11 @@ export function SiteHeader({ adminNavActive = false }: SiteHeaderProps) {
             <Link href="/mock-exam">Mock Exams</Link>
             <a href="/#features">Features</a>
             <a href="/#pricing">Pricing</a>
-            <Link href="/admin" className={adminNavActive ? "topbar-link--active" : undefined}>
-              Admin
-            </Link>
+            {showAdminLink ? (
+              <Link href="/admin" className={adminNavActive ? "topbar-link--active" : undefined}>
+                Admin
+              </Link>
+            ) : null}
           </nav>
 
           <div className="topbar-actions">
@@ -99,13 +102,15 @@ export function SiteHeader({ adminNavActive = false }: SiteHeaderProps) {
             <a href="/#pricing" onClick={() => setMobileOpen(false)}>
               Pricing
             </a>
-            <Link
-              href="/admin"
-              className={adminNavActive ? "topbar-link--active" : undefined}
-              onClick={() => setMobileOpen(false)}
-            >
-              Admin
-            </Link>
+            {showAdminLink ? (
+              <Link
+                href="/admin"
+                className={adminNavActive ? "topbar-link--active" : undefined}
+                onClick={() => setMobileOpen(false)}
+              >
+                Admin
+              </Link>
+            ) : null}
             <hr className="mobile-drawer__rule" />
             <TopbarAuthMobile onNavigate={() => setMobileOpen(false)} />
           </motion.nav>
