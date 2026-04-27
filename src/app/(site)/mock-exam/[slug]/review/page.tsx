@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { createClient, getAuthUser } from "@/lib/supabase/server";
 import type { WritingAiReview } from "@/lib/ai/writing-review";
+import { normalizeExamModules } from "@/lib/exam/ielts-defaults";
 
 export const metadata: Metadata = {
   title: "Review results | The IELTS Exam",
@@ -17,7 +18,7 @@ export default async function ReviewMockExamPage({
 
   const { data: exam } = await supabase
     .from("mock_exams")
-    .select("id, title")
+    .select("id, title, modules")
     .eq("slug", slug)
     .maybeSingle();
 
@@ -57,6 +58,8 @@ export default async function ReviewMockExamPage({
       .select("status, review_status, overall_band, listening_band, reading_band, writing_band, completed_at, created_at, ai_review_json")
       .eq("exam_id", exam.id)
       .eq("user_id", user.id)
+      .eq("status", "completed")
+      .order("completed_at", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -67,6 +70,8 @@ export default async function ReviewMockExamPage({
         .select("status, review_status, overall_band, listening_band, reading_band, writing_band, completed_at, created_at")
         .eq("exam_id", exam.id)
         .eq("user_id", user.id)
+        .eq("status", "completed")
+        .order("completed_at", { ascending: false })
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -80,6 +85,26 @@ export default async function ReviewMockExamPage({
   const aiReview = attempt?.ai_review_json && typeof attempt.ai_review_json === "object"
     ? attempt.ai_review_json as WritingAiReview
     : null;
+  const activeModules = normalizeExamModules(exam.modules);
+  const summaryCards = attempt
+    ? [
+        activeModules.length > 1
+          ? { label: "Overall", value: attempt.overall_band }
+          : null,
+        activeModules.includes("listening")
+          ? { label: "Listening", value: attempt.listening_band }
+          : null,
+        activeModules.includes("reading")
+          ? { label: "Reading", value: attempt.reading_band }
+          : null,
+        activeModules.includes("writing")
+          ? {
+              label: "Writing",
+              value: reviewPending ? "Pending review" : attempt.writing_band,
+            }
+          : null,
+      ].filter((card): card is { label: string; value: number | string | null } => Boolean(card))
+    : [];
 
   return (
     <main className="page" style={{ padding: "3rem 1.5rem" }}>
@@ -107,18 +132,14 @@ export default async function ReviewMockExamPage({
               Your writing submission was saved successfully. Objective sections can still show bands, but the writing score stays pending until review is completed.
             </p>
             <div style={{ marginTop: "1rem", display: "grid", gap: "0.75rem", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
-              <div style={{ padding: "1rem", border: "1px solid var(--border)", borderRadius: "16px", background: "var(--surface)" }}>
-                <div style={{ color: "var(--muted)", fontSize: "0.8rem", textTransform: "uppercase", letterSpacing: "0.08em" }}>Listening</div>
-                <div style={{ marginTop: "0.35rem", fontSize: "1.4rem", fontWeight: 800 }}>{attempt.listening_band ?? "—"}</div>
-              </div>
-              <div style={{ padding: "1rem", border: "1px solid var(--border)", borderRadius: "16px", background: "var(--surface)" }}>
-                <div style={{ color: "var(--muted)", fontSize: "0.8rem", textTransform: "uppercase", letterSpacing: "0.08em" }}>Reading</div>
-                <div style={{ marginTop: "0.35rem", fontSize: "1.4rem", fontWeight: 800 }}>{attempt.reading_band ?? "—"}</div>
-              </div>
-              <div style={{ padding: "1rem", border: "1px solid var(--border)", borderRadius: "16px", background: "var(--surface)" }}>
-                <div style={{ color: "var(--muted)", fontSize: "0.8rem", textTransform: "uppercase", letterSpacing: "0.08em" }}>Writing</div>
-                <div style={{ marginTop: "0.35rem", fontSize: "1.1rem", fontWeight: 800 }}>Pending review</div>
-              </div>
+              {summaryCards.map((card) => (
+                <div key={card.label} style={{ padding: "1rem", border: "1px solid var(--border)", borderRadius: "16px", background: "var(--surface)" }}>
+                  <div style={{ color: "var(--muted)", fontSize: "0.8rem", textTransform: "uppercase", letterSpacing: "0.08em" }}>{card.label}</div>
+                  <div style={{ marginTop: "0.35rem", fontSize: typeof card.value === "string" ? "1.1rem" : "1.4rem", fontWeight: 800 }}>
+                    {typeof card.value === "number" ? card.value.toFixed(1) : (card.value ?? "—")}
+                  </div>
+                </div>
+              ))}
             </div>
           </>
         ) : (
@@ -127,14 +148,14 @@ export default async function ReviewMockExamPage({
               Latest completed attempt.
             </p>
             <div style={{ marginTop: "1rem", display: "grid", gap: "0.75rem", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
-              <div style={{ padding: "1rem", border: "1px solid var(--border)", borderRadius: "16px", background: "var(--surface)" }}>
-                <div style={{ color: "var(--muted)", fontSize: "0.8rem", textTransform: "uppercase", letterSpacing: "0.08em" }}>Overall</div>
-                <div style={{ marginTop: "0.35rem", fontSize: "1.4rem", fontWeight: 800 }}>{attempt.overall_band ?? "—"}</div>
-              </div>
-              <div style={{ padding: "1rem", border: "1px solid var(--border)", borderRadius: "16px", background: "var(--surface)" }}>
-                <div style={{ color: "var(--muted)", fontSize: "0.8rem", textTransform: "uppercase", letterSpacing: "0.08em" }}>Writing</div>
-                <div style={{ marginTop: "0.35rem", fontSize: "1.4rem", fontWeight: 800 }}>{attempt.writing_band ?? "—"}</div>
-              </div>
+              {summaryCards.map((card) => (
+                <div key={card.label} style={{ padding: "1rem", border: "1px solid var(--border)", borderRadius: "16px", background: "var(--surface)" }}>
+                  <div style={{ color: "var(--muted)", fontSize: "0.8rem", textTransform: "uppercase", letterSpacing: "0.08em" }}>{card.label}</div>
+                  <div style={{ marginTop: "0.35rem", fontSize: typeof card.value === "string" ? "1.1rem" : "1.4rem", fontWeight: 800 }}>
+                    {typeof card.value === "number" ? card.value.toFixed(1) : (card.value ?? "—")}
+                  </div>
+                </div>
+              ))}
             </div>
             {aiReview ? (
               <div style={{ marginTop: "1rem", display: "grid", gap: "0.9rem" }}>

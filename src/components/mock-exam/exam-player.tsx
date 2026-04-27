@@ -231,6 +231,12 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
   const [masterAudioProgress, setMasterAudioProgress] = useState(0);
   const [masterAudioEnded, setMasterAudioEnded] = useState(false);
   const [furthestListeningPart, setFurthestListeningPart] = useState(1);
+  const [audioBoost, setAudioBoost] = useState(100);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const gainNodesRef = useRef(new WeakMap<HTMLAudioElement, GainNode>());
+  const sourceNodesRef = useRef(new WeakMap<HTMLAudioElement, MediaElementAudioSourceNode>());
+  const autoplayAttemptedPartsRef = useRef(new Set<number>());
+  const masterAutoplayAttemptedRef = useRef(false);
 
   const contentRef = useRef<HTMLDivElement>(null);
   const [navCollapsed, setNavCollapsed] = useState(false);
@@ -302,6 +308,62 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
     if (listeningAudioSource.mode !== "legacy") return null;
     return listeningAudioSource.clips.find((a) => a.part === partNum) ?? null;
   };
+
+  const ensureAudioGainNode = useCallback((audio: HTMLAudioElement) => {
+    if (typeof window === "undefined") return null;
+    const AudioContextCtor = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextCtor) return null;
+
+    if (!audioContextRef.current) {
+      audioContextRef.current = new AudioContextCtor();
+    }
+
+    const context = audioContextRef.current;
+    let source = sourceNodesRef.current.get(audio);
+    if (!source) {
+      source = context.createMediaElementSource(audio);
+      sourceNodesRef.current.set(audio, source);
+    }
+
+    let gainNode = gainNodesRef.current.get(audio);
+    if (!gainNode) {
+      gainNode = context.createGain();
+      source.connect(gainNode);
+      gainNode.connect(context.destination);
+      gainNodesRef.current.set(audio, gainNode);
+    }
+
+    return gainNode;
+  }, []);
+
+  const applyAudioBoost = useCallback((audio: HTMLAudioElement | null) => {
+    if (!audio) return;
+
+    const boundedBoost = Math.max(0, Math.min(200, audioBoost));
+    if (boundedBoost <= 100) {
+      audio.volume = boundedBoost / 100;
+      const gainNode = gainNodesRef.current.get(audio);
+      if (gainNode) gainNode.gain.value = 1;
+      return;
+    }
+
+    audio.volume = 1;
+    const gainNode = ensureAudioGainNode(audio);
+    if (gainNode) {
+      gainNode.gain.value = boundedBoost / 100;
+    }
+  }, [audioBoost, ensureAudioGainNode]);
+
+  const tryResumeAudioContext = useCallback(async () => {
+    const context = audioContextRef.current;
+    if (context?.state === "suspended") {
+      try {
+        await context.resume();
+      } catch {
+        /* ignore browser policy failures */
+      }
+    }
+  }, []);
 
   const listeningTabIndices = useMemo(
     () => parts
@@ -464,6 +526,8 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
         try {
           setListeningStarted(true);
           setFurthestListeningPart((prev) => Math.max(prev, currentPartInfo.part));
+          applyAudioBoost(audio);
+          await tryResumeAudioContext();
           await audio.play();
           setMasterAudioPlaying(true);
         } catch {
@@ -490,6 +554,8 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
     } else {
       try {
         setListeningStarted(true);
+        applyAudioBoost(audio);
+        await tryResumeAudioContext();
         await audio.play();
         setPlayingPart(partNum);
       } catch {
@@ -507,7 +573,9 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
     if (!audio) return;
 
     audio.currentTime = 0;
-    void audio.play()
+    applyAudioBoost(audio);
+    void tryResumeAudioContext()
+      .then(() => audio.play())
       .then(() => {
         setPlayingPart(pendingAutoplayPart);
         setPendingAutoplayPart(null);
@@ -515,9 +583,66 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
       .catch(() => {
         setPlayingPart(null);
       });
-  }, [currentPartInfo.module, currentPartInfo.part, isMasterListeningAudio, pendingAutoplayPart]);
+  }, [applyAudioBoost, currentPartInfo.module, currentPartInfo.part, isMasterListeningAudio, pendingAutoplayPart, tryResumeAudioContext]);
 
   useEffect(() => stopListeningAudio, [stopListeningAudio]);
+
+  useEffect(() => {
+    if (masterAudioRef.current) applyAudioBoost(masterAudioRef.current);
+    Object.values(audioRefs.current).forEach((audio) => applyAudioBoost(audio));
+  }, [applyAudioBoost, currentPartInfo.part, listeningAudioSource.mode]);
+
+  useEffect(() => {
+    if (!isListening) return;
+
+    if (isMasterListeningAudio) {
+      if (masterAudioEnded || masterAudioPlaying || masterAutoplayAttemptedRef.current) return;
+      const audio = masterAudioRef.current;
+      if (!audio) return;
+
+      masterAutoplayAttemptedRef.current = true;
+      applyAudioBoost(audio);
+      void tryResumeAudioContext()
+        .then(() => audio.play())
+        .then(() => {
+          setListeningStarted(true);
+          setMasterAudioPlaying(true);
+          setFurthestListeningPart((prev) => Math.max(prev, currentPartInfo.part));
+        })
+        .catch(() => {
+          setMasterAudioPlaying(false);
+        });
+      return;
+    }
+
+    if (completedListeningParts.includes(currentPartInfo.part) || pendingAutoplayPart) return;
+    if (autoplayAttemptedPartsRef.current.has(currentPartInfo.part)) return;
+
+    const audio = audioRefs.current[currentPartInfo.part];
+    if (!audio) return;
+
+    autoplayAttemptedPartsRef.current.add(currentPartInfo.part);
+    applyAudioBoost(audio);
+    void tryResumeAudioContext()
+      .then(() => audio.play())
+      .then(() => {
+        setListeningStarted(true);
+        setPlayingPart(currentPartInfo.part);
+      })
+      .catch(() => {
+        setPlayingPart((prev) => (prev === currentPartInfo.part ? null : prev));
+      });
+  }, [
+    applyAudioBoost,
+    completedListeningParts,
+    currentPartInfo.part,
+    isListening,
+    isMasterListeningAudio,
+    masterAudioEnded,
+    masterAudioPlaying,
+    pendingAutoplayPart,
+    tryResumeAudioContext,
+  ]);
 
   const answeredInPart = (partQuestions: ExamQuestion[]) =>
     partQuestions.filter((q) => answers[q.id] !== undefined).length;
@@ -841,6 +966,18 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
                       {playingPart === currentPartInfo.part ? <Pause size={14} /> : <Play size={14} />}
                       {playingPart === currentPartInfo.part ? "Pause paper" : currentPartInfo.part === 1 ? "Start paper" : `Play Part ${currentPartInfo.part}`}
                     </button>
+                    <label className="ep-listen-bar__volume" aria-label="Audio boost">
+                      <Volume2 size={14} />
+                      <input
+                        type="range"
+                        min={0}
+                        max={200}
+                        step={5}
+                        value={audioBoost}
+                        onChange={(e) => setAudioBoost(Number(e.target.value))}
+                      />
+                      <span>{audioBoost}%</span>
+                    </label>
                     <div className="ep-listen-bar__progress">
                       <div className="ep-listen-bar__progress-fill" style={{ width: `${audioProgress[currentPartInfo.part] ?? 0}%` }} />
                     </div>
@@ -849,6 +986,7 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
                     ref={(el) => { audioRefs.current[currentPartInfo.part] = el; }}
                     src={getAudioForPart(currentPartInfo.part)!.url}
                     preload="auto"
+                    onLoadedMetadata={(e) => applyAudioBoost(e.currentTarget)}
                     onTimeUpdate={(e) => {
                       const a = e.currentTarget;
                       if (a.duration) setAudioProgress((prev) => ({ ...prev, [currentPartInfo.part]: (a.currentTime / a.duration) * 100 }));
@@ -892,6 +1030,18 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
                       {masterAudioPlaying ? <Pause size={14} /> : <Play size={14} />}
                       {masterAudioPlaying ? "Pause paper" : "Start paper"}
                     </button>
+                    <label className="ep-listen-bar__volume" aria-label="Audio boost">
+                      <Volume2 size={14} />
+                      <input
+                        type="range"
+                        min={0}
+                        max={200}
+                        step={5}
+                        value={audioBoost}
+                        onChange={(e) => setAudioBoost(Number(e.target.value))}
+                      />
+                      <span>{audioBoost}%</span>
+                    </label>
                     <div className="ep-listen-bar__progress">
                       <div className="ep-listen-bar__progress-fill" style={{ width: `${masterAudioProgress}%` }} />
                     </div>
@@ -900,6 +1050,7 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
                     ref={masterAudioRef}
                     src={listeningAudioSource.asset.url}
                     preload="auto"
+                    onLoadedMetadata={(e) => applyAudioBoost(e.currentTarget)}
                     onTimeUpdate={(e) => {
                       const audio = e.currentTarget;
                       if (audio.duration) {
