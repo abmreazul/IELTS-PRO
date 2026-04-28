@@ -221,6 +221,9 @@ export function CreateAccountPage() {
         provider: "google",
         options: {
           redirectTo: `${getSiteUrl()}/auth/callback?next=/create-account`,
+          queryParams: {
+            prompt: "select_account",
+          },
         },
       });
       if (error) throw error;

@@ -41,6 +41,9 @@ function SignInForm() {
         provider: "google",
         options: {
           redirectTo: `${getSiteUrl()}/auth/callback?next=/`,
+          queryParams: {
+            prompt: "select_account",
+          },
         },
       });
       if (error) throw error;
