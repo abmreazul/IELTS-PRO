@@ -17,7 +17,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <>
-      <SiteHeader adminNavActive />
+      <SiteHeader adminNavActive showAdminLink />
       <div className="admin-shell">
         <div className="admin-main admin-main--flush">{children}</div>
         <footer className="admin-footer">
@@ -32,6 +32,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <Link href="/admin/payments">Payments</Link>
           <span aria-hidden>·</span>
           <Link href="/admin/reviews">Reviews</Link>
+          <span aria-hidden>·</span>
+          <Link href="/admin/seo">SEO</Link>
           <span aria-hidden>·</span>
           <Link href="/mock-exam">Public catalog</Link>
         </footer>

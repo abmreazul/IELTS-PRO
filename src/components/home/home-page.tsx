@@ -619,8 +619,8 @@ export function HomePage({ featuredExams = [] }: HomePageProps) {
           <div className="container footer-bar">
             <p>© {new Date().getFullYear()} The IELTS Exam. All rights reserved.</p>
             <div className="footer-legal">
-              <a href="#">Terms & Conditions</a>
-              <a href="#">Privacy Policy</a>
+              <Link href="/terms">Terms &amp; Conditions</Link>
+              <Link href="/privacy">Privacy Policy</Link>
             </div>
           </div>
         </footer>

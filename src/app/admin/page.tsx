@@ -137,9 +137,14 @@ export default async function AdminHomePage() {
           <h1>Admin Dashboard</h1>
           <p>Manage and create mock exams</p>
         </div>
-        <Link href="/admin/exams/new" className="admin-cta-btn">
-          + Create New Exam
-        </Link>
+        <div className="admin-table-actions">
+          <Link href="/admin/courses/new" className="btn btn-outline">
+            + Create Course
+          </Link>
+          <Link href="/admin/exams/new" className="admin-cta-btn">
+            + Create New Exam
+          </Link>
+        </div>
       </div>
 
       {/* ── Stat cards ─────────────────────────────── */}

@@ -5,12 +5,19 @@ import { createClient, getAuthUser } from "@/lib/supabase/server";
 import { MockExamCatalog } from "@/components/mock-exam/mock-exam-catalog";
 import type { MockAttemptRow, MockExamRow, MockPaymentRequestRow } from "@/components/mock-exam/types";
 import { normalizeExamModules } from "@/lib/exam/ielts-defaults";
+import { getSeoOverrides, applySeoOverrides } from "@/lib/seo/metadata";
 import "./mock-exam.css";
 
-export const metadata: Metadata = {
-  title: "Mock Exams | The IELTS Exam",
-  description: "Browse full and partial IELTS mock exams by category.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const overrides = await getSeoOverrides("/mock-exam");
+  return applySeoOverrides(
+    {
+      title: "Mock Exams | The IELTS Exam",
+      description: "Browse full and partial IELTS mock exams by category.",
+    },
+    overrides,
+  );
+}
 
 /**
  * Cache the public catalog data (categories + published exams) for 60s.

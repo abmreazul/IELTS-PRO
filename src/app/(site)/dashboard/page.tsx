@@ -4,12 +4,19 @@ import { createClient, getAuthUser } from "@/lib/supabase/server";
 import { normalizeExamModules } from "@/lib/exam/ielts-defaults";
 import { StudentDashboard } from "@/components/dashboard/student-dashboard";
 import type { DashboardAttempt } from "@/components/dashboard/student-dashboard";
+import { getSeoOverrides, applySeoOverrides } from "@/lib/seo/metadata";
 import "./dashboard.css";
 
-export const metadata: Metadata = {
-  title: "Dashboard | The IELTS Exam",
-  description: "Track your IELTS mock exam attempts, band score progress, and module performance.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const overrides = await getSeoOverrides("/dashboard");
+  return applySeoOverrides(
+    {
+      title: "Dashboard | The IELTS Exam",
+      description: "Track your IELTS mock exam attempts, band score progress, and module performance.",
+    },
+    overrides,
+  );
+}
 
 export default async function DashboardPage() {
   const { user } = await getAuthUser();

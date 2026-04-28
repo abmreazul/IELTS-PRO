@@ -9,6 +9,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${SITE}/mock-exam`, lastModified: new Date(), changeFrequency: "daily", priority: 0.9 },
     { url: `${SITE}/sign-in`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.3 },
     { url: `${SITE}/create-account`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.3 },
+    { url: `${SITE}/terms`, lastModified: new Date(), changeFrequency: "yearly", priority: 0.2 },
+    { url: `${SITE}/privacy`, lastModified: new Date(), changeFrequency: "yearly", priority: 0.2 },
   ];
 
   // Dynamic exam pages

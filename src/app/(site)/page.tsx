@@ -1,9 +1,22 @@
+import type { Metadata } from "next";
 import { HomePage } from "@/components/home/home-page";
 import type { MockExamRow } from "@/components/mock-exam/types";
 import { normalizeExamModules } from "@/lib/exam/ielts-defaults";
 import { createClient } from "@/lib/supabase/server";
+import { getSeoOverrides, applySeoOverrides } from "@/lib/seo/metadata";
 import "../(site)/mock-exam/mock-exam.css";
 
+export async function generateMetadata(): Promise<Metadata> {
+  const overrides = await getSeoOverrides("/");
+  return applySeoOverrides(
+    {
+      title: "The IELTS Exam — Full Mock Tests & Band Analytics",
+      description:
+        "Master the IELTS exam with full mock tests, band analytics, writing review, and personalised preparation.",
+    },
+    overrides,
+  );
+}
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://ielts-pro.vercel.app";
 
 const jsonLd = {
