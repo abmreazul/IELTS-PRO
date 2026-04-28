@@ -584,8 +584,7 @@ export function HomePage({ featuredExams = [] }: HomePageProps) {
           <div className="container footer-grid">
             <div className="footer-brand">
               <a href="#" className="brand-link brand-link--footer">
-                <LogoMark />
-                <span className="brand-text">The IELTS Exam</span>
+                <LogoMark size="footer" />
               </a>
               <p>
                 Realistic IELTS practice for listening, reading, and writing in one focused

@@ -28,8 +28,7 @@ export function SiteHeader({ adminNavActive = false, showAdminLink = false }: Si
       <header className="topbar">
         <div className="container topbar-inner">
           <Link href="/" className="brand-link">
-            <LogoMark />
-            <span className="brand-text">The IELTS Exam</span>
+            <LogoMark size="header" />
           </Link>
 
           <nav className="nav nav--desktop" aria-label="Primary">

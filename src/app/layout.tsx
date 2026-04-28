@@ -64,6 +64,11 @@ export const metadata: Metadata = {
       "Practice with realistic IELTS simulations and track your band score progress.",
     images: ["/og-image.png"],
   },
+  icons: {
+    icon: "/icon.png",
+    apple: "/icon.png",
+    shortcut: "/icon.png",
+  },
   robots: {
     index: true,
     follow: true,

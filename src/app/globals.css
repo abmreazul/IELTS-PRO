@@ -157,20 +157,19 @@ img {
 .brand-link {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0;
   color: var(--text);
-  font-weight: 700;
-  font-size: 1.125rem;
-  font-family: var(--font-display), var(--font-sans), sans-serif;
-  letter-spacing: -0.02em;
 }
 
 .brand-link:hover {
-  color: var(--primary);
+  opacity: 0.92;
 }
 
-.logo-icon {
-  color: var(--text);
+.brand-logo {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
 }
 
 .nav--desktop {
@@ -1662,7 +1661,7 @@ img {
 }
 
 .brand-link--footer:hover {
-  color: var(--primary);
+  opacity: 0.92;
 }
 
 .footer-heading {
