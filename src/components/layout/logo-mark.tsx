@@ -8,7 +8,7 @@ type LogoMarkProps = {
 
 const SIZE_MAP = {
   full: {
-    header: { width: 156, height: 86 },
+    header: { width: 118, height: 65 },
     footer: { width: 164, height: 90 },
     compact: { width: 136, height: 75 },
   },

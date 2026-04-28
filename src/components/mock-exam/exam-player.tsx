@@ -235,6 +235,7 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
   const audioContextRef = useRef<AudioContext | null>(null);
   const gainNodesRef = useRef(new WeakMap<HTMLAudioElement, GainNode>());
   const sourceNodesRef = useRef(new WeakMap<HTMLAudioElement, MediaElementAudioSourceNode>());
+  const boostUnsupportedRef = useRef(new WeakSet<HTMLAudioElement>());
   const autoplayAttemptedPartsRef = useRef(new Set<number>());
   const masterAutoplayAttemptedRef = useRef(false);
 
@@ -309,31 +310,48 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
     return listeningAudioSource.clips.find((a) => a.part === partNum) ?? null;
   };
 
+  const getPlayableAudioSrc = useCallback((src: string) => {
+    if (!src || typeof window === "undefined") return src;
+    try {
+      const parsed = new URL(src, window.location.origin);
+      if (parsed.origin === window.location.origin) return parsed.toString();
+      return `/api/audio-proxy?src=${encodeURIComponent(parsed.toString())}`;
+    } catch {
+      return src;
+    }
+  }, []);
+
   const ensureAudioGainNode = useCallback((audio: HTMLAudioElement) => {
     if (typeof window === "undefined") return null;
+    if (boostUnsupportedRef.current.has(audio)) return null;
     const AudioContextCtor = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!AudioContextCtor) return null;
 
-    if (!audioContextRef.current) {
-      audioContextRef.current = new AudioContextCtor();
-    }
+    try {
+      if (!audioContextRef.current) {
+        audioContextRef.current = new AudioContextCtor();
+      }
 
-    const context = audioContextRef.current;
-    let source = sourceNodesRef.current.get(audio);
-    if (!source) {
-      source = context.createMediaElementSource(audio);
-      sourceNodesRef.current.set(audio, source);
-    }
+      const context = audioContextRef.current;
+      let source = sourceNodesRef.current.get(audio);
+      if (!source) {
+        source = context.createMediaElementSource(audio);
+        sourceNodesRef.current.set(audio, source);
+      }
 
-    let gainNode = gainNodesRef.current.get(audio);
-    if (!gainNode) {
-      gainNode = context.createGain();
-      source.connect(gainNode);
-      gainNode.connect(context.destination);
-      gainNodesRef.current.set(audio, gainNode);
-    }
+      let gainNode = gainNodesRef.current.get(audio);
+      if (!gainNode) {
+        gainNode = context.createGain();
+        source.connect(gainNode);
+        gainNode.connect(context.destination);
+        gainNodesRef.current.set(audio, gainNode);
+      }
 
-    return gainNode;
+      return gainNode;
+    } catch {
+      boostUnsupportedRef.current.add(audio);
+      return null;
+    }
   }, []);
 
   const applyAudioBoost = useCallback((audio: HTMLAudioElement | null) => {
@@ -351,6 +369,8 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
     const gainNode = ensureAudioGainNode(audio);
     if (gainNode) {
       gainNode.gain.value = boundedBoost / 100;
+    } else {
+      audio.volume = 1;
     }
   }, [audioBoost, ensureAudioGainNode]);
 
@@ -984,7 +1004,8 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
                   </div>
                   <audio
                     ref={(el) => { audioRefs.current[currentPartInfo.part] = el; }}
-                    src={getAudioForPart(currentPartInfo.part)!.url}
+                    src={getPlayableAudioSrc(getAudioForPart(currentPartInfo.part)!.url)}
+                    crossOrigin="anonymous"
                     preload="auto"
                     onLoadedMetadata={(e) => applyAudioBoost(e.currentTarget)}
                     onTimeUpdate={(e) => {
@@ -1048,7 +1069,8 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
                   </div>
                   <audio
                     ref={masterAudioRef}
-                    src={listeningAudioSource.asset.url}
+                    src={getPlayableAudioSrc(listeningAudioSource.asset.url)}
+                    crossOrigin="anonymous"
                     preload="auto"
                     onLoadedMetadata={(e) => applyAudioBoost(e.currentTarget)}
                     onTimeUpdate={(e) => {
