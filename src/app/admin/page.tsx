@@ -138,6 +138,9 @@ export default async function AdminHomePage() {
           <p>Manage and create mock exams</p>
         </div>
         <div className="admin-table-actions">
+          <Link href="/admin/seo" className="btn btn-outline">
+            SEO
+          </Link>
           <Link href="/admin/courses/new" className="btn btn-outline">
             + Create Course
           </Link>
