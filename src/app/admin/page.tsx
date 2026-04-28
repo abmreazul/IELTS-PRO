@@ -32,7 +32,7 @@ const getAdminDashboardData = unstable_cache(
   async () => {
     const admin = createServiceRoleClient();
 
-    const [{ count: examCount }, { data: attempts }, { data: examsForRev }, { data: exams }, { count: pendingReviews }, { count: pendingPayments }] =
+    const [{ count: examCount }, { data: attempts }, { data: examsForRev }, { data: exams }, { count: pendingReviews }, { count: pendingPayments }, { count: userCount }] =
       await Promise.all([
         admin.from("mock_exams").select("*", { count: "exact", head: true }),
         admin.from("mock_attempts").select("exam_id, overall_band, status"),
@@ -45,6 +45,7 @@ const getAdminDashboardData = unstable_cache(
           .order("created_at", { ascending: false }),
         admin.from("mock_attempts").select("*", { count: "exact", head: true }).eq("review_status", "pending"),
         admin.from("payment_requests").select("*", { count: "exact", head: true }).eq("status", "pending"),
+        admin.from("profiles").select("*", { count: "exact", head: true }),
       ]);
 
     /* ── Stats ─────────────────────────────────────────── */
@@ -114,6 +115,7 @@ const getAdminDashboardData = unstable_cache(
       totalAttempts,
       avgBand,
       revenue,
+      userCount: userCount ?? 0,
       pendingReviews: pendingReviews ?? 0,
       pendingPayments: pendingPayments ?? 0,
       rows,
@@ -124,7 +126,7 @@ const getAdminDashboardData = unstable_cache(
 );
 
 export default async function AdminHomePage() {
-  const { examCount, totalAttempts, avgBand, revenue, pendingReviews, pendingPayments, rows } =
+  const { examCount, totalAttempts, avgBand, revenue, userCount, pendingReviews, pendingPayments, rows } =
     await getAdminDashboardData();
 
   return (
@@ -160,6 +162,17 @@ export default async function AdminHomePage() {
             <Users strokeWidth={2} />
           </div>
         </div>
+        <Link href="/admin/users" className="admin-stat-link">
+          <div className="admin-stat-card admin-stat-card--purple">
+            <div className="admin-stat-card__body">
+              <div className="admin-stat-card__label">Users</div>
+              <div className="admin-stat-card__value">{userCount}</div>
+            </div>
+            <div className="admin-stat-card__icon" aria-hidden>
+              <Users strokeWidth={2} />
+            </div>
+          </div>
+        </Link>
         <div className="admin-stat-card admin-stat-card--purple">
           <div className="admin-stat-card__body">
             <div className="admin-stat-card__label">Average Score</div>
