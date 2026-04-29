@@ -6,6 +6,7 @@ import { createServiceRoleClient } from "@/lib/supabase/admin";
 import { isAdminEmail } from "@/lib/auth/admin";
 import { reviewPaymentRequest } from "@/app/admin/actions";
 import { formatExamPrice, getManualPaymentMethod } from "@/lib/payments/manual-payment";
+import { DeletePaymentButton } from "@/components/admin/delete-payment-button";
 
 type PaymentRequestDetail = {
   id: string;
@@ -182,6 +183,7 @@ export default async function AdminPaymentRequestPage({
             defaultValue={request.admin_note ?? ""}
           />
           <div className="admin-payment-review-actions">
+            <DeletePaymentButton requestId={request.id} />
             <button type="submit" name="decision" value="reject" className="btn btn-outline">
               Disapprove
             </button>

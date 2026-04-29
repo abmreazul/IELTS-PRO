@@ -296,12 +296,11 @@ export async function reviewPaymentRequest(formData: FormData) {
   if (!request) {
     throw new Error("Payment request not found.");
   }
-  if (request.status !== "pending") {
-    throw new Error("This payment request has already been reviewed.");
-  }
 
+  const previousStatus = request.status;
   const nextStatus = decision === "approve" ? "approved" : "rejected";
-  const { data: updatedRows, error: updateError } = await admin
+
+  const { error: updateError } = await admin
     .from("payment_requests")
     .update({
       status: nextStatus,
@@ -309,17 +308,13 @@ export async function reviewPaymentRequest(formData: FormData) {
       reviewed_at: new Date().toISOString(),
       reviewed_by: reviewer.id,
     })
-    .eq("id", requestId)
-    .eq("status", "pending")
-    .select("id");
+    .eq("id", requestId);
 
   if (updateError) {
     throw new Error(updateError.message);
   }
-  if (!updatedRows || updatedRows.length === 0) {
-    throw new Error("This payment request was already reviewed by another admin.");
-  }
 
+  // Grant entitlement on approve
   if (decision === "approve") {
     const { error: entitlementError } = await admin.from("exam_entitlements").upsert({
       user_id: request.user_id,
@@ -331,9 +326,55 @@ export async function reviewPaymentRequest(formData: FormData) {
     }
   }
 
+  // Revoke entitlement when switching from approved → rejected
+  if (decision === "reject" && previousStatus === "approved") {
+    await admin
+      .from("exam_entitlements")
+      .delete()
+      .eq("user_id", request.user_id)
+      .eq("exam_id", request.exam_id);
+  }
+
   revalidatePath("/admin");
   revalidatePath("/admin/payments");
   revalidatePath(`/admin/payments/${requestId}`);
+  revalidatePath("/mock-exam");
+  redirect("/admin/payments");
+}
+
+export async function deletePaymentRequest(formData: FormData) {
+  await requireAdmin("delete-payment-request");
+  const requestId = String(formData.get("request_id") ?? "").trim();
+  if (!requestId) throw new Error("Missing request ID.");
+
+  const admin = createServiceRoleClient();
+
+  // Fetch the request to check if entitlement needs to be revoked
+  const { data: request } = await admin
+    .from("payment_requests")
+    .select("id, user_id, exam_id, status")
+    .eq("id", requestId)
+    .single();
+
+  if (!request) {
+    throw new Error("Payment request not found.");
+  }
+
+  // If it was approved, revoke the entitlement
+  if (request.status === "approved") {
+    await admin
+      .from("exam_entitlements")
+      .delete()
+      .eq("user_id", request.user_id)
+      .eq("exam_id", request.exam_id);
+  }
+
+  // Delete the payment request
+  const { error } = await admin.from("payment_requests").delete().eq("id", requestId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/payments");
   revalidatePath("/mock-exam");
   redirect("/admin/payments");
 }

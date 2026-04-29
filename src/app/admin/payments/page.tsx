@@ -5,6 +5,7 @@ import { getAuthUser } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
 import { isAdminEmail } from "@/lib/auth/admin";
 import { formatExamPrice, getManualPaymentMethod } from "@/lib/payments/manual-payment";
+import { DeletePaymentButton } from "@/components/admin/delete-payment-button";
 
 type PaymentRequestRow = {
   id: string;
@@ -167,9 +168,12 @@ export default async function AdminPaymentsPage() {
                       </td>
                       <td>{formatDateTime(row.created_at)}</td>
                       <td>
-                        <Link href={`/admin/payments/${row.id}`} className="btn btn-primary btn-topbar-cta">
-                          Review
-                        </Link>
+                        <div className="admin-table-actions">
+                          <Link href={`/admin/payments/${row.id}`} className="btn btn-primary btn-topbar-cta">
+                            Review
+                          </Link>
+                          <DeletePaymentButton requestId={row.id} />
+                        </div>
                       </td>
                     </tr>
                   );
