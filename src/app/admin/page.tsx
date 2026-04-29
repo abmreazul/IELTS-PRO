@@ -32,11 +32,11 @@ const getAdminDashboardData = unstable_cache(
   async () => {
     const admin = createServiceRoleClient();
 
-    const [{ count: examCount }, { data: attempts }, { data: examsForRev }, { data: exams }, { count: pendingReviews }, { count: pendingPayments }, { count: userCount }] =
+    const [{ count: examCount }, { data: attempts }, { data: approvedPayments }, { data: exams }, { count: pendingReviews }, { count: pendingPayments }, { count: userCount }] =
       await Promise.all([
         admin.from("mock_exams").select("*", { count: "exact", head: true }),
         admin.from("mock_attempts").select("exam_id, overall_band, status"),
-        admin.from("mock_exams").select("id, price_cents"),
+        admin.from("payment_requests").select("amount_cents, currency").eq("status", "approved"),
         admin
           .from("mock_exams")
           .select(
@@ -62,15 +62,10 @@ const getAdminDashboardData = unstable_cache(
     }
     const avgBand = bandN > 0 ? (sumBand / bandN).toFixed(1) : "—";
 
-    const priceByExam = new Map<string, number>();
-    for (const e of examsForRev ?? []) {
-      priceByExam.set(e.id, e.price_cents ?? 0);
-    }
+    // Revenue = sum of approved payment requests (actual money received)
     let revenueCents = 0;
-    for (const a of completed) {
-      if (a.exam_id) {
-        revenueCents += priceByExam.get(a.exam_id) ?? 0;
-      }
+    for (const p of approvedPayments ?? []) {
+      revenueCents += p.amount_cents ?? 0;
     }
     const revenue = (revenueCents / 100).toLocaleString(undefined, {
       style: "currency",
