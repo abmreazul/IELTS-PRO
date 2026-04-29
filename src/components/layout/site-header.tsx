@@ -36,7 +36,7 @@ export function SiteHeader({ adminNavActive = false, showAdminLink = false }: Si
             <Link href="/courses">Courses</Link>
             <Link href="/mock-exam">Mock Exams</Link>
             <a href="/#features">Features</a>
-            <a href="/#pricing">Pricing</a>
+
             {showAdminLink ? (
               <Link href="/admin" className={adminNavActive ? "topbar-link--active" : undefined}>
                 Admin
@@ -98,9 +98,7 @@ export function SiteHeader({ adminNavActive = false, showAdminLink = false }: Si
             <a href="/#features" onClick={() => setMobileOpen(false)}>
               Features
             </a>
-            <a href="/#pricing" onClick={() => setMobileOpen(false)}>
-              Pricing
-            </a>
+
             {showAdminLink ? (
               <Link
                 href="/admin"
