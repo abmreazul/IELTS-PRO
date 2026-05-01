@@ -187,14 +187,15 @@
 
 /* ——— Dark "Buy Now" button (inherits .btn .btn-topbar-cta) ——— */
 .me-buy-btn {
-  background: #0f172a !important;
-  color: #f1f5f9 !important;
+  background: #000 !important;
+  color: #fff !important;
+  border-radius: 10px !important;
   gap: 0.45rem;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
 }
 
 .me-buy-btn:hover {
-  background: #1e293b !important;
+  background: #1a1a1a !important;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.28);
 }
 
