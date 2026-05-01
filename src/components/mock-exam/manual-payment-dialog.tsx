@@ -201,18 +201,31 @@ export function ManualPaymentDialog({
                     </div>
                   ) : null}
 
+                  {/* Big amount display */}
+                  <div className="manual-pay__amount-display">
+                    <span className="manual-pay__amount-label">Amount to send</span>
+                    <span className="manual-pay__amount-value">{amountLabel}</span>
+                  </div>
+
                   <p className="manual-pay__hint">Send exactly {amountLabel} to this number.</p>
                   {selectedPayment.qrSrc ? (
                     <>
                       <p className="manual-pay__muted manual-pay__muted--qr">Or scan the QR code:</p>
-                      <button
-                        type="button"
-                        className="manual-pay__qr"
-                        onClick={() => setShowQrPreview(true)}
-                        aria-label={`Open larger ${selectedPayment.name} QR code`}
-                      >
-                        <Image src={selectedPayment.qrSrc} alt={`${selectedPayment.name} QR code`} width={220} height={220} />
-                      </button>
+                      <div className="manual-pay__qr-row">
+                        <button
+                          type="button"
+                          className="manual-pay__qr"
+                          onClick={() => setShowQrPreview(true)}
+                          aria-label={`Open larger ${selectedPayment.name} QR code`}
+                        >
+                          <Image src={selectedPayment.qrSrc} alt={`${selectedPayment.name} QR code`} width={220} height={220} />
+                        </button>
+                        <div className="manual-pay__qr-amount">
+                          <span className="manual-pay__qr-amount-label">Send</span>
+                          <span className="manual-pay__qr-amount-value">{amountLabel}</span>
+                          <span className="manual-pay__qr-amount-hint">to this QR</span>
+                        </div>
+                      </div>
                     </>
                   ) : null}
                 </div>
