@@ -791,7 +791,7 @@
 }
 
 .manual-pay__qr-amount-value {
-  font-size: 1.35rem;
+  font-size: 1.5rem;
   font-weight: 900;
   letter-spacing: -0.03em;
   color: #fff;
@@ -805,7 +805,7 @@
 
 .manual-pay__qr {
   position: relative;
-  width: min(120px, 100%);
+  width: min(160px, 100%);
   flex-shrink: 0;
   margin: 0;
   border-radius: 16px;

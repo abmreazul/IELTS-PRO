@@ -201,12 +201,6 @@ export function ManualPaymentDialog({
                     </div>
                   ) : null}
 
-                  {/* Big amount display */}
-                  <div className="manual-pay__amount-display">
-                    <span className="manual-pay__amount-label">Amount to send</span>
-                    <span className="manual-pay__amount-value">{amountLabel}</span>
-                  </div>
-
                   <p className="manual-pay__hint">Send exactly {amountLabel} to this number.</p>
                   {selectedPayment.qrSrc ? (
                     <>
