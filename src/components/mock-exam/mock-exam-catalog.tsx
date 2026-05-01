@@ -113,7 +113,7 @@ export function ExamCard({
             <span className="me-card__band-chip-value">{Number(band).toFixed(1)}</span>
           </div>
         ) : null}
-        {!isFree ? <PriceBadge exam={exam} /> : null}
+        {!isFree && !accessGranted ? <PriceBadge exam={exam} /> : null}
       </div>
 
       <div className="me-card__body">
@@ -174,14 +174,14 @@ export function ExamCard({
                 priceMyrCents={exam.price_myr_cents ?? 0}
                 existingRequest={paymentRequest ?? null}
               >
-                <div className="me-buy-btn">
+                <div className="btn btn-topbar-cta me-buy-btn">
                   <span>Buy Now</span>
                   <ShoppingCart size={15} strokeWidth={2.2} />
                 </div>
               </ManualPaymentDialog>
             )
           ) : (
-            <Link href="/sign-in?next=/mock-exam" className="me-buy-btn me-buy-btn--link">
+            <Link href="/sign-in?next=/mock-exam" className="btn btn-topbar-cta me-buy-btn">
               <span>{isFree ? defaultLabel : "Buy Now"}</span>
               {!isFree ? <ShoppingCart size={15} strokeWidth={2.2} /> : null}
             </Link>
