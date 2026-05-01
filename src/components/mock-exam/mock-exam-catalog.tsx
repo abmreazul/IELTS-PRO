@@ -27,19 +27,18 @@ function modulePillClass(exam: MockExamRow) {
 
 /** Build the inline price fragments for the buy bar */
 function PriceFragments({ exam }: { exam: MockExamRow }) {
-  const parts: { symbol: string; amount: string; code: string }[] = [];
-  if ((exam.price_usd_cents ?? 0) > 0) parts.push({ symbol: "$", amount: (exam.price_usd_cents / 100).toFixed(0), code: "USD" });
-  if ((exam.price_bdt_cents ?? 0) > 0) parts.push({ symbol: "৳", amount: (exam.price_bdt_cents / 100).toFixed(0), code: "BDT" });
-  if ((exam.price_myr_cents ?? 0) > 0) parts.push({ symbol: "RM", amount: (exam.price_myr_cents / 100).toFixed(0), code: "MYR" });
+  const parts: { symbol: string; amount: string }[] = [];
+  if ((exam.price_usd_cents ?? 0) > 0) parts.push({ symbol: "$", amount: (exam.price_usd_cents / 100).toFixed(0) });
+  if ((exam.price_bdt_cents ?? 0) > 0) parts.push({ symbol: "৳", amount: (exam.price_bdt_cents / 100).toFixed(0) });
+  if ((exam.price_myr_cents ?? 0) > 0) parts.push({ symbol: "RM", amount: (exam.price_myr_cents / 100).toFixed(0) });
 
   return (
     <>
       {parts.map((p, i) => (
-        <span key={p.code} className="me-buy__price-item">
+        <span key={i} className="me-buy__price-item">
           {i > 0 ? <span className="me-buy__dot">·</span> : null}
           <span className="me-buy__symbol">{p.symbol}</span>
           <span className="me-buy__amount">{p.amount}</span>
-          <span className="me-buy__code">{p.code}</span>
         </span>
       ))}
     </>
