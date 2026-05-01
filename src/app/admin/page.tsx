@@ -32,7 +32,7 @@ const getAdminDashboardData = unstable_cache(
   async () => {
     const admin = createServiceRoleClient();
 
-    const [{ count: examCount }, { data: attempts }, { data: approvedPayments }, { data: exams }, { count: pendingReviews }, { count: pendingPayments }, { count: userCount }] =
+    const [{ count: examCount }, { data: attempts }, { data: approvedPayments }, { data: exams }, { count: pendingReviews }, { count: pendingPayments }, authUsersResult] =
       await Promise.all([
         admin.from("mock_exams").select("*", { count: "exact", head: true }),
         admin.from("mock_attempts").select("exam_id, overall_band, status"),
@@ -45,8 +45,13 @@ const getAdminDashboardData = unstable_cache(
           .order("created_at", { ascending: false }),
         admin.from("mock_attempts").select("*", { count: "exact", head: true }).eq("review_status", "pending"),
         admin.from("payment_requests").select("*", { count: "exact", head: true }).eq("status", "pending"),
-        admin.from("profiles").select("*", { count: "exact", head: true }),
+        admin.auth.admin.listUsers({ page: 1, perPage: 1 }),
       ]);
+
+    // Auth API returns total count in the response
+    const userCount = authUsersResult.data?.users !== undefined
+      ? (authUsersResult as unknown as { data: { users: unknown[]; total?: number } }).data.total ?? 0
+      : 0;
 
     /* ── Stats ─────────────────────────────────────────── */
     const completed = (attempts ?? []).filter((a) => a.status === "completed");
