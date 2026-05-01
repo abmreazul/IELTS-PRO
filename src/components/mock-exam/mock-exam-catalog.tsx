@@ -25,23 +25,24 @@ function modulePillClass(exam: MockExamRow) {
   return "me-card__module-pill me-card__module-pill--default";
 }
 
-/** Build the inline price fragments for the buy bar */
-function PriceFragments({ exam }: { exam: MockExamRow }) {
+/** Price badge for the card image */
+function PriceBadge({ exam }: { exam: MockExamRow }) {
   const parts: { symbol: string; amount: string }[] = [];
   if ((exam.price_usd_cents ?? 0) > 0) parts.push({ symbol: "$", amount: (exam.price_usd_cents / 100).toFixed(0) });
   if ((exam.price_bdt_cents ?? 0) > 0) parts.push({ symbol: "৳", amount: (exam.price_bdt_cents / 100).toFixed(0) });
   if ((exam.price_myr_cents ?? 0) > 0) parts.push({ symbol: "RM", amount: (exam.price_myr_cents / 100).toFixed(0) });
+  if (parts.length === 0) return null;
 
   return (
-    <>
+    <div className="me-card__price-badge">
       {parts.map((p, i) => (
-        <span key={i} className="me-buy__price-item">
-          {i > 0 ? <span className="me-buy__dot">·</span> : null}
-          <span className="me-buy__symbol">{p.symbol}</span>
-          <span className="me-buy__amount">{p.amount}</span>
+        <span key={i} className="me-card__price-badge-item">
+          {i > 0 ? <span className="me-card__price-badge-dot">·</span> : null}
+          <span className="me-card__price-badge-sym">{p.symbol}</span>
+          <span className="me-card__price-badge-val">{p.amount}</span>
         </span>
       ))}
-    </>
+    </div>
   );
 }
 
@@ -112,6 +113,7 @@ export function ExamCard({
             <span className="me-card__band-chip-value">{Number(band).toFixed(1)}</span>
           </div>
         ) : null}
+        {!isFree ? <PriceBadge exam={exam} /> : null}
       </div>
 
       <div className="me-card__body">
@@ -172,36 +174,16 @@ export function ExamCard({
                 priceMyrCents={exam.price_myr_cents ?? 0}
                 existingRequest={paymentRequest ?? null}
               >
-                <div className="me-buy">
-                  <div className="me-buy__prices">
-                    <PriceFragments exam={exam} />
-                  </div>
-                  <div className="me-buy__divider" />
-                  <div className="me-buy__action">
-                    <span>Buy Now</span>
-                    <ShoppingCart size={16} strokeWidth={2.2} />
-                  </div>
+                <div className="me-buy-btn">
+                  <span>Buy Now</span>
+                  <ShoppingCart size={15} strokeWidth={2.2} />
                 </div>
               </ManualPaymentDialog>
             )
           ) : (
-            <Link href="/sign-in?next=/mock-exam" className="me-buy me-buy--link">
-              {isFree ? (
-                <div className="me-buy__action me-buy__action--full">
-                  <span>{defaultLabel}</span>
-                </div>
-              ) : (
-                <>
-                  <div className="me-buy__prices">
-                    <PriceFragments exam={exam} />
-                  </div>
-                  <div className="me-buy__divider" />
-                  <div className="me-buy__action">
-                    <span>Buy Now</span>
-                    <ShoppingCart size={16} strokeWidth={2.2} />
-                  </div>
-                </>
-              )}
+            <Link href="/sign-in?next=/mock-exam" className="me-buy-btn me-buy-btn--link">
+              <span>{isFree ? defaultLabel : "Buy Now"}</span>
+              {!isFree ? <ShoppingCart size={15} strokeWidth={2.2} /> : null}
             </Link>
           )}
         </div>

@@ -141,92 +141,78 @@
   color: #dcfce7;
 }
 
-/* ——— Premium "Buy Now" bar ——— */
-.me-buy {
+/* ——— Price badge on card image (bottom-right) ——— */
+.me-card__price-badge {
+  position: absolute;
+  right: 0.58rem;
+  bottom: 0.58rem;
+  z-index: 2;
+  display: flex;
+  align-items: baseline;
+  gap: 0;
+  border-radius: 10px;
+  padding: 0.32rem 0.58rem;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+.me-card__price-badge-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.06rem;
+  white-space: nowrap;
+}
+
+.me-card__price-badge-dot {
+  color: rgba(100, 116, 139, 0.4);
+  font-weight: 600;
+  margin: 0 0.3rem;
+  font-size: 0.62rem;
+}
+
+.me-card__price-badge-sym {
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.me-card__price-badge-val {
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+}
+
+/* ——— Dark "Buy Now" button ——— */
+.me-buy-btn {
   display: flex;
   align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
   width: 100%;
   min-height: 2.48rem;
   border-radius: 14px;
   background: #0f172a;
-  border: 1px solid rgba(100, 120, 160, 0.15);
-  padding: 0;
-  overflow: hidden;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
-  transition: box-shadow 0.2s ease, transform 0.15s ease;
-  color: #e2e8f0;
+  color: #f1f5f9;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
   text-decoration: none;
+  border: none;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
+  transition: box-shadow 0.2s ease, transform 0.15s ease;
+  cursor: pointer;
 }
 
-.me-buy:hover {
-  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.3);
+.me-buy-btn:hover {
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.28);
   transform: translateY(-1px);
 }
 
-.me-buy__prices {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: baseline;
-  flex-wrap: nowrap;
-  gap: 0;
-  padding: 0 0.65rem;
-  overflow: hidden;
-}
-
-.me-buy__price-item {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.08rem;
-  white-space: nowrap;
-}
-
-.me-buy__dot {
-  color: rgba(148, 163, 184, 0.4);
-  font-weight: 600;
-  margin: 0 0.28rem;
-  font-size: 0.7rem;
-}
-
-.me-buy__symbol {
-  font-size: 0.68rem;
-  font-weight: 500;
-  color: rgba(148, 163, 184, 0.8);
-}
-
-.me-buy__amount {
-  font-size: 0.82rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: #f1f5f9;
-}
-
-.me-buy__divider {
-  width: 1px;
-  align-self: stretch;
-  background: rgba(100, 120, 160, 0.2);
-}
-
-.me-buy__action {
-  display: flex;
-  align-items: center;
-  gap: 0.38rem;
-  padding: 0 0.65rem;
-  white-space: nowrap;
-  font-size: 0.74rem;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  color: #cbd5e1;
-}
-
-.me-buy__action--full {
-  width: 100%;
-  justify-content: center;
-  padding: 0 0.9rem;
-}
-
-.me-buy--link {
-  cursor: pointer;
+.me-buy-btn--link {
+  padding: 0.58rem 0.78rem;
 }
 
 .me-card__badge-row {
