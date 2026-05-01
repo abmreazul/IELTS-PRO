@@ -20,6 +20,9 @@ export type MockExamRow = {
   difficulty: "beginner" | "intermediate" | "advanced";
   price_cents: number;
   currency: string;
+  price_usd_cents: number;
+  price_bdt_cents: number;
+  price_myr_cents: number;
   cover_image_url: string | null;
   /** Public audio URLs per listening part (from DB / Supabase Storage). */
   listening_audio_json?: { part: number; url: string; title?: string }[] | null;

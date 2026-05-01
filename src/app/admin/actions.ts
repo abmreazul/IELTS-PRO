@@ -627,6 +627,9 @@ export type ExamWizardSaveInput = {
   difficulty: "beginner" | "intermediate" | "advanced";
   price_cents: number;
   currency: string;
+  price_usd_cents: number;
+  price_bdt_cents: number;
+  price_myr_cents: number;
   cover_image_url: string | null;
   is_published: boolean;
   structure_json: unknown;
@@ -1080,6 +1083,9 @@ export async function saveExamWizard(
       : "intermediate";
   const price_cents = Math.max(0, Math.round(Number(input.price_cents) || 0));
   const currency = String(input.currency ?? "USD").trim() || "USD";
+  const price_usd_cents = Math.max(0, Math.round(Number(input.price_usd_cents) || 0));
+  const price_bdt_cents = Math.max(0, Math.round(Number(input.price_bdt_cents) || 0));
+  const price_myr_cents = Math.max(0, Math.round(Number(input.price_myr_cents) || 0));
   const description =
     typeof input.description === "string" && input.description.trim()
       ? input.description.trim()
@@ -1109,6 +1115,9 @@ export async function saveExamWizard(
     difficulty,
     price_cents,
     currency,
+    price_usd_cents,
+    price_bdt_cents,
+    price_myr_cents,
     cover_image_url,
     is_published: Boolean(input.is_published),
     structure_json,
@@ -1494,8 +1503,16 @@ function parseExamForm(formData: FormData) {
     | "beginner"
     | "intermediate"
     | "advanced";
-  const price_cents = Math.round(Number.parseFloat(String(formData.get("price") ?? "9.99")) * 100) || 999;
-  const currency = String(formData.get("currency") ?? "USD").trim() || "USD";
+
+  // Multi-currency pricing
+  const price_usd_cents = Math.max(0, Math.round(Number.parseFloat(String(formData.get("price_usd") ?? "0")) * 100));
+  const price_bdt_cents = Math.max(0, Math.round(Number.parseFloat(String(formData.get("price_bdt") ?? "0")) * 100));
+  const price_myr_cents = Math.max(0, Math.round(Number.parseFloat(String(formData.get("price_myr") ?? "0")) * 100));
+
+  // Backward compat: price_cents = USD price, currency = USD
+  const price_cents = price_usd_cents;
+  const currency = "USD";
+
   const cover_image_url = String(formData.get("cover_image_url") ?? "").trim() || null;
   const is_published = formData.has("is_published");
 
@@ -1520,6 +1537,9 @@ function parseExamForm(formData: FormData) {
     difficulty,
     price_cents,
     currency,
+    price_usd_cents,
+    price_bdt_cents,
+    price_myr_cents,
     cover_image_url,
     is_published,
   };

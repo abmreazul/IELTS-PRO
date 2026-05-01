@@ -127,6 +127,8 @@ type SubmitPaymentInput = {
   paymentMethod: ManualPaymentMethodId;
   transactionId: string;
   proofUrl?: string | null;
+  currency: string;
+  amountCents: number;
 };
 
 export async function submitPaymentRequest(input: SubmitPaymentInput) {
@@ -153,7 +155,7 @@ export async function submitPaymentRequest(input: SubmitPaymentInput) {
   const admin = createServiceRoleClient();
   const { data: exam } = await admin
     .from("mock_exams")
-    .select("id, title, price_cents, currency, is_published")
+    .select("id, title, price_cents, currency, price_usd_cents, price_bdt_cents, price_myr_cents, is_published")
     .eq("id", input.examId)
     .eq("is_published", true)
     .single();
@@ -162,8 +164,17 @@ export async function submitPaymentRequest(input: SubmitPaymentInput) {
     return { ok: false, message: "Exam not found." };
   }
 
-  if ((exam.price_cents ?? 0) <= 0) {
-    return { ok: false, message: "This exam does not require payment." };
+  // Validate the submitted currency + amount against the exam's actual price
+  const validCurrency = input.currency || "USD";
+  const examPriceMap: Record<string, number> = {
+    USD: exam.price_usd_cents ?? 0,
+    BDT: exam.price_bdt_cents ?? 0,
+    MYR: exam.price_myr_cents ?? 0,
+  };
+  const expectedAmount = examPriceMap[validCurrency] ?? 0;
+
+  if (expectedAmount <= 0) {
+    return { ok: false, message: "This exam does not require payment in that currency." };
   }
 
   const { data: entitlement } = await admin
@@ -203,8 +214,8 @@ export async function submitPaymentRequest(input: SubmitPaymentInput) {
     payment_method: input.paymentMethod,
     transaction_id: transactionId,
     proof_url: input.proofUrl?.trim() || null,
-    amount_cents: exam.price_cents,
-    currency: exam.currency,
+    amount_cents: expectedAmount,
+    currency: validCurrency,
     status: "pending",
   });
 

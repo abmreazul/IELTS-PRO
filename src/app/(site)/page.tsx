@@ -44,6 +44,7 @@ async function getFeaturedExams(): Promise<MockExamRow[]> {
     .select(
       `id, category_id, title, slug, description, exam_type, modules,
        duration_minutes, question_count, difficulty, price_cents, currency,
+       price_usd_cents, price_bdt_cents, price_myr_cents,
        cover_image_url, listening_audio_json, is_published,
        exam_categories ( id, slug, name, sort_order )`,
     )

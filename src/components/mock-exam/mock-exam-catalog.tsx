@@ -18,7 +18,12 @@ function formatPrice(cents: number, currency: string) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: currency || "USD",
+    maximumFractionDigits: 0,
   }).format(cents / 100);
+}
+
+function hasAnyPrice(exam: MockExamRow) {
+  return (exam.price_usd_cents ?? 0) > 0 || (exam.price_bdt_cents ?? 0) > 0 || (exam.price_myr_cents ?? 0) > 0;
 }
 
 function formatDifficulty(d: string) {
@@ -66,7 +71,7 @@ export function ExamCard({
   const reviewPending = Boolean(hasCompletedAttempt && latestAttempt?.review_status === "pending");
   const completed = Boolean(hasCompletedAttempt && latestAttempt?.overall_band != null);
   const band = latestAttempt?.overall_band ?? null;
-  const isFree = exam.price_cents === 0;
+  const isFree = !hasAnyPrice(exam);
   const accessGranted = entitled || isFree;
   const paymentPending = paymentRequest?.status === "pending";
   const defaultHref = actionHrefOverride ?? `/mock-exam/${exam.slug}/take`;
@@ -109,11 +114,19 @@ export function ExamCard({
         ) : null}
       </div>
 
+      {!isFree ? (
+        <div className="me-card__prices">
+          {(exam.price_usd_cents ?? 0) > 0 ? <span className="me-card__price-tag me-card__price-tag--usd">${(exam.price_usd_cents / 100).toFixed(0)}</span> : null}
+          {(exam.price_bdt_cents ?? 0) > 0 ? <span className="me-card__price-tag me-card__price-tag--bdt">৳{(exam.price_bdt_cents / 100).toFixed(0)}</span> : null}
+          {(exam.price_myr_cents ?? 0) > 0 ? <span className="me-card__price-tag me-card__price-tag--myr">RM{(exam.price_myr_cents / 100).toFixed(0)}</span> : null}
+        </div>
+      ) : null}
+
       <div className="me-card__body">
         <div className="me-card__title-row">
           <h2 className="me-card__title">{exam.title}</h2>
           <span className="me-card__price-pill">
-            {isFree ? "FREE" : formatPrice(exam.price_cents, exam.currency)}
+            {isFree ? "FREE" : formatPrice(exam.price_usd_cents ?? exam.price_cents, "USD")}
           </span>
         </div>
 
@@ -164,8 +177,9 @@ export function ExamCard({
               <ManualPaymentDialog
                 examId={exam.id}
                 examTitle={exam.title}
-                amountCents={exam.price_cents}
-                currency={exam.currency}
+                priceUsdCents={exam.price_usd_cents ?? 0}
+                priceBdtCents={exam.price_bdt_cents ?? 0}
+                priceMyrCents={exam.price_myr_cents ?? 0}
                 existingRequest={paymentRequest ?? null}
               />
             )

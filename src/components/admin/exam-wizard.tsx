@@ -42,6 +42,9 @@ export type ExamWizardInitialExam = {
   difficulty: string;
   price_cents: number;
   currency: string;
+  price_usd_cents: number;
+  price_bdt_cents: number;
+  price_myr_cents: number;
   cover_image_url: string | null;
   is_published: boolean;
   structure_json?: unknown;
@@ -600,13 +603,19 @@ export function ExamWizard({
   const [description, setDescription] = useState(initialExam?.description ?? "");
   const [difficulty, setDifficulty] = useState(initialExam?.difficulty ?? "intermediate");
   const [durationMinutes, setDurationMinutes] = useState(initialExam?.duration_minutes ?? 60);
-  const [priceDollars, setPriceDollars] = useState(
-    initialExam ? (initialExam.price_cents / 100).toFixed(2) : "29.99",
+  const [priceUsd, setPriceUsd] = useState(
+    initialExam ? (initialExam.price_usd_cents / 100).toFixed(2) : "9.99",
+  );
+  const [priceBdt, setPriceBdt] = useState(
+    initialExam ? (initialExam.price_bdt_cents / 100).toFixed(2) : "999.00",
+  );
+  const [priceMyr, setPriceMyr] = useState(
+    initialExam ? (initialExam.price_myr_cents / 100).toFixed(2) : "39.90",
   );
   const [pricingMode, setPricingMode] = useState<"free" | "paid">(
-    initialExam?.price_cents && initialExam.price_cents > 0 ? "paid" : "free",
+    initialExam && ((initialExam.price_usd_cents ?? 0) > 0 || (initialExam.price_bdt_cents ?? 0) > 0 || (initialExam.price_myr_cents ?? 0) > 0) ? "paid" : "free",
   );
-  const [currency, setCurrency] = useState(initialExam?.currency ?? "USD");
+  const [currency] = useState(initialExam?.currency ?? "USD");
   const [coverUrl, setCoverUrl] = useState(initialExam?.cover_image_url ?? "");
   const [isPublished, setIsPublished] = useState(initialExam?.is_published ?? false);
   const [testVariant, setTestVariant] = useState<TestVariant>(() =>
@@ -1141,10 +1150,19 @@ export function ExamWizard({
 
   /* ── Build payload ────────────────────────────────────── */
   const buildPayload = (published: boolean): ExamWizardSaveInput => {
-    const price_cents =
+    const price_usd_cents =
       pricingMode === "free"
         ? 0
-        : Math.max(0, Math.round(Number.parseFloat(priceDollars || "0") * 100) || 0);
+        : Math.max(0, Math.round(Number.parseFloat(priceUsd || "0") * 100) || 0);
+    const price_bdt_cents =
+      pricingMode === "free"
+        ? 0
+        : Math.max(0, Math.round(Number.parseFloat(priceBdt || "0") * 100) || 0);
+    const price_myr_cents =
+      pricingMode === "free"
+        ? 0
+        : Math.max(0, Math.round(Number.parseFloat(priceMyr || "0") * 100) || 0);
+    const price_cents = price_usd_cents; // backward compat
     // Auto-derive structure from questions added
     const structure: SectionStructure[] = structureForModules(modules).map((s) => ({
       ...s,
@@ -1166,6 +1184,9 @@ export function ExamWizard({
       difficulty: difficulty === "beginner" || difficulty === "advanced" ? difficulty : "intermediate",
       price_cents,
       currency: (currency.trim() || "USD").toUpperCase(),
+      price_usd_cents,
+      price_bdt_cents,
+      price_myr_cents,
       cover_image_url: coverUrl.trim() || null,
       is_published: published,
       structure_json: {
@@ -1574,33 +1595,51 @@ export function ExamWizard({
               </div>
             </div>
             {pricingMode === "paid" ? (
-              <div className="admin-form-grid admin-form-grid--2">
-                <div>
-                  <label className="admin-label" htmlFor="ew-price">
-                    Price
-                  </label>
-                  <input
-                    id="ew-price"
-                    type="number"
-                    step="0.01"
-                    min={0}
-                    className="admin-input"
-                    value={priceDollars}
-                    onChange={(e) => setPriceDollars(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="admin-label" htmlFor="ew-currency">
-                    Currency
-                  </label>
-                  <input
-                    id="ew-currency"
-                    className="admin-input"
-                    value={currency}
-                    maxLength={3}
-                    onChange={(e) => setCurrency(e.target.value.toUpperCase())}
-                    placeholder="USD"
-                  />
+              <div>
+                <span className="admin-label" style={{ marginBottom: "0.5rem" }}>Pricing (set 0 for free in that currency)</span>
+                <div className="admin-form-grid admin-form-grid--3">
+                  <div>
+                    <label className="admin-label" htmlFor="ew-price-usd" style={{ fontSize: "0.75rem" }}>
+                      USD ($)
+                    </label>
+                    <input
+                      id="ew-price-usd"
+                      type="number"
+                      step="0.01"
+                      min={0}
+                      className="admin-input"
+                      value={priceUsd}
+                      onChange={(e) => setPriceUsd(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="admin-label" htmlFor="ew-price-bdt" style={{ fontSize: "0.75rem" }}>
+                      BDT (৳)
+                    </label>
+                    <input
+                      id="ew-price-bdt"
+                      type="number"
+                      step="0.01"
+                      min={0}
+                      className="admin-input"
+                      value={priceBdt}
+                      onChange={(e) => setPriceBdt(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="admin-label" htmlFor="ew-price-myr" style={{ fontSize: "0.75rem" }}>
+                      MYR (RM)
+                    </label>
+                    <input
+                      id="ew-price-myr"
+                      type="number"
+                      step="0.01"
+                      min={0}
+                      className="admin-input"
+                      value={priceMyr}
+                      onChange={(e) => setPriceMyr(e.target.value)}
+                    />
+                  </div>
                 </div>
               </div>
             ) : (
@@ -2462,7 +2501,7 @@ export function ExamWizard({
             <div className="admin-review-item">
               <span className="admin-review-label">Price</span>
               <span className="admin-review-value">
-                {pricingMode === "free" ? "Free" : `${currency.toUpperCase()} ${priceDollars}`}
+                {pricingMode === "free" ? "Free" : `$${priceUsd} · ৳${priceBdt} · RM${priceMyr}`}
               </span>
             </div>
             <div className="admin-review-item">

@@ -13,19 +13,29 @@ import {
   type ManualPaymentMethodId,
 } from "@/lib/payments/manual-payment";
 
+/** Currency shown per payment method */
+const METHOD_CURRENCIES: Record<ManualPaymentMethodId, string[]> = {
+  bkash: ["BDT"],
+  touchngo: ["MYR"],
+  ebl: ["USD", "BDT", "MYR"],
+  maybank: ["USD", "BDT", "MYR"],
+};
+
 type Props = {
   examId: string;
   examTitle: string;
-  amountCents: number;
-  currency: string;
+  priceUsdCents: number;
+  priceBdtCents: number;
+  priceMyrCents: number;
   existingRequest: MockPaymentRequestRow | null;
 };
 
 export function ManualPaymentDialog({
   examId,
   examTitle,
-  amountCents,
-  currency,
+  priceUsdCents,
+  priceBdtCents,
+  priceMyrCents,
   existingRequest,
 }: Props) {
   const [open, setOpen] = useState(false);
@@ -48,7 +58,34 @@ export function ManualPaymentDialog({
     () => getManualPaymentMethod(selectedMethod),
     [selectedMethod],
   );
-  const amountLabel = formatExamPrice(amountCents, currency);
+
+  // Get prices map
+  const priceMap: Record<string, number> = useMemo(() => {
+    const m: Record<string, number> = {};
+    if (priceUsdCents > 0) m.USD = priceUsdCents;
+    if (priceBdtCents > 0) m.BDT = priceBdtCents;
+    if (priceMyrCents > 0) m.MYR = priceMyrCents;
+    return m;
+  }, [priceUsdCents, priceBdtCents, priceMyrCents]);
+
+  // Available currencies for this method
+  const availableCurrencies = useMemo(() => {
+    const methodCurrencies = METHOD_CURRENCIES[selectedMethod] ?? ["USD"];
+    return methodCurrencies.filter((c) => priceMap[c] != null);
+  }, [selectedMethod, priceMap]);
+
+  // Selected currency for payment (auto-pick first available)
+  const [selectedCurrency, setSelectedCurrency] = useState<string>("USD");
+
+  // Reset currency when method changes
+  useEffect(() => {
+    if (availableCurrencies.length > 0 && !availableCurrencies.includes(selectedCurrency)) {
+      setSelectedCurrency(availableCurrencies[0]);
+    }
+  }, [availableCurrencies, selectedCurrency]);
+
+  const currentAmountCents = priceMap[selectedCurrency] ?? 0;
+  const amountLabel = formatExamPrice(currentAmountCents, selectedCurrency);
 
   const canSubmit = transactionId.trim().length > 2 && !isSubmitting && !isUploading;
 
@@ -135,6 +172,27 @@ export function ManualPaymentDialog({
                       {copyDone ? "Copied" : "Copy"}
                     </button>
                   </div>
+
+                  {/* Currency selector for multi-currency methods */}
+                  {availableCurrencies.length > 1 ? (
+                    <div className="manual-pay__currency-select">
+                      <p className="manual-pay__muted" style={{ marginBottom: "0.5rem" }}>Select currency to pay in:</p>
+                      <div className="manual-pay__currency-chips">
+                        {availableCurrencies.map((curr) => (
+                          <button
+                            key={curr}
+                            type="button"
+                            className={`manual-pay__currency-chip${selectedCurrency === curr ? " is-active" : ""}`}
+                            onClick={() => setSelectedCurrency(curr)}
+                          >
+                            <span className="manual-pay__currency-chip-code">{curr}</span>
+                            <span className="manual-pay__currency-chip-amount">{formatExamPrice(priceMap[curr] ?? 0, curr)}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
                   <p className="manual-pay__hint">Send exactly {amountLabel} to this number.</p>
                   {selectedPayment.qrSrc ? (
                     <>
@@ -232,6 +290,8 @@ export function ManualPaymentDialog({
                         paymentMethod: selectedMethod,
                         transactionId,
                         proofUrl: proofUrl || null,
+                        currency: selectedCurrency,
+                        amountCents: currentAmountCents,
                       });
                       if (!result.ok) {
                         setError(result.message ?? "Could not submit payment request.");

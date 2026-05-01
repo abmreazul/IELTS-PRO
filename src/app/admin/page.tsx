@@ -40,7 +40,7 @@ const getAdminDashboardData = unstable_cache(
         admin
           .from("mock_exams")
           .select(
-            "id, title, slug, is_published, exam_type, modules, price_cents, currency, created_at, exam_categories(name)",
+            "id, title, slug, is_published, exam_type, modules, price_cents, currency, price_usd_cents, price_bdt_cents, price_myr_cents, created_at, exam_categories(name)",
           )
           .order("created_at", { ascending: false }),
         admin.from("mock_attempts").select("*", { count: "exact", head: true }).eq("review_status", "pending"),

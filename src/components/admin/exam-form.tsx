@@ -15,6 +15,9 @@ type Exam = {
   difficulty: string;
   price_cents: number;
   currency: string;
+  price_usd_cents: number;
+  price_bdt_cents: number;
+  price_myr_cents: number;
   cover_image_url: string | null;
   is_published: boolean;
 };
@@ -29,7 +32,9 @@ export function ExamForm({
   exam?: Exam;
 }) {
   const action = exam ? updateExam : createExam;
-  const priceDollars = exam ? (exam.price_cents / 100).toFixed(2) : "9.99";
+  const priceUsd = exam ? (exam.price_usd_cents / 100).toFixed(2) : "9.99";
+  const priceBdt = exam ? (exam.price_bdt_cents / 100).toFixed(2) : "999.00";
+  const priceMyr = exam ? (exam.price_myr_cents / 100).toFixed(2) : "39.90";
 
   return (
     <form action={action} className="admin-form-grid">
@@ -175,30 +180,52 @@ export function ExamForm({
             <option value="advanced">Advanced</option>
           </select>
         </div>
-        <div className="admin-form-grid admin-form-grid--2">
+        <div />
+      </div>
+
+      <div>
+        <span className="admin-label">Pricing (set 0 for free)</span>
+        <div className="admin-form-grid admin-form-grid--3">
           <div>
-            <label className="admin-label" htmlFor="price">
-              Price (major units)
+            <label className="admin-label" htmlFor="price_usd" style={{ fontSize: "0.75rem" }}>
+              USD ($)
             </label>
             <input
-              id="price"
+              id="price_usd"
               className="admin-input"
-              name="price"
+              name="price_usd"
               type="number"
               step="0.01"
               min={0}
-              defaultValue={priceDollars}
+              defaultValue={priceUsd}
             />
           </div>
           <div>
-            <label className="admin-label" htmlFor="currency">
-              Currency
+            <label className="admin-label" htmlFor="price_bdt" style={{ fontSize: "0.75rem" }}>
+              BDT (৳)
             </label>
             <input
-              id="currency"
+              id="price_bdt"
               className="admin-input"
-              name="currency"
-              defaultValue={exam?.currency ?? "USD"}
+              name="price_bdt"
+              type="number"
+              step="0.01"
+              min={0}
+              defaultValue={priceBdt}
+            />
+          </div>
+          <div>
+            <label className="admin-label" htmlFor="price_myr" style={{ fontSize: "0.75rem" }}>
+              MYR (RM)
+            </label>
+            <input
+              id="price_myr"
+              className="admin-input"
+              name="price_myr"
+              type="number"
+              step="0.01"
+              min={0}
+              defaultValue={priceMyr}
             />
           </div>
         </div>
