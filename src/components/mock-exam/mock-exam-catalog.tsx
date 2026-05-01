@@ -1,26 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Check, Clock3, Layers3, Star, Users } from "lucide-react";
+import { Check, Clock3, Layers3, ShoppingCart, Star, Users } from "lucide-react";
 import { ManualPaymentDialog } from "./manual-payment-dialog";
 import type { MockAttemptRow, MockExamRow, MockPaymentRequestRow } from "./types";
-
-function categoryBadgeClass(slug: string): string {
-  const s = slug.toLowerCase();
-  if (s.includes("listen")) return "me-card__cat me-card__cat--listen";
-  if (s.includes("read")) return "me-card__cat me-card__cat--read";
-  if (s.includes("writ")) return "me-card__cat me-card__cat--write";
-  if (s.includes("speak")) return "me-card__cat me-card__cat--speak";
-  if (s.includes("full")) return "me-card__cat me-card__cat--full";
-  return "me-card__cat me-card__cat--default";
-}
-
-function formatPrice(cents: number, currency: string) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: currency || "USD",
-    maximumFractionDigits: 0,
-  }).format(cents / 100);
-}
 
 function hasAnyPrice(exam: MockExamRow) {
   return (exam.price_usd_cents ?? 0) > 0 || (exam.price_bdt_cents ?? 0) > 0 || (exam.price_myr_cents ?? 0) > 0;
@@ -43,6 +25,27 @@ function modulePillClass(exam: MockExamRow) {
   return "me-card__module-pill me-card__module-pill--default";
 }
 
+/** Build the inline price fragments for the buy bar */
+function PriceFragments({ exam }: { exam: MockExamRow }) {
+  const parts: { symbol: string; amount: string; code: string }[] = [];
+  if ((exam.price_usd_cents ?? 0) > 0) parts.push({ symbol: "$", amount: (exam.price_usd_cents / 100).toFixed(0), code: "USD" });
+  if ((exam.price_bdt_cents ?? 0) > 0) parts.push({ symbol: "৳", amount: (exam.price_bdt_cents / 100).toFixed(0), code: "BDT" });
+  if ((exam.price_myr_cents ?? 0) > 0) parts.push({ symbol: "RM", amount: (exam.price_myr_cents / 100).toFixed(0), code: "MYR" });
+
+  return (
+    <>
+      {parts.map((p, i) => (
+        <span key={p.code} className="me-buy__price-item">
+          {i > 0 ? <span className="me-buy__dot">·</span> : null}
+          <span className="me-buy__symbol">{p.symbol}</span>
+          <span className="me-buy__amount">{p.amount}</span>
+          <span className="me-buy__code">{p.code}</span>
+        </span>
+      ))}
+    </>
+  );
+}
+
 type ExamCardProps = {
   exam: MockExamRow;
   latestAttempt: MockAttemptRow | null;
@@ -63,8 +66,6 @@ export function ExamCard({
   actionLabelOverride,
 }: ExamCardProps) {
   const category = exam.exam_categories;
-  const categoryName = category?.name ?? "Exam";
-  const slug = category?.slug ?? "exam";
   const hasCompletedAttempt =
     latestAttempt?.status === "completed" &&
     latestAttempt?.completed_at;
@@ -114,20 +115,10 @@ export function ExamCard({
         ) : null}
       </div>
 
-      {!isFree ? (
-        <div className="me-card__prices">
-          {(exam.price_usd_cents ?? 0) > 0 ? <span className="me-card__price-tag me-card__price-tag--usd">${(exam.price_usd_cents / 100).toFixed(0)}</span> : null}
-          {(exam.price_bdt_cents ?? 0) > 0 ? <span className="me-card__price-tag me-card__price-tag--bdt">৳{(exam.price_bdt_cents / 100).toFixed(0)}</span> : null}
-          {(exam.price_myr_cents ?? 0) > 0 ? <span className="me-card__price-tag me-card__price-tag--myr">RM{(exam.price_myr_cents / 100).toFixed(0)}</span> : null}
-        </div>
-      ) : null}
-
       <div className="me-card__body">
         <div className="me-card__title-row">
           <h2 className="me-card__title">{exam.title}</h2>
-          <span className="me-card__price-pill">
-            {isFree ? "FREE" : formatPrice(exam.price_usd_cents ?? exam.price_cents, "USD")}
-          </span>
+          {isFree ? <span className="me-card__price-pill">FREE</span> : null}
         </div>
 
         <div className="me-card__meta">
@@ -181,11 +172,37 @@ export function ExamCard({
                 priceBdtCents={exam.price_bdt_cents ?? 0}
                 priceMyrCents={exam.price_myr_cents ?? 0}
                 existingRequest={paymentRequest ?? null}
-              />
+              >
+                <div className="me-buy">
+                  <div className="me-buy__prices">
+                    <PriceFragments exam={exam} />
+                  </div>
+                  <div className="me-buy__divider" />
+                  <div className="me-buy__action">
+                    <span>Buy Now</span>
+                    <ShoppingCart size={16} strokeWidth={2.2} />
+                  </div>
+                </div>
+              </ManualPaymentDialog>
             )
           ) : (
-            <Link href="/sign-in?next=/mock-exam" className="btn btn-topbar-cta btn-primary">
-              {isFree ? defaultLabel : "Buy now"}
+            <Link href="/sign-in?next=/mock-exam" className="me-buy me-buy--link">
+              {isFree ? (
+                <div className="me-buy__action me-buy__action--full">
+                  <span>{defaultLabel}</span>
+                </div>
+              ) : (
+                <>
+                  <div className="me-buy__prices">
+                    <PriceFragments exam={exam} />
+                  </div>
+                  <div className="me-buy__divider" />
+                  <div className="me-buy__action">
+                    <span>Buy Now</span>
+                    <ShoppingCart size={16} strokeWidth={2.2} />
+                  </div>
+                </>
+              )}
             </Link>
           )}
         </div>

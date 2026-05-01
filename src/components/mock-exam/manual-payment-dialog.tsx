@@ -28,6 +28,7 @@ type Props = {
   priceBdtCents: number;
   priceMyrCents: number;
   existingRequest: MockPaymentRequestRow | null;
+  children?: React.ReactNode;
 };
 
 export function ManualPaymentDialog({
@@ -37,6 +38,7 @@ export function ManualPaymentDialog({
   priceBdtCents,
   priceMyrCents,
   existingRequest,
+  children,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [selectedMethod, setSelectedMethod] = useState<ManualPaymentMethodId>(
@@ -109,9 +111,15 @@ export function ManualPaymentDialog({
 
   return (
     <>
-      <button type="button" className="btn btn-topbar-cta btn-primary" onClick={() => setOpen(true)}>
-        Buy now
-      </button>
+      {children ? (
+        <div role="button" tabIndex={0} onClick={() => setOpen(true)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setOpen(true); }} style={{ cursor: 'pointer' }}>
+          {children}
+        </div>
+      ) : (
+        <button type="button" className="btn btn-topbar-cta btn-primary" onClick={() => setOpen(true)}>
+          Buy now
+        </button>
+      )}
 
       {mounted && open
         ? createPortal(
