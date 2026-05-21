@@ -463,6 +463,7 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
   const [speakingRecordings, setSpeakingRecordings] = useState<Record<string, SpeakingRecording>>({});
   const [recordingQuestionId, setRecordingQuestionId] = useState<string | null>(null);
   const [recordingError, setRecordingError] = useState<string | null>(null);
+  const [spectrumLevels, setSpectrumLevels] = useState<number[]>(() => Array.from({ length: 18 }, () => 0.24));
   const [activeSpeakingIndex, setActiveSpeakingIndex] = useState(0);
   const [speakingUploadProgress, setSpeakingUploadProgress] = useState<number | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -470,6 +471,8 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
   const recordingStartedAtRef = useRef(0);
   const recordingStreamRef = useRef<MediaStream | null>(null);
   const speakingRecordingsRef = useRef<Record<string, SpeakingRecording>>({});
+  const micAudioContextRef = useRef<AudioContext | null>(null);
+  const spectrumRafRef = useRef<number | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const gainNodesRef = useRef(new WeakMap<HTMLAudioElement, GainNode>());
   const sourceNodesRef = useRef(new WeakMap<HTMLAudioElement, MediaElementAudioSourceNode>());
@@ -661,8 +664,52 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
   }, []);
 
   const stopSpeakingStream = useCallback(() => {
+    if (spectrumRafRef.current != null) {
+      cancelAnimationFrame(spectrumRafRef.current);
+      spectrumRafRef.current = null;
+    }
     recordingStreamRef.current?.getTracks().forEach((track) => track.stop());
     recordingStreamRef.current = null;
+    void micAudioContextRef.current?.close().catch(() => undefined);
+    micAudioContextRef.current = null;
+    setSpectrumLevels(Array.from({ length: 18 }, () => 0.24));
+  }, []);
+
+  const startSpectrumAnalyzer = useCallback((stream: MediaStream) => {
+    if (typeof window === "undefined") return;
+    const AudioContextCtor = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextCtor) return;
+
+    try {
+      const context = new AudioContextCtor();
+      const analyser = context.createAnalyser();
+      analyser.fftSize = 64;
+      analyser.smoothingTimeConstant = 0.74;
+      const source = context.createMediaStreamSource(stream);
+      source.connect(analyser);
+      micAudioContextRef.current = context;
+
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      const tick = () => {
+        analyser.getByteFrequencyData(data);
+        const bucketCount = 18;
+        const bucketSize = Math.max(1, Math.floor(data.length / bucketCount));
+        const next = Array.from({ length: bucketCount }, (_, index) => {
+          const start = index * bucketSize;
+          const end = Math.min(data.length, start + bucketSize);
+          let sum = 0;
+          for (let i = start; i < end; i += 1) sum += data[i] ?? 0;
+          const average = sum / Math.max(1, end - start);
+          return Math.max(0.12, Math.min(1, average / 150));
+        });
+        setSpectrumLevels(next);
+        spectrumRafRef.current = requestAnimationFrame(tick);
+      };
+      void context.resume().catch(() => undefined);
+      tick();
+    } catch {
+      setSpectrumLevels(Array.from({ length: 18 }, (_, index) => 0.22 + ((index % 5) * 0.08)));
+    }
   }, []);
 
   const startSpeakingRecording = useCallback(async (questionId: string) => {
@@ -675,8 +722,14 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
     setRecordingError(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mimeType = getSupportedRecordingMimeType();
-      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+      let recorder: MediaRecorder;
+      let mimeType = getSupportedRecordingMimeType();
+      try {
+        recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+      } catch {
+        mimeType = "";
+        recorder = new MediaRecorder(stream);
+      }
       recordingChunksRef.current = [];
       recordingStartedAtRef.current = Date.now();
       recordingStreamRef.current = stream;
@@ -693,6 +746,12 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
       recorder.onstop = () => {
         const finalMimeType = recorder.mimeType || mimeType || "audio/webm";
         const blob = new Blob(recordingChunksRef.current, { type: finalMimeType });
+        if (blob.size === 0) {
+          setRecordingError("No audio was captured. Check the selected microphone and try again.");
+          setRecordingQuestionId(null);
+          stopSpeakingStream();
+          return;
+        }
         const durationSeconds = Math.max(1, Math.round((Date.now() - recordingStartedAtRef.current) / 1000));
         const url = URL.createObjectURL(blob);
         setSpeakingRecordings((prev) => {
@@ -716,13 +775,21 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
         stopSpeakingStream();
       };
 
-      recorder.start();
+      recorder.start(250);
+      startSpectrumAnalyzer(stream);
       setRecordingQuestionId(questionId);
-    } catch {
-      setRecordingError("Microphone permission is required to record your answer.");
+    } catch (error) {
+      const name = error instanceof DOMException ? error.name : "";
+      if (name === "NotAllowedError" || name === "SecurityError") {
+        setRecordingError("Microphone permission is required to record your answer.");
+      } else if (name === "NotFoundError" || name === "DevicesNotFoundError") {
+        setRecordingError("No microphone was found on this device.");
+      } else {
+        setRecordingError("The recorder could not start. Refresh the page and try again.");
+      }
       stopSpeakingStream();
     }
-  }, [recordingQuestionId, stopSpeakingStream]);
+  }, [recordingQuestionId, startSpectrumAnalyzer, stopSpeakingStream]);
 
   const stopSpeakingRecording = useCallback(() => {
     const recorder = mediaRecorderRef.current;
@@ -1097,19 +1164,19 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
   ]);
 
   const answeredInPart = (partQuestions: ExamQuestion[]) =>
-    partQuestions.filter((q) => answers[q.id] !== undefined).length;
+    partQuestions.filter((q) => answers[q.id] !== undefined || speakingRecordings[q.id]).length;
 
   const isPartFinished = useCallback(
     (partQuestions: ExamQuestion[]) => partQuestions.length > 0 && answeredInPart(partQuestions) === partQuestions.length,
-    [answers],
+    [answers, speakingRecordings],
   );
 
   const isModuleFinished = useCallback(
     (module: string) => {
       const moduleQuestions = visibleQuestions.filter((question) => question.module === module);
-      return moduleQuestions.length > 0 && moduleQuestions.every((question) => answers[question.id] !== undefined);
+      return moduleQuestions.length > 0 && moduleQuestions.every((question) => answers[question.id] !== undefined || speakingRecordings[question.id]);
     },
-    [answers, visibleQuestions],
+    [answers, speakingRecordings, visibleQuestions],
   );
 
   /* ── Submitting overlay ────────────── */
@@ -1557,7 +1624,12 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
 
                     <div className={`ep-speaking-recorder ep-speaking-recorder--pro${isRecordingThis ? " is-recording" : ""}`}>
                       <div className="ep-speaking-recorder__meter" aria-hidden>
-                        <span /><span /><span /><span /><span /><span /><span />
+                        {spectrumLevels.map((level, index) => (
+                          <span
+                            key={index}
+                            style={{ transform: `scaleY(${isRecordingThis ? level : 0.22 + ((index % 6) * 0.06)})` }}
+                          />
+                        ))}
                       </div>
                       <div className="ep-speaking-recorder__status">
                         <strong>{isRecordingThis ? "Recording..." : recording ? "Answer recorded" : "Ready to record"}</strong>
@@ -1973,12 +2045,19 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
           <div className="ep-nav-panel__grid">
             {currentPartInfo.questions.map((q, i) => {
               const gIdx = currentPartInfo.startIndex + i;
-              const isAnswered = answers[q.id] !== undefined;
+              const isAnswered = answers[q.id] !== undefined || Boolean(speakingRecordings[q.id]);
               return (
                 <button
                   key={q.id}
                   className={`ep-nav-panel__dot${isAnswered ? " ep-nav-panel__dot--done" : ""}`}
-                  onClick={() => scrollToQuestion(gIdx)}
+                  onClick={() => {
+                    if (currentPartInfo.module === "speaking") {
+                      const targetIndex = speakingQuestions.findIndex((question) => question.id === q.id);
+                      if (targetIndex >= 0) setActiveSpeakingIndex(targetIndex);
+                    } else {
+                      scrollToQuestion(gIdx);
+                    }
+                  }}
                   type="button"
                 >
                   {gIdx + 1}
