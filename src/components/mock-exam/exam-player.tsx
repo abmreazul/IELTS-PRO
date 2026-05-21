@@ -10,7 +10,21 @@ import {
   getWritingTaskTitle,
   normalizeExamModules,
 } from "@/lib/exam/ielts-defaults";
-import { Clock, Send, Volume2, Pause, Play, ChevronLeft, ChevronRight, Headphones, BookOpen, PenLine, Check } from "lucide-react";
+import {
+  AlertCircle,
+  BookOpen,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Headphones,
+  Pause,
+  PenLine,
+  Play,
+  Send,
+  Sparkles,
+  Volume2,
+} from "lucide-react";
 
 /* ═══════════════════════════════════════════════════════════════════
    Types
@@ -232,6 +246,7 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
   const [submitted, setSubmitted] = useState(false);
   const [result, setResult] = useState<SubmitResult | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   // Audio
   const masterAudioRef = useRef<HTMLAudioElement | null>(null);
   const audioRefs = useRef<Record<number, HTMLAudioElement | null>>({});
@@ -538,13 +553,19 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
     if (submitting || submitted) return;
     setSubmitting(true);
     setShowConfirm(false);
-    const res = await submitExamAttempt(attemptId, answers);
-    setSubmitting(false);
-    if (res.ok) {
-      setSubmitted(true);
-      setResult(res.result);
-    } else {
-      alert(res.message);
+    setSubmitError(null);
+    try {
+      const res = await submitExamAttempt(attemptId, answers);
+      if (res.ok) {
+        setSubmitted(true);
+        setResult(res.result);
+      } else {
+        setSubmitError(res.message);
+      }
+    } catch {
+      setSubmitError("AI evaluation could not finish right now. Your answers are still here, so please try submitting again.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -703,13 +724,20 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
             <div className="ep-submitting__ring" />
           </div>
           <h2 className="ep-submitting__title">
-            {hasWriting ? "AI is evaluating your writing…" : "Scoring your answers…"}
+            {hasWriting ? "Gemini is marking your writing" : "Scoring your answers"}
           </h2>
           <p className="ep-submitting__sub">
             {hasWriting
-              ? "Our AI examiner is reviewing your essay for task response, coherence, vocabulary, and grammar. This may take a few seconds."
+              ? "Your response is being checked against IELTS writing criteria. Keep this tab open while the band score and feedback are prepared."
               : "Calculating your band scores across all modules. Please wait a moment."}
           </p>
+          {hasWriting ? (
+            <div className="ep-submitting__steps" aria-label="AI marking progress">
+              <span>Reading responses</span>
+              <span>Scoring criteria</span>
+              <span>Preparing feedback</span>
+            </div>
+          ) : null}
           <div className="ep-submitting__dots" aria-hidden>
             <span /><span /><span />
           </div>
@@ -766,7 +794,9 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
             {ai && ai.tasks.length > 0 ? (
               <div className="ep-results__ai">
                 <div className="ep-results__ai-header">
-                  <div className="ep-results__ai-icon">✍</div>
+                  <div className="ep-results__ai-icon">
+                    <Sparkles size={22} strokeWidth={2.2} aria-hidden />
+                  </div>
                   <div>
                     <h2 className="ep-results__ai-title">AI Writing Assessment</h2>
                     <p className="ep-results__ai-sub">Evaluated by Gemini AI examiner</p>
@@ -960,6 +990,19 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
           </button>
         </div>
       </header>
+
+      {submitError ? (
+        <div className="ep-submit-error" role="alert">
+          <AlertCircle size={18} strokeWidth={2.2} aria-hidden />
+          <div>
+            <strong>Writing evaluation did not complete</strong>
+            <span>{submitError}</span>
+          </div>
+          <button type="button" onClick={() => setSubmitError(null)} aria-label="Dismiss evaluation error">
+            ×
+          </button>
+        </div>
+      ) : null}
 
       {/* Confirm modal */}
       {showConfirm ? (

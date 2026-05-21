@@ -136,9 +136,8 @@
   width: 44px;
   height: 44px;
   border-radius: 12px;
-  background: linear-gradient(135deg, #7c3aed, #a855f7);
+  background: linear-gradient(135deg, #2563eb, #14b8a6);
   color: #fff;
-  font-size: 1.2rem;
   display: grid;
   place-items: center;
   flex-shrink: 0;

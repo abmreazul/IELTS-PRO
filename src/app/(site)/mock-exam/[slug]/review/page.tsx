@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { Sparkles } from "lucide-react";
 import { createClient, getAuthUser } from "@/lib/supabase/server";
 import type { WritingAiReview } from "@/lib/ai/writing-review";
 import { normalizeExamModules } from "@/lib/exam/ielts-defaults";
@@ -152,7 +153,7 @@ export default async function ReviewMockExamPage({
             {/* Pending message */}
             {reviewPending ? (
               <div className="rv__pending-msg">
-                Your writing submission was saved successfully. Objective sections show bands, but the writing score stays pending until AI review completes.
+                Your submission was saved, but the AI writing review did not finish for this older attempt. Retake the writing exam to receive instant Gemini marking.
               </div>
             ) : null}
 
@@ -160,7 +161,9 @@ export default async function ReviewMockExamPage({
             {aiReview ? (
               <div className="rv__ai">
                 <div className="rv__ai-header">
-                  <div className="rv__ai-icon">✍</div>
+                  <div className="rv__ai-icon">
+                    <Sparkles size={22} strokeWidth={2.2} aria-hidden />
+                  </div>
                   <div>
                     <h2 className="rv__ai-title">AI Writing Assessment</h2>
                     <p className="rv__ai-sub">Evaluated by Gemini AI examiner</p>

@@ -318,12 +318,83 @@ type WritingAiReviewResult = {
   }[];
 };
 
+type WritingTaskPayload = {
+  part: number;
+  prompt: string;
+  min_words: number | null;
+  image_url: string | null;
+  answer: string;
+  test_variant: "academic" | "general";
+};
+
 type SubmitResult = {
   overallBand: number | null;
   moduleBands: Record<string, number | null>;
   reviewPendingModules: string[];
   aiWritingReview: WritingAiReviewResult | null;
 };
+
+function decodeQuestionPart(sortOrder: number, fallback = 1) {
+  if (sortOrder >= 100) return Math.max(1, Math.floor(sortOrder / 100));
+  return fallback;
+}
+
+function getWritingAnswerFromMap(answers: AnswerMap, questionId: string) {
+  const raw = answers[questionId];
+  return typeof raw === "string" ? raw : "";
+}
+
+function buildWritingTasksForAi(input: {
+  answers: AnswerMap;
+  structure: {
+    exam_meta?: { test_variant?: "academic" | "general" };
+    writing_tasks?: { part: number; prompt?: string; min_words?: number; image_url?: string }[];
+  } | null;
+  writingQuestions: {
+    id: string;
+    prompt: string | null;
+    sort_order: number;
+  }[];
+}): WritingTaskPayload[] {
+  const testVariant = coerceTestVariant(input.structure?.exam_meta?.test_variant);
+  const sortedQuestions = [...input.writingQuestions].sort((a, b) => a.sort_order - b.sort_order);
+  const structuredTasks = Array.isArray(input.structure?.writing_tasks)
+    ? input.structure.writing_tasks
+    : [];
+
+  if (structuredTasks.length > 0) {
+    return structuredTasks
+      .map((task, index) => {
+        const part = Math.max(1, Math.min(2, Math.floor(Number(task.part)) || index + 1));
+        const matchedQuestion =
+          sortedQuestions.find((question) => decodeQuestionPart(question.sort_order) === part) ??
+          sortedQuestions[index];
+        if (!matchedQuestion) return null;
+
+        return {
+          part,
+          prompt: String(task.prompt ?? matchedQuestion.prompt ?? "").trim(),
+          min_words: Number(task.min_words) || null,
+          image_url: String(task.image_url ?? "").trim() || null,
+          answer: getWritingAnswerFromMap(input.answers, matchedQuestion.id),
+          test_variant: testVariant,
+        };
+      })
+      .filter((task): task is WritingTaskPayload => Boolean(task));
+  }
+
+  return sortedQuestions.map((question, index) => {
+    const part = Math.max(1, Math.min(2, decodeQuestionPart(question.sort_order, index + 1)));
+    return {
+      part,
+      prompt: String(question.prompt ?? "").trim(),
+      min_words: part === 1 ? 150 : 250,
+      image_url: null,
+      answer: getWritingAnswerFromMap(input.answers, question.id),
+      test_variant: testVariant,
+    };
+  });
+}
 
 export async function submitExamAttempt(
   attemptId: string,
@@ -453,28 +524,14 @@ export async function submitExamAttempt(
           writing_tasks?: { part: number; prompt?: string; min_words?: number; image_url?: string }[];
         }
       : null;
-    const testVariant = coerceTestVariant(structure?.exam_meta?.test_variant);
     const writingQuestions = scorableQuestions
       .filter((question) => question.module === "writing")
       .sort((a, b) => a.sort_order - b.sort_order);
-    const writingTasks = (structure?.writing_tasks ?? [])
-      .map((task) => {
-        const matchedQuestion = writingQuestions.find((question) => {
-          const decodedPart = question.sort_order >= 100 ? Math.floor(question.sort_order / 100) : 1;
-          return decodedPart === task.part;
-        });
-        return matchedQuestion
-          ? {
-              part: task.part,
-              prompt: String(task.prompt ?? matchedQuestion.prompt ?? "").trim(),
-              min_words: Number(task.min_words) || null,
-              image_url: String(task.image_url ?? "").trim() || null,
-              answer: typeof answers[matchedQuestion.id] === "string" ? String(answers[matchedQuestion.id]) : "",
-              test_variant: testVariant,
-            }
-          : null;
-      })
-      .filter((task): task is NonNullable<typeof task> => Boolean(task));
+    const writingTasks = buildWritingTasksForAi({
+      answers,
+      structure,
+      writingQuestions,
+    });
 
     if (writingTasks.length > 0) {
       const writingAiResult = await evaluateWritingWithGemini(writingTasks);
@@ -483,10 +540,16 @@ export async function submitExamAttempt(
         moduleBands.writing = writingAiResult.review.overall_band;
         aiReviewJson = writingAiResult.review as unknown as Record<string, unknown>;
       } else {
-        reviewPendingModules.add("writing");
+        return {
+          ok: false,
+          message: `AI writing evaluation could not complete: ${writingAiResult.reason}`,
+        };
       }
     } else {
-      reviewPendingModules.add("writing");
+      return {
+        ok: false,
+        message: "This writing exam is missing response slots. Ask an admin to resave the writing tasks.",
+      };
     }
   }
 
