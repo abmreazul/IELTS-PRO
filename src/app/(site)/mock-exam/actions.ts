@@ -542,7 +542,7 @@ export async function submitExamAttempt(
       } else {
         return {
           ok: false,
-          message: `AI writing evaluation could not complete: ${writingAiResult.reason}`,
+          message: "Writing evaluation could not complete. Please try again in a moment.",
         };
       }
     } else {

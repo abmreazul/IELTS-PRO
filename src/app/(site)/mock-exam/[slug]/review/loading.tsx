@@ -26,7 +26,7 @@ export default function ReviewResultsLoading() {
           ))}
         </div>
 
-        {/* AI section skeleton */}
+        {/* Writing section skeleton */}
         <div style={{ marginBottom: "1.25rem" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "0.85rem", marginBottom: "1.25rem", paddingBottom: "1rem", borderBottom: "1px solid var(--border)" }}>
             <div className="rv-skel" style={{ width: "44px", height: "44px", borderRadius: "12px" }} />

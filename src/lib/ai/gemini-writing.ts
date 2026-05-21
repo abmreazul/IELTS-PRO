@@ -305,7 +305,7 @@ export async function evaluateWritingWithGemini(
       overall_band: overallBand,
       summary: asText(
         parsed.summary,
-        "AI writing evaluation completed successfully.",
+        "Writing evaluation completed successfully.",
       ),
       strengths: asTextList(parsed.strengths),
       improvements: asTextList(parsed.improvements),

@@ -153,11 +153,11 @@ export default async function ReviewMockExamPage({
             {/* Pending message */}
             {reviewPending ? (
               <div className="rv__pending-msg">
-                Your submission was saved, but the AI writing review did not finish for this older attempt. Retake the writing exam to receive instant Gemini marking.
+                Your submission was saved, but the writing evaluation did not finish for this older attempt. Retake the writing exam to receive instant marking.
               </div>
             ) : null}
 
-            {/* AI Writing Review */}
+            {/* Writing Review */}
             {aiReview ? (
               <div className="rv__ai">
                 <div className="rv__ai-header">
@@ -165,8 +165,8 @@ export default async function ReviewMockExamPage({
                     <Sparkles size={22} strokeWidth={2.2} aria-hidden />
                   </div>
                   <div>
-                    <h2 className="rv__ai-title">AI Writing Assessment</h2>
-                    <p className="rv__ai-sub">Evaluated by Gemini AI examiner</p>
+                    <h2 className="rv__ai-title">Writing Assessment</h2>
+                    <p className="rv__ai-sub">Marked against IELTS writing criteria</p>
                   </div>
                 </div>
 

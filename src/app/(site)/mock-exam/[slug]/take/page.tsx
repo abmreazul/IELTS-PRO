@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createClient, getAuthUser } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
-import { ExamPlayer, type ExamData, type ExamQuestion } from "@/components/mock-exam/exam-player";
+import { ExamSessionGate, type ExamData, type ExamQuestion } from "@/components/mock-exam/exam-player";
 import "./exam-player.css";
 
 export const metadata: Metadata = {
@@ -26,7 +26,7 @@ export default async function TakeMockExamPage({
   const supabase = await createClient();
   const { data: exam } = await supabase
     .from("mock_exams")
-    .select("id, title, slug, modules, duration_minutes, listening_audio_json, structure_json, is_published, price_cents")
+    .select("id, title, slug, description, exam_type, modules, duration_minutes, question_count, difficulty, cover_image_url, listening_audio_json, structure_json, is_published, price_cents")
     .eq("slug", slug)
     .eq("is_published", true)
     .single();
@@ -113,41 +113,20 @@ export default async function TakeMockExamPage({
     );
   }
 
-  // Create attempt
-  const { data: attempt, error: attemptErr } = await admin
-    .from("mock_attempts")
-    .insert({
-      user_id: user.id,
-      exam_id: exam.id,
-      status: "in_progress",
-    })
-    .select("id")
-    .single();
-
-  if (attemptErr || !attempt) {
-    return (
-      <main className="page" style={{ padding: "3rem 1.5rem" }}>
-        <div className="container" style={{ maxWidth: "36rem", textAlign: "center" }}>
-          <h1 style={{ fontFamily: "var(--font-display), sans-serif", fontSize: "1.5rem", fontWeight: 800 }}>
-            Error
-          </h1>
-          <p style={{ color: "var(--muted)", marginTop: "0.75rem" }}>
-            Could not start exam session. Please try again.
-          </p>
-        </div>
-      </main>
-    );
-  }
-
   const examData: ExamData = {
     id: exam.id,
     title: exam.title,
     slug: exam.slug,
+    description: exam.description,
+    exam_type: exam.exam_type,
     modules: exam.modules,
     duration_minutes: exam.duration_minutes,
+    question_count: exam.question_count,
+    difficulty: exam.difficulty,
+    cover_image_url: exam.cover_image_url,
     listening_audio_json: exam.listening_audio_json as ExamData["listening_audio_json"],
     structure_json: exam.structure_json as ExamData["structure_json"],
   };
 
-  return <ExamPlayer exam={examData} questions={questions} attemptId={attempt.id} />;
+  return <ExamSessionGate exam={examData} questions={questions} />;
 }

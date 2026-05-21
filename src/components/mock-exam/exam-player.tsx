@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { submitExamAttempt } from "@/app/(site)/mock-exam/actions";
+import { startExamAttempt, submitExamAttempt } from "@/app/(site)/mock-exam/actions";
 import {
   coerceTestVariant,
   getReadingSectionLabel,
@@ -17,7 +17,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  FileText,
   Headphones,
+  Layers3,
   Pause,
   PenLine,
   Play,
@@ -45,8 +47,13 @@ export type ExamData = {
   id: string;
   title: string;
   slug: string;
+  description?: string | null;
+  exam_type?: "full" | "partial";
   modules: string[];
   duration_minutes: number;
+  question_count?: number;
+  difficulty?: "beginner" | "intermediate" | "advanced";
+  cover_image_url?: string | null;
   listening_audio_json?: { url: string; title?: string } | { part: number; url: string; title?: string }[] | null;
   structure_json?: {
     exam_meta?: { test_variant?: "academic" | "general" };
@@ -98,6 +105,136 @@ const MODULE_ICONS: Record<string, typeof Headphones> = {
   reading: BookOpen,
   writing: PenLine,
 };
+
+function formatModuleName(value: string) {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function formatDifficulty(value: ExamData["difficulty"]) {
+  if (!value) return "Standard";
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+export function ExamSessionGate({
+  exam,
+  questions,
+}: {
+  exam: ExamData;
+  questions: ExamQuestion[];
+}) {
+  const router = useRouter();
+  const [attemptId, setAttemptId] = useState<string | null>(null);
+  const [starting, setStarting] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
+  const activeModules = useMemo(() => normalizeExamModules(exam.modules), [exam.modules]);
+
+  const moduleCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const question of questions) {
+      counts.set(question.module, (counts.get(question.module) ?? 0) + 1);
+    }
+    return counts;
+  }, [questions]);
+
+  const overviewText =
+    exam.description?.trim() ||
+    "Review the exam structure before you begin. Once started, the timer will run continuously until you submit.";
+  const totalQuestions = exam.question_count && exam.question_count > 0 ? exam.question_count : questions.length;
+
+  async function handleStart() {
+    if (starting) return;
+    setStarting(true);
+    setStartError(null);
+    const result = await startExamAttempt(exam.id);
+    setStarting(false);
+    if (result.ok) {
+      setAttemptId(result.attemptId);
+      return;
+    }
+    setStartError(result.message || "Could not start exam session. Please try again.");
+  }
+
+  if (attemptId) {
+    return <ExamPlayer exam={exam} questions={questions} attemptId={attemptId} />;
+  }
+
+  return (
+    <main className="ep-start">
+      <section className="ep-start__shell">
+        <div className="ep-start__hero">
+          <button type="button" className="ep-start__back" onClick={() => router.push("/mock-exam")}>
+            <ChevronLeft size={16} strokeWidth={2.2} aria-hidden />
+            Back to exams
+          </button>
+
+          <div className="ep-start__eyebrow">
+            <Layers3 size={15} strokeWidth={2.2} aria-hidden />
+            {exam.exam_type === "full" ? "Full IELTS mock exam" : "IELTS module test"}
+          </div>
+          <h1>{exam.title}</h1>
+          <p>{overviewText}</p>
+
+          <div className="ep-start__stats" aria-label="Exam overview">
+            <div>
+              <Clock size={18} strokeWidth={2.2} aria-hidden />
+              <span>{exam.duration_minutes} min</span>
+              <small>Duration</small>
+            </div>
+            <div>
+              <FileText size={18} strokeWidth={2.2} aria-hidden />
+              <span>{totalQuestions}</span>
+              <small>Questions</small>
+            </div>
+            <div>
+              <PenLine size={18} strokeWidth={2.2} aria-hidden />
+              <span>{formatDifficulty(exam.difficulty)}</span>
+              <small>Level</small>
+            </div>
+          </div>
+        </div>
+
+        <aside className="ep-start__panel">
+          <h2>Before you start</h2>
+          <ul className="ep-start__checklist">
+            <li>The timer begins only after you press Start Exam.</li>
+            <li>Keep this tab open until you submit your answers.</li>
+            <li>Writing responses are marked immediately after submission.</li>
+            <li>Use a stable internet connection for audio and saving answers.</li>
+          </ul>
+
+          <div className="ep-start__modules">
+            {activeModules.map((moduleName) => {
+              const Icon = MODULE_ICONS[moduleName] ?? BookOpen;
+              return (
+                <div key={moduleName} className="ep-start__module">
+                  <span className="ep-start__module-icon">
+                    <Icon size={17} strokeWidth={2.2} aria-hidden />
+                  </span>
+                  <div>
+                    <strong>{formatModuleName(moduleName)}</strong>
+                    <small>{moduleCounts.get(moduleName) ?? 0} questions</small>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {startError ? (
+            <div className="ep-start__error" role="alert">
+              <AlertCircle size={17} strokeWidth={2.2} aria-hidden />
+              <span>{startError}</span>
+            </div>
+          ) : null}
+
+          <button type="button" className="ep-start__button" onClick={handleStart} disabled={starting}>
+            {starting ? "Starting..." : "Start Exam"}
+            <Play size={17} fill="currentColor" strokeWidth={2.2} aria-hidden />
+          </button>
+        </aside>
+      </section>
+    </main>
+  );
+}
 
 type ExamDraft = {
   answers: AnswerMap;
@@ -563,7 +700,7 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
         setSubmitError(res.message);
       }
     } catch {
-      setSubmitError("AI evaluation could not finish right now. Your answers are still here, so please try submitting again.");
+      setSubmitError("Writing evaluation could not finish right now. Your answers are still here, so please try submitting again.");
     } finally {
       setSubmitting(false);
     }
@@ -724,7 +861,7 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
             <div className="ep-submitting__ring" />
           </div>
           <h2 className="ep-submitting__title">
-            {hasWriting ? "Gemini is marking your writing" : "Scoring your answers"}
+            {hasWriting ? "Marking your writing" : "Scoring your answers"}
           </h2>
           <p className="ep-submitting__sub">
             {hasWriting
@@ -732,7 +869,7 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
               : "Calculating your band scores across all modules. Please wait a moment."}
           </p>
           {hasWriting ? (
-            <div className="ep-submitting__steps" aria-label="AI marking progress">
+            <div className="ep-submitting__steps" aria-label="Writing marking progress">
               <span>Reading responses</span>
               <span>Scoring criteria</span>
               <span>Preparing feedback</span>
@@ -790,7 +927,7 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
               </div>
             </div>
 
-            {/* AI Writing Review Section */}
+            {/* Writing Review Section */}
             {ai && ai.tasks.length > 0 ? (
               <div className="ep-results__ai">
                 <div className="ep-results__ai-header">
@@ -798,8 +935,8 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
                     <Sparkles size={22} strokeWidth={2.2} aria-hidden />
                   </div>
                   <div>
-                    <h2 className="ep-results__ai-title">AI Writing Assessment</h2>
-                    <p className="ep-results__ai-sub">Evaluated by Gemini AI examiner</p>
+                    <h2 className="ep-results__ai-title">Writing Assessment</h2>
+                    <p className="ep-results__ai-sub">Marked against IELTS writing criteria</p>
                   </div>
                 </div>
 
