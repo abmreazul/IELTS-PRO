@@ -1114,12 +1114,23 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
     <div className="ep">
       {/* Top bar */}
       <header className="ep-top">
-        <div className="ep-top__timer">
-          <Clock size={15} />
-          <span className={`ep-top__time${timeIsLow ? " ep-top__time--low" : ""}`}>{timeDisplay}</span>
+        <div className={`ep-top__timer-card${timeIsLow ? " ep-top__timer-card--low" : ""}`}>
+          <span className="ep-top__timer-icon">
+            <Clock size={18} strokeWidth={2.25} aria-hidden />
+          </span>
+          <span className="ep-top__timer-copy">
+            <span>Time left</span>
+            <strong className={timeIsLow ? "ep-top__time ep-top__time--low" : "ep-top__time"}>{timeDisplay}</strong>
+          </span>
         </div>
-        <div className="ep-top__track">
-          <div className="ep-top__fill" style={{ width: `${timePct}%` }} />
+        <div className="ep-top__progress">
+          <div className="ep-top__progress-meta">
+            <span>{exam.title}</span>
+            <strong>{Math.round(timePct)}% time left</strong>
+          </div>
+          <div className="ep-top__track">
+            <div className="ep-top__fill" style={{ width: `${timePct}%` }} />
+          </div>
         </div>
         <div className="ep-top__right">
           <button className="ep-top__submit" onClick={() => setShowConfirm(true)} disabled={submitting}>
@@ -1291,20 +1302,37 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
               {/* Audio player for this part */}
               {isListening && getAudioForPart(currentPartInfo.part) ? (
                 <div className="ep-listen-bar ep-slide-up">
-                  <span className="ep-listen-bar__label">
-                    <Volume2 size={15} />
-                    IELTS Listening Paper
-                  </span>
-                  <span className="ep-listen-bar__meta">
-                    Part {currentPartInfo.part} of 4
-                    <span className="ep-listen-bar__meta-divider">•</span>
-                    Questions {currentPartInfo.startIndex + 1}–{currentPartInfo.startIndex + currentPartInfo.questions.length}
-                  </span>
+                  <div className="ep-listen-bar__head">
+                    <span className="ep-listen-bar__icon">
+                      <Headphones size={20} strokeWidth={2.2} aria-hidden />
+                    </span>
+                    <div>
+                      <span className="ep-listen-bar__label">IELTS Listening Paper</span>
+                      <span className="ep-listen-bar__meta">
+                        Part {currentPartInfo.part} of 4
+                        <span className="ep-listen-bar__meta-divider">•</span>
+                        Questions {currentPartInfo.startIndex + 1}–{currentPartInfo.startIndex + currentPartInfo.questions.length}
+                      </span>
+                    </div>
+                  </div>
                   <div className="ep-listen-bar__controls">
-                    <button className="ep-listen-bar__btn" onClick={() => void toggleAudio(currentPartInfo.part)} type="button">
-                      {playingPart === currentPartInfo.part ? <Pause size={14} /> : <Play size={14} />}
+                    <button
+                      className={`ep-listen-bar__btn${playingPart === currentPartInfo.part ? " is-playing" : ""}`}
+                      onClick={() => void toggleAudio(currentPartInfo.part)}
+                      type="button"
+                    >
+                      {playingPart === currentPartInfo.part ? <Pause size={16} /> : <Play size={16} />}
                       {playingPart === currentPartInfo.part ? "Pause paper" : currentPartInfo.part === 1 ? "Start paper" : `Play Part ${currentPartInfo.part}`}
                     </button>
+                    <div className="ep-listen-bar__progress-wrap">
+                      <div className="ep-listen-bar__progress-meta">
+                        <span>Audio progress</span>
+                        <strong>{Math.round(audioProgress[currentPartInfo.part] ?? 0)}%</strong>
+                      </div>
+                      <div className="ep-listen-bar__progress">
+                        <div className="ep-listen-bar__progress-fill" style={{ width: `${audioProgress[currentPartInfo.part] ?? 0}%` }} />
+                      </div>
+                    </div>
                     <label className="ep-listen-bar__volume" aria-label="Audio boost">
                       <Volume2 size={14} />
                       <input
@@ -1317,9 +1345,6 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
                       />
                       <span>{audioBoost}%</span>
                     </label>
-                    <div className="ep-listen-bar__progress">
-                      <div className="ep-listen-bar__progress-fill" style={{ width: `${audioProgress[currentPartInfo.part] ?? 0}%` }} />
-                    </div>
                   </div>
                   <audio
                     ref={(el) => { audioRefs.current[currentPartInfo.part] = el; }}
@@ -1356,20 +1381,37 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
                 </div>
               ) : isListening && listeningAudioSource.mode === "master" ? (
                 <div className="ep-listen-bar ep-slide-up">
-                  <span className="ep-listen-bar__label">
-                    <Volume2 size={15} />
-                    {listeningAudioSource.asset.title}
-                  </span>
-                  <span className="ep-listen-bar__meta">
-                    Part {currentPartInfo.part} of 4
-                    <span className="ep-listen-bar__meta-divider">•</span>
-                    Questions {currentPartInfo.startIndex + 1}–{currentPartInfo.startIndex + currentPartInfo.questions.length}
-                  </span>
+                  <div className="ep-listen-bar__head">
+                    <span className="ep-listen-bar__icon">
+                      <Headphones size={20} strokeWidth={2.2} aria-hidden />
+                    </span>
+                    <div>
+                      <span className="ep-listen-bar__label">{listeningAudioSource.asset.title}</span>
+                      <span className="ep-listen-bar__meta">
+                        Part {currentPartInfo.part} of 4
+                        <span className="ep-listen-bar__meta-divider">•</span>
+                        Questions {currentPartInfo.startIndex + 1}–{currentPartInfo.startIndex + currentPartInfo.questions.length}
+                      </span>
+                    </div>
+                  </div>
                   <div className="ep-listen-bar__controls">
-                    <button className="ep-listen-bar__btn" onClick={() => void toggleAudio(currentPartInfo.part)} type="button">
-                      {masterAudioPlaying ? <Pause size={14} /> : <Play size={14} />}
+                    <button
+                      className={`ep-listen-bar__btn${masterAudioPlaying ? " is-playing" : ""}`}
+                      onClick={() => void toggleAudio(currentPartInfo.part)}
+                      type="button"
+                    >
+                      {masterAudioPlaying ? <Pause size={16} /> : <Play size={16} />}
                       {masterAudioPlaying ? "Pause paper" : "Start paper"}
                     </button>
+                    <div className="ep-listen-bar__progress-wrap">
+                      <div className="ep-listen-bar__progress-meta">
+                        <span>Audio progress</span>
+                        <strong>{Math.round(masterAudioProgress)}%</strong>
+                      </div>
+                      <div className="ep-listen-bar__progress">
+                        <div className="ep-listen-bar__progress-fill" style={{ width: `${masterAudioProgress}%` }} />
+                      </div>
+                    </div>
                     <label className="ep-listen-bar__volume" aria-label="Audio boost">
                       <Volume2 size={14} />
                       <input
@@ -1382,9 +1424,6 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
                       />
                       <span>{audioBoost}%</span>
                     </label>
-                    <div className="ep-listen-bar__progress">
-                      <div className="ep-listen-bar__progress-fill" style={{ width: `${masterAudioProgress}%` }} />
-                    </div>
                   </div>
                   <audio
                     ref={masterAudioRef}
