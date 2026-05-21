@@ -1944,7 +1944,6 @@
   border-radius: 12px;
   background: var(--primary);
   color: white;
-  box-shadow: 0 10px 24px color-mix(in srgb, var(--primary) 22%, transparent);
 }
 
 .ep-speaking-card__prompt p {
@@ -1979,18 +1978,18 @@
   padding: 1rem;
   border-radius: 12px;
   border: 1px solid var(--border);
-  background: color-mix(in srgb, var(--primary) 4%, var(--surface));
+  background: var(--surface);
 }
 
 .ep-speaking-recorder--pro.is-recording {
   border-color: color-mix(in srgb, var(--primary) 36%, var(--border));
-  background: color-mix(in srgb, var(--primary) 6%, var(--surface));
+  background: var(--surface);
 }
 
 .ep-speaking-recorder__meter {
   display: grid;
-  grid-template-columns: repeat(18, minmax(4px, 1fr));
-  gap: clamp(0.18rem, 0.8vw, 0.38rem);
+  grid-template-columns: repeat(12, minmax(4px, 1fr));
+  gap: 0.35rem;
   align-items: center;
   height: 76px;
   padding: 0.75rem 0.85rem;
@@ -2005,14 +2004,13 @@
   height: 52px;
   border-radius: 999px;
   transform-origin: center;
-  background: linear-gradient(180deg, var(--primary), color-mix(in srgb, var(--primary) 60%, #14b8a6));
+  background: var(--primary);
   opacity: 0.52;
   transition: transform 90ms linear, opacity 0.2s ease;
 }
 
 .ep-speaking-recorder--pro.is-recording .ep-speaking-recorder__meter span {
   opacity: 0.95;
-  box-shadow: 0 0 18px color-mix(in srgb, var(--primary) 22%, transparent);
 }
 
 .ep-speaking-recorder__status strong,
@@ -2185,10 +2183,4 @@
   .ep-submitting__title { font-size: 1.2rem; }
   .ep-speaking-card__prompt { grid-template-columns: 1fr; }
   .ep-speaking-card__mic { width: 46px; height: 46px; border-radius: 14px; }
-  .ep-speaking-recorder__meter {
-    grid-template-columns: repeat(12, minmax(4px, 1fr));
-  }
-  .ep-speaking-recorder__meter span:nth-child(n+13) {
-    display: none;
-  }
 }

@@ -463,7 +463,7 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
   const [speakingRecordings, setSpeakingRecordings] = useState<Record<string, SpeakingRecording>>({});
   const [recordingQuestionId, setRecordingQuestionId] = useState<string | null>(null);
   const [recordingError, setRecordingError] = useState<string | null>(null);
-  const [spectrumLevels, setSpectrumLevels] = useState<number[]>(() => Array.from({ length: 18 }, () => 0.24));
+  const [spectrumLevels, setSpectrumLevels] = useState<number[]>(() => Array.from({ length: 12 }, () => 0.24));
   const [activeSpeakingIndex, setActiveSpeakingIndex] = useState(0);
   const [speakingUploadProgress, setSpeakingUploadProgress] = useState<number | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -672,7 +672,7 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
     recordingStreamRef.current = null;
     void micAudioContextRef.current?.close().catch(() => undefined);
     micAudioContextRef.current = null;
-    setSpectrumLevels(Array.from({ length: 18 }, () => 0.24));
+    setSpectrumLevels(Array.from({ length: 12 }, () => 0.24));
   }, []);
 
   const startSpectrumAnalyzer = useCallback((stream: MediaStream) => {
@@ -692,7 +692,7 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
       const data = new Uint8Array(analyser.frequencyBinCount);
       const tick = () => {
         analyser.getByteFrequencyData(data);
-        const bucketCount = 18;
+        const bucketCount = 12;
         const bucketSize = Math.max(1, Math.floor(data.length / bucketCount));
         const next = Array.from({ length: bucketCount }, (_, index) => {
           const start = index * bucketSize;
@@ -708,7 +708,7 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
       void context.resume().catch(() => undefined);
       tick();
     } catch {
-      setSpectrumLevels(Array.from({ length: 18 }, (_, index) => 0.22 + ((index % 5) * 0.08)));
+      setSpectrumLevels(Array.from({ length: 12 }, (_, index) => 0.22 + ((index % 4) * 0.08)));
     }
   }, []);
 
