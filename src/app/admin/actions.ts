@@ -602,7 +602,7 @@ export async function submitHumanReview(
   }
 }
 
-const MODULE_SET = new Set(["listening", "reading", "writing"]);
+const MODULE_SET = new Set(["listening", "reading", "writing", "speaking"]);
 
 export type WizardQuestionInput = {
   module: string;
@@ -1064,7 +1064,7 @@ export async function saveExamWizard(
   const exam_type = input.exam_type === "full" ? "full" : "partial";
   let modules = (input.modules ?? []).filter((m) => MODULE_SET.has(m));
   if (exam_type === "full") {
-    modules = ["listening", "reading", "writing"];
+    modules = ["listening", "reading", "writing", "speaking"];
   }
   if (exam_type === "partial" && modules.length === 0) {
     return { ok: false, message: "Select at least one module for a partial exam" };

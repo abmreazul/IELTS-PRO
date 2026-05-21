@@ -85,7 +85,7 @@ type QuestionDraft = {
   image_url?: string;
 };
 
-type Surface = "full" | "listening" | "reading" | "writing";
+type Surface = "full" | "listening" | "reading" | "writing" | "speaking";
 
 /* ═══════════════════════════════════════════════════════════════════
    Helpers
@@ -96,14 +96,14 @@ function surfaceFromExam(exam_type: string, modules: string[]): Surface {
   const normalizedModules = normalizeExamModules(modules);
   if (normalizedModules.length === 1 && normalizedModules[0]) {
     const m = normalizedModules[0] as Surface;
-    if (m === "listening" || m === "reading" || m === "writing") return m;
+    if (m === "listening" || m === "reading" || m === "writing" || m === "speaking") return m;
   }
   return "full";
 }
 
 function modulesFromSurface(s: Surface): { exam_type: "full" | "partial"; modules: string[] } {
   if (s === "full") {
-    return { exam_type: "full", modules: ["listening", "reading", "writing"] };
+    return { exam_type: "full", modules: ["listening", "reading", "writing", "speaking"] };
   }
   return { exam_type: "partial", modules: [s] };
 }
@@ -1194,7 +1194,7 @@ export function ExamWizard({
           test_variant: testVariant,
         },
         question_media: payloadQuestions
-          .filter((question) => question.module !== "speaking" && String(question.image_url ?? "").trim())
+          .filter((question) => String(question.image_url ?? "").trim())
           .map((question) => {
             const siblings = payloadQuestions.filter(
               (candidate) =>
@@ -1530,7 +1530,7 @@ export function ExamWizard({
             <div>
               <span className="admin-label">Exam Category</span>
               <div className="admin-segment" style={{ marginTop: "0.35rem" }}>
-                {(["full", "listening", "reading", "writing"] as Surface[]).map((s) => (
+                {(["full", "listening", "reading", "writing", "speaking"] as Surface[]).map((s) => (
                   <label key={s}>
                     <input
                       type="radio"

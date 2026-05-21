@@ -22,7 +22,7 @@ type Exam = {
   is_published: boolean;
 };
 
-const MODULE_OPTS = ["listening", "reading", "writing"] as const;
+const MODULE_OPTS = ["listening", "reading", "writing", "speaking"] as const;
 
 export function ExamForm({
   categories,

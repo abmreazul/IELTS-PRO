@@ -14,9 +14,10 @@ export const DEFAULT_FULL_STRUCTURE: SectionStructure[] = [
   { module: "listening", label: "Listening", parts: 4, questions: 40, enabled: true },
   { module: "reading", label: "Reading", parts: 3, questions: 40, enabled: true },
   { module: "writing", label: "Writing", parts: 2, questions: 2, enabled: true },
+  { module: "speaking", label: "Speaking", parts: 3, questions: 9, enabled: true },
 ];
 
-export const ACTIVE_EXAM_MODULES = ["listening", "reading", "writing"] as const;
+export const ACTIVE_EXAM_MODULES = ["listening", "reading", "writing", "speaking"] as const;
 export type ActiveExamModule = (typeof ACTIVE_EXAM_MODULES)[number];
 
 export function isActiveExamModule(value: unknown): value is ActiveExamModule {
@@ -62,7 +63,7 @@ export const DEFAULT_SCORING: ScoringConfig = {
     listening: 30,
     reading: 60,
     writing: 60,
-    speaking: 0,
+    speaking: 15,
   },
   feedbackTemplate:
     "Congratulations! You scored {score}. This result reflects your performance across the sections you completed.",

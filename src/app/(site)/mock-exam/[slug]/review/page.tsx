@@ -1,8 +1,9 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { Sparkles } from "lucide-react";
+import { Mic, Sparkles } from "lucide-react";
 import { createClient, getAuthUser } from "@/lib/supabase/server";
 import type { WritingAiReview } from "@/lib/ai/writing-review";
+import type { SpeakingReview } from "@/lib/ai/speaking-review";
 import { normalizeExamModules } from "@/lib/exam/ielts-defaults";
 import "./review.css";
 
@@ -54,15 +55,17 @@ export default async function ReviewMockExamPage({
     listening_band: number | null;
     reading_band: number | null;
     writing_band: number | null;
+    speaking_band: number | null;
     completed_at: string | null;
     created_at: string;
     ai_review_json?: WritingAiReview | null;
+    speaking_review_json?: SpeakingReview | null;
   } | null = null;
 
   if (user) {
     const primary = await supabase
       .from("mock_attempts")
-      .select("status, review_status, overall_band, listening_band, reading_band, writing_band, completed_at, created_at, ai_review_json")
+      .select("status, review_status, overall_band, listening_band, reading_band, writing_band, speaking_band, completed_at, created_at, ai_review_json, speaking_review_json")
       .eq("exam_id", exam.id)
       .eq("user_id", user.id)
       .eq("status", "completed")
@@ -71,10 +74,10 @@ export default async function ReviewMockExamPage({
       .limit(1)
       .maybeSingle();
 
-    if (primary.error && primary.error.message.includes("ai_review_json")) {
+    if (primary.error && (primary.error.message.includes("ai_review_json") || primary.error.message.includes("speaking_review_json"))) {
       const fallback = await supabase
         .from("mock_attempts")
-        .select("status, review_status, overall_band, listening_band, reading_band, writing_band, completed_at, created_at")
+        .select("status, review_status, overall_band, listening_band, reading_band, writing_band, speaking_band, completed_at, created_at")
         .eq("exam_id", exam.id)
         .eq("user_id", user.id)
         .eq("status", "completed")
@@ -91,6 +94,9 @@ export default async function ReviewMockExamPage({
   const reviewPending = attempt?.review_status === "pending";
   const aiReview = attempt?.ai_review_json && typeof attempt.ai_review_json === "object"
     ? attempt.ai_review_json as WritingAiReview
+    : null;
+  const speakingReview = attempt?.speaking_review_json && typeof attempt.speaking_review_json === "object"
+    ? attempt.speaking_review_json as SpeakingReview
     : null;
   const activeModules = normalizeExamModules(exam.modules);
 
@@ -110,6 +116,12 @@ export default async function ReviewMockExamPage({
           ? {
               label: "Writing",
               value: reviewPending ? "Pending" : attempt.writing_band,
+            }
+          : null,
+        activeModules.includes("speaking")
+          ? {
+              label: "Speaking",
+              value: reviewPending ? "Pending" : attempt.speaking_band,
             }
           : null,
       ].filter(Boolean) as SummaryCard[])
@@ -153,7 +165,7 @@ export default async function ReviewMockExamPage({
             {/* Pending message */}
             {reviewPending ? (
               <div className="rv__pending-msg">
-                Your submission was saved, but the writing evaluation did not finish for this older attempt. Retake the writing exam to receive instant marking.
+                Your submission was saved, but the assessment did not finish for this older attempt. Retake the exam to receive instant marking.
               </div>
             ) : null}
 
@@ -231,6 +243,91 @@ export default async function ReviewMockExamPage({
                         </div>
                       ))}
                     </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            {speakingReview ? (
+              <div className="rv__ai">
+                <div className="rv__ai-header">
+                  <div className="rv__ai-icon">
+                    <Mic size={22} strokeWidth={2.2} aria-hidden />
+                  </div>
+                  <div>
+                    <h2 className="rv__ai-title">Speaking Assessment</h2>
+                    <p className="rv__ai-sub">Marked against IELTS speaking criteria</p>
+                  </div>
+                </div>
+
+                <div className="rv__summary">
+                  <p>{speakingReview.summary}</p>
+                </div>
+
+                {speakingReview.strengths.length > 0 || speakingReview.improvements.length > 0 ? (
+                  <div className="rv__insights">
+                    {speakingReview.strengths.length > 0 ? (
+                      <div className="rv__insight-card rv__insight-card--strength">
+                        <h3 className="rv__insight-label">
+                          <span className="rv__insight-dot rv__insight-dot--green" />
+                          What went well
+                        </h3>
+                        <ul className="rv__insight-list">
+                          {speakingReview.strengths.map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}
+                        </ul>
+                      </div>
+                    ) : null}
+                    {speakingReview.improvements.length > 0 ? (
+                      <div className="rv__insight-card rv__insight-card--improve">
+                        <h3 className="rv__insight-label">
+                          <span className="rv__insight-dot rv__insight-dot--amber" />
+                          Areas to Improve
+                        </h3>
+                        <ul className="rv__insight-list">
+                          {speakingReview.improvements.map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}
+                        </ul>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                <div className="rv__criteria">
+                  {(Object.entries(speakingReview.criterion_scores) as [string, number][]).map(([key, score]) => {
+                    const label = {
+                      fluency: "Fluency & Coherence",
+                      lexical: "Lexical Resource",
+                      grammar: "Grammar Range & Accuracy",
+                      pronunciation: "Pronunciation",
+                    }[key] ?? key;
+                    return (
+                      <div key={key}>
+                        <div className="rv__crit-head">
+                          <span className="rv__crit-label">{label}</span>
+                          <span className="rv__crit-score">{score.toFixed(1)}</span>
+                        </div>
+                        <div className="rv__crit-track">
+                          <div
+                            className={`rv__crit-fill${score >= 7 ? " rv__crit-fill--high" : score >= 5 ? " rv__crit-fill--mid" : " rv__crit-fill--low"}`}
+                            style={{ width: `${Math.min(100, (score / 9) * 100)}%` }}
+                          />
+                        </div>
+                        <p className="rv__crit-feedback">
+                          {(speakingReview.criterion_feedback as Record<string, string>)[key]}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {speakingReview.questions.map((question, index) => (
+                  <div key={`${question.question_id}-${index}`} className="rv__task-card">
+                    <div className="rv__task-head">
+                      <h3 className="rv__task-name">Speaking Part {question.part}</h3>
+                      <span className="rv__task-band-pill">Band {question.estimated_band.toFixed(1)}</span>
+                    </div>
+                    <div className="rv__task-meta">{question.prompt}</div>
+                    <p className="rv__crit-feedback"><strong>Transcript:</strong> {question.transcript}</p>
+                    <p className="rv__crit-feedback">{question.feedback}</p>
                   </div>
                 ))}
               </div>

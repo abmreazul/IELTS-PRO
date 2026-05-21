@@ -1871,6 +1871,225 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════
+   Speaking Test
+   ═══════════════════════════════════════════════════════════════════ */
+
+.ep-speaking-stage {
+  flex: 1;
+  overflow-y: auto;
+  padding: clamp(1rem, 4vw, 2rem);
+  background:
+    radial-gradient(circle at 20% 0%, color-mix(in srgb, var(--primary) 10%, transparent), transparent 30rem),
+    linear-gradient(180deg, color-mix(in srgb, var(--surface) 72%, var(--bg)), var(--bg));
+}
+
+.ep-speaking-stage__inner {
+  width: min(980px, 100%);
+  min-height: calc(100svh - 8rem);
+  margin: 0 auto;
+  display: grid;
+  place-items: center;
+}
+
+.ep-speaking-card {
+  width: 100%;
+  display: grid;
+  gap: 1.15rem;
+  padding: clamp(1rem, 3vw, 1.65rem);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface) 97%, transparent), color-mix(in srgb, var(--surface) 88%, var(--bg))),
+    var(--surface);
+  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.14);
+}
+
+.ep-speaking-card__top,
+.ep-speaking-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.85rem;
+}
+
+.ep-speaking-card__part,
+.ep-speaking-card__count {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.ep-speaking-card__part {
+  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
+  color: var(--primary);
+}
+
+.ep-speaking-card__count {
+  background: color-mix(in srgb, var(--bg) 76%, var(--surface));
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+
+.ep-speaking-card__prompt {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1rem;
+  align-items: start;
+  padding: clamp(1rem, 3vw, 1.25rem);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--bg) 76%, var(--surface));
+  border: 1px solid var(--border);
+}
+
+.ep-speaking-card__mic {
+  width: 52px;
+  height: 52px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 16px;
+  background: var(--primary);
+  color: white;
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--primary) 30%, transparent);
+}
+
+.ep-speaking-card__prompt p {
+  margin: 0 0 0.4rem;
+  color: var(--primary);
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.ep-speaking-card__prompt h2 {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--font-display), var(--font-sans), sans-serif;
+  font-size: clamp(1.35rem, 3vw, 2.25rem);
+  line-height: 1.22;
+  letter-spacing: 0;
+}
+
+.ep-speaking-card__image {
+  width: 100%;
+  max-height: 360px;
+  object-fit: contain;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.ep-speaking-recorder--pro {
+  display: grid;
+  gap: 1rem;
+  padding: clamp(1rem, 3vw, 1.25rem);
+  border-radius: 20px;
+  border: 1px solid color-mix(in srgb, var(--primary) 14%, var(--border));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--primary) 7%, var(--surface)), var(--surface));
+}
+
+.ep-speaking-recorder--pro.is-recording {
+  border-color: color-mix(in srgb, #dc2626 34%, var(--border));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, #dc2626 7%, var(--surface)), var(--surface));
+}
+
+.ep-speaking-recorder__meter {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(10px, 1fr));
+  gap: 0.45rem;
+  align-items: end;
+  height: 58px;
+  padding: 0.65rem;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--bg) 76%, var(--surface));
+  border: 1px solid var(--border);
+}
+
+.ep-speaking-recorder__meter span {
+  display: block;
+  height: 18px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary) 74%, white);
+  opacity: 0.48;
+}
+
+.ep-speaking-recorder__meter span:nth-child(2) { height: 28px; }
+.ep-speaking-recorder__meter span:nth-child(3) { height: 42px; }
+.ep-speaking-recorder__meter span:nth-child(4) { height: 52px; }
+.ep-speaking-recorder__meter span:nth-child(5) { height: 36px; }
+.ep-speaking-recorder__meter span:nth-child(6) { height: 26px; }
+
+.ep-speaking-recorder--pro.is-recording .ep-speaking-recorder__meter span {
+  animation: timerPulse 0.8s ease-in-out infinite;
+  background: #dc2626;
+  opacity: 0.9;
+}
+
+.ep-speaking-recorder--pro.is-recording .ep-speaking-recorder__meter span:nth-child(2) { animation-delay: 0.08s; }
+.ep-speaking-recorder--pro.is-recording .ep-speaking-recorder__meter span:nth-child(3) { animation-delay: 0.16s; }
+.ep-speaking-recorder--pro.is-recording .ep-speaking-recorder__meter span:nth-child(4) { animation-delay: 0.24s; }
+.ep-speaking-recorder--pro.is-recording .ep-speaking-recorder__meter span:nth-child(5) { animation-delay: 0.32s; }
+.ep-speaking-recorder--pro.is-recording .ep-speaking-recorder__meter span:nth-child(6) { animation-delay: 0.4s; }
+
+.ep-speaking-recorder__status strong,
+.ep-speaking-recorder__status span {
+  display: block;
+}
+
+.ep-speaking-recorder__status strong {
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.ep-speaking-recorder__status span {
+  margin-top: 0.25rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.ep-speaking-recorder__audio {
+  width: 100%;
+  min-height: 42px;
+}
+
+.ep-speaking-recorder__btn--ghost {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.ep-speaking-progress {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.42rem;
+}
+
+.ep-speaking-progress__dot {
+  width: 11px;
+  height: 11px;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--border) 82%, var(--surface));
+  cursor: pointer;
+}
+
+.ep-speaking-progress__dot.is-active {
+  width: 28px;
+  background: var(--primary);
+}
+
+.ep-speaking-progress__dot.is-done {
+  background: #16a34a;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
    Responsive
    ═══════════════════════════════════════════════════════════════════ */
 
@@ -1928,6 +2147,10 @@
   .ep-results__band-value { font-size: 2.75rem; }
   .ep-results__ai-insights { grid-template-columns: 1fr; }
   .ep-submit-error { top: 4.25rem; }
+  .ep-speaking-stage { padding: 1rem; }
+  .ep-speaking-stage__inner { min-height: auto; display: block; }
+  .ep-speaking-card__footer { align-items: stretch; flex-direction: column; }
+  .ep-speaking-card__footer .btn { width: 100%; }
 }
 
 @media (max-width: 480px) {
@@ -1980,4 +2203,6 @@
 
   .ep-results__modules { grid-template-columns: 1fr 1fr; }
   .ep-submitting__title { font-size: 1.2rem; }
+  .ep-speaking-card__prompt { grid-template-columns: 1fr; }
+  .ep-speaking-card__mic { width: 46px; height: 46px; border-radius: 14px; }
 }

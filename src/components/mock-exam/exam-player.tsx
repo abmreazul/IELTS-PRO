@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { startExamAttempt, submitExamAttempt } from "@/app/(site)/mock-exam/actions";
+import { getSignedAttemptUploadUrl, startExamAttempt, submitExamAttempt } from "@/app/(site)/mock-exam/actions";
 import {
   coerceTestVariant,
   getReadingSectionLabel,
@@ -20,11 +20,14 @@ import {
   FileText,
   Headphones,
   Layers3,
+  Mic,
   Pause,
   PenLine,
   Play,
+  RotateCcw,
   Send,
   Sparkles,
+  Square,
   Volume2,
 } from "lucide-react";
 
@@ -92,18 +95,36 @@ type SubmitResult = {
       feedback: { task_response: string; coherence: string; lexical: string; grammar: string };
     }[];
   } | null;
+  speakingReview: {
+    overall_band: number;
+    summary: string;
+    strengths: string[];
+    improvements: string[];
+    criterion_scores: { fluency: number; lexical: number; grammar: number; pronunciation: number };
+    criterion_feedback: { fluency: string; lexical: string; grammar: string; pronunciation: string };
+    questions: {
+      question_id: string;
+      part: number;
+      prompt: string;
+      estimated_band: number;
+      transcript: string;
+      feedback: string;
+    }[];
+  } | null;
 };
 
 const MODULE_LABELS: Record<string, string> = {
   listening: "Listening",
   reading: "Reading",
   writing: "Writing",
+  speaking: "Speaking",
 };
 
 const MODULE_ICONS: Record<string, typeof Headphones> = {
   listening: Headphones,
   reading: BookOpen,
   writing: PenLine,
+  speaking: Mic,
 };
 
 function formatModuleName(value: string) {
@@ -251,11 +272,12 @@ function getExamDraftKey(examId: string) {
    Timer Hook
    ═══════════════════════════════════════════════════════════════════ */
 
-function useCountdown(totalSeconds: number, onEnd: () => void) {
+function useCountdown(totalSeconds: number, onEnd: () => void, enabled = true) {
   const [remaining, setRemaining] = useState(totalSeconds);
   const endedRef = useRef(false);
 
   useEffect(() => {
+    if (!enabled) return;
     if (remaining <= 0 && !endedRef.current) {
       endedRef.current = true;
       onEnd();
@@ -268,7 +290,7 @@ function useCountdown(totalSeconds: number, onEnd: () => void) {
       });
     }, 1000);
     return () => clearInterval(id);
-  }, [remaining, onEnd]);
+  }, [enabled, remaining, onEnd]);
 
   const minutes = Math.floor(remaining / 60);
   const seconds = remaining % 60;
@@ -295,14 +317,28 @@ type ListeningAudioSource =
   | { mode: "none" }
   | { mode: "master"; asset: { url: string; title: string } }
   | { mode: "legacy"; clips: ListeningClip[] };
+type SpeakingRecording = {
+  blob: Blob;
+  url: string;
+  durationSeconds: number;
+  mimeType: string;
+};
+type SpeakingAnswerUpload = {
+  kind: "audio_recording";
+  bucket: string;
+  path: string;
+  mimeType: string;
+  durationSeconds: number;
+};
 
 const MODULE_PART_COUNTS: Record<string, number> = {
   listening: 4,
   reading: 3,
   writing: 2,
+  speaking: 3,
 };
 
-const MODULE_ORDER = ["listening", "reading", "writing"];
+const MODULE_ORDER = ["listening", "reading", "writing", "speaking"];
 
 function groupByPart(questions: ExamQuestion[], modules: string[]): PartInfo[] {
   const ordered = MODULE_ORDER.filter((m) => modules.includes(m));
@@ -365,6 +401,33 @@ function parseListeningAudioSource(raw: ExamData["listening_audio_json"]): Liste
   };
 }
 
+function getSupportedRecordingMimeType() {
+  if (typeof window === "undefined" || typeof MediaRecorder === "undefined") return "";
+  const candidates = [
+    "audio/ogg;codecs=opus",
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "audio/mp4",
+  ];
+  return candidates.find((candidate) => MediaRecorder.isTypeSupported(candidate)) ?? "";
+}
+
+function getRecordingExtension(mimeType: string) {
+  const clean = mimeType.split(";")[0]?.toLowerCase() ?? "";
+  if (clean.includes("ogg")) return "ogg";
+  if (clean.includes("mp4")) return "mp4";
+  if (clean.includes("mpeg") || clean.includes("mp3")) return "mp3";
+  if (clean.includes("wav")) return "wav";
+  return "webm";
+}
+
+function formatDuration(seconds: number) {
+  const safeSeconds = Math.max(0, Math.round(seconds));
+  const mins = Math.floor(safeSeconds / 60);
+  const secs = safeSeconds % 60;
+  return `${mins}:${String(secs).padStart(2, "0")}`;
+}
+
 function getPartLabel(module: string, part: number, readingSectionLabel: "Passage" | "Section") {
   if (module === "reading") return `${readingSectionLabel} ${part}`;
   if (module === "writing") return `Task ${part}`;
@@ -397,6 +460,16 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
   const [masterAudioEnded, setMasterAudioEnded] = useState(false);
   const [furthestListeningPart, setFurthestListeningPart] = useState(1);
   const [audioBoost, setAudioBoost] = useState(100);
+  const [speakingRecordings, setSpeakingRecordings] = useState<Record<string, SpeakingRecording>>({});
+  const [recordingQuestionId, setRecordingQuestionId] = useState<string | null>(null);
+  const [recordingError, setRecordingError] = useState<string | null>(null);
+  const [activeSpeakingIndex, setActiveSpeakingIndex] = useState(0);
+  const [speakingUploadProgress, setSpeakingUploadProgress] = useState<number | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordingChunksRef = useRef<BlobPart[]>([]);
+  const recordingStartedAtRef = useRef(0);
+  const recordingStreamRef = useRef<MediaStream | null>(null);
+  const speakingRecordingsRef = useRef<Record<string, SpeakingRecording>>({});
   const audioContextRef = useRef<AudioContext | null>(null);
   const gainNodesRef = useRef(new WeakMap<HTMLAudioElement, GainNode>());
   const sourceNodesRef = useRef(new WeakMap<HTMLAudioElement, MediaElementAudioSourceNode>());
@@ -410,25 +483,37 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
   const activeModules = useMemo(() => normalizeExamModules(exam.modules), [exam.modules]);
   const [expandedModule, setExpandedModule] = useState<string>(activeModules[0] ?? "listening");
   const hydratedDraftRef = useRef(false);
+  const isUntimedSpeakingExam = activeModules.length === 1 && activeModules[0] === "speaking";
 
   const totalSeconds = exam.duration_minutes * 60;
   const handleTimeEnd = useCallback(() => {
+    if (isUntimedSpeakingExam) return;
     if (!submitted) handleSubmit();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [submitted]);
+  }, [isUntimedSpeakingExam, submitted]);
 
-  const { display: timeDisplay, pct: timePct, isLow: timeIsLow, minutes: minsLeft } = useCountdown(totalSeconds, handleTimeEnd);
+  const { display: timeDisplay, pct: timePct, isLow: timeIsLow, minutes: minsLeft } = useCountdown(totalSeconds, handleTimeEnd, !isUntimedSpeakingExam);
 
   const visibleQuestions = useMemo(
-    () => questions.filter((question) => activeModules.includes(question.module as "listening" | "reading" | "writing")),
+    () => questions.filter((question) => activeModules.includes(question.module as "listening" | "reading" | "writing" | "speaking")),
     [activeModules, questions],
   );
   const parts = useMemo(() => groupByPart(visibleQuestions, activeModules), [activeModules, visibleQuestions]);
   const currentPartInfo = parts[activePart - 1] ?? parts[0];
-  const answeredCount = Object.keys(answers).length;
   const isReading = currentPartInfo.module === "reading";
   const isListening = currentPartInfo.module === "listening";
   const isWriting = currentPartInfo.module === "writing";
+  const isSpeaking = currentPartInfo.module === "speaking";
+  const speakingQuestions = useMemo(
+    () => visibleQuestions
+      .filter((question) => question.module === "speaking")
+      .sort((a, b) => a.sort_order - b.sort_order),
+    [visibleQuestions],
+  );
+  const activeSpeakingQuestion = speakingQuestions[Math.min(activeSpeakingIndex, Math.max(0, speakingQuestions.length - 1))] ?? null;
+  const answeredCount = visibleQuestions.filter((question) =>
+    answers[question.id] !== undefined || speakingRecordings[question.id],
+  ).length;
   const readingVariant = coerceTestVariant(exam.structure_json?.exam_meta?.test_variant);
   const readingSectionLabel = getReadingSectionLabel(readingVariant);
   const questionMedia = useMemo(() => {
@@ -453,7 +538,7 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
   );
   const moduleGroups = useMemo(
     () =>
-      MODULE_ORDER.filter((module) => activeModules.includes(module as "listening" | "reading" | "writing")).map((module) => ({
+      MODULE_ORDER.filter((module) => activeModules.includes(module as "listening" | "reading" | "writing" | "speaking")).map((module) => ({
         module,
         items: parts
           .map((part, idx) => ({ ...part, tabIndex: idx + 1 }))
@@ -575,6 +660,135 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
     setMasterAudioPlaying(false);
   }, []);
 
+  const stopSpeakingStream = useCallback(() => {
+    recordingStreamRef.current?.getTracks().forEach((track) => track.stop());
+    recordingStreamRef.current = null;
+  }, []);
+
+  const startSpeakingRecording = useCallback(async (questionId: string) => {
+    if (recordingQuestionId) return;
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      setRecordingError("Voice recording is not supported in this browser.");
+      return;
+    }
+
+    setRecordingError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = getSupportedRecordingMimeType();
+      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+      recordingChunksRef.current = [];
+      recordingStartedAtRef.current = Date.now();
+      recordingStreamRef.current = stream;
+      mediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) recordingChunksRef.current.push(event.data);
+      };
+      recorder.onerror = () => {
+        setRecordingError("Recording stopped unexpectedly. Please try again.");
+        setRecordingQuestionId(null);
+        stopSpeakingStream();
+      };
+      recorder.onstop = () => {
+        const finalMimeType = recorder.mimeType || mimeType || "audio/webm";
+        const blob = new Blob(recordingChunksRef.current, { type: finalMimeType });
+        const durationSeconds = Math.max(1, Math.round((Date.now() - recordingStartedAtRef.current) / 1000));
+        const url = URL.createObjectURL(blob);
+        setSpeakingRecordings((prev) => {
+          if (prev[questionId]?.url) URL.revokeObjectURL(prev[questionId].url);
+          return {
+            ...prev,
+            [questionId]: {
+              blob,
+              url,
+              durationSeconds,
+              mimeType: finalMimeType,
+            },
+          };
+        });
+        setAnswers((prev) => {
+          const next = { ...prev };
+          delete next[questionId];
+          return next;
+        });
+        setRecordingQuestionId(null);
+        stopSpeakingStream();
+      };
+
+      recorder.start();
+      setRecordingQuestionId(questionId);
+    } catch {
+      setRecordingError("Microphone permission is required to record your answer.");
+      stopSpeakingStream();
+    }
+  }, [recordingQuestionId, stopSpeakingStream]);
+
+  const stopSpeakingRecording = useCallback(() => {
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== "inactive") {
+      recorder.stop();
+    }
+  }, []);
+
+  const retakeSpeakingRecording = useCallback((questionId: string) => {
+    if (recordingQuestionId) return;
+    setSpeakingRecordings((prev) => {
+      if (prev[questionId]?.url) URL.revokeObjectURL(prev[questionId].url);
+      const next = { ...prev };
+      delete next[questionId];
+      return next;
+    });
+    setRecordingError(null);
+  }, [recordingQuestionId]);
+
+  const uploadSpeakingRecordings = useCallback(async (): Promise<AnswerMap | null> => {
+    const entries = Object.entries(speakingRecordings);
+    if (entries.length === 0) {
+      setSubmitError("Record at least one speaking answer before submitting.");
+      return null;
+    }
+
+    const uploaded: Record<string, SpeakingAnswerUpload> = {};
+    for (let index = 0; index < entries.length; index += 1) {
+      const [questionId, recording] = entries[index];
+      setSpeakingUploadProgress(Math.round(((index + 1) / entries.length) * 100));
+      const ext = getRecordingExtension(recording.mimeType);
+      const signed = await getSignedAttemptUploadUrl(
+        attemptId,
+        questionId,
+        `speaking-${questionId}.${ext}`,
+        recording.mimeType,
+      );
+      if (!signed.ok) {
+        setSubmitError(signed.message);
+        return null;
+      }
+
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("PUT", signed.signedUrl);
+        xhr.setRequestHeader("Content-Type", recording.mimeType || "application/octet-stream");
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) resolve();
+          else reject(new Error(`Recording upload failed (${xhr.status})`));
+        };
+        xhr.onerror = () => reject(new Error("Network error while uploading recording."));
+        xhr.send(recording.blob);
+      });
+
+      uploaded[questionId] = {
+        kind: "audio_recording",
+        bucket: signed.bucket,
+        path: signed.path,
+        mimeType: recording.mimeType,
+        durationSeconds: recording.durationSeconds,
+      };
+    }
+
+    return { ...answers, ...uploaded };
+  }, [answers, attemptId, speakingRecordings]);
+
   const getNextListeningTab = useCallback((partNum: number) => {
     const current = listeningTabIndices.find(({ part }) => part.part === partNum);
     if (!current) return null;
@@ -620,7 +834,7 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
 
       const nextExpandedModule =
         typeof parsed.expandedModule === "string" &&
-        activeModules.includes(parsed.expandedModule as "listening" | "reading" | "writing")
+        activeModules.includes(parsed.expandedModule as "listening" | "reading" | "writing" | "speaking")
           ? parsed.expandedModule
           : activeModules[0] ?? "listening";
       setExpandedModule(nextExpandedModule);
@@ -658,6 +872,23 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
     );
   }, [currentPartInfo.module, currentPartInfo.part, currentPartInfo.questions, questionMedia]);
 
+  const getQuestionImageUrlFor = useCallback((question: ExamQuestion) => {
+    const ownerPart = parts.find((part) =>
+      part.module === question.module && part.questions.some((candidate) => candidate.id === question.id),
+    );
+    if (!ownerPart) return "";
+    const localIndex = ownerPart.questions.findIndex((candidate) => candidate.id === question.id);
+    if (localIndex < 0) return "";
+    return (
+      questionMedia.find(
+        (entry) =>
+          entry.module === ownerPart.module &&
+          entry.part === ownerPart.part &&
+          entry.index === localIndex,
+      )?.image_url ?? ""
+    );
+  }, [parts, questionMedia]);
+
   const goToPart = (part: number) => {
     if (!canNavigateToPart(part)) return;
     const targetPart = parts[part - 1];
@@ -669,6 +900,12 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
       stopListeningAudio();
     }
     setActivePart(part);
+    if (targetPart?.module === "speaking") {
+      const firstQuestion = targetPart.questions[0];
+      if (firstQuestion) {
+        setActiveSpeakingIndex(Math.max(0, speakingQuestions.findIndex((question) => question.id === firstQuestion.id)));
+      }
+    }
     if (isMasterListeningAudio && targetPart?.module === "listening") {
       setFurthestListeningPart((prev) => Math.max(prev, targetPart.part));
     }
@@ -688,11 +925,21 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
 
   const handleSubmit = async () => {
     if (submitting || submitted) return;
+    if (recordingQuestionId) {
+      setSubmitError("Stop the current recording before submitting.");
+      return;
+    }
     setSubmitting(true);
     setShowConfirm(false);
     setSubmitError(null);
+    setSpeakingUploadProgress(null);
     try {
-      const res = await submitExamAttempt(attemptId, answers);
+      const answersForSubmit = activeModules.includes("speaking")
+        ? await uploadSpeakingRecordings()
+        : answers;
+      if (!answersForSubmit) return;
+
+      const res = await submitExamAttempt(attemptId, answersForSubmit);
       if (res.ok) {
         setSubmitted(true);
         setResult(res.result);
@@ -700,8 +947,9 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
         setSubmitError(res.message);
       }
     } catch {
-      setSubmitError("Writing evaluation could not finish right now. Your answers are still here, so please try submitting again.");
+      setSubmitError("Your assessment could not finish right now. Your answers are still here, so please try submitting again.");
     } finally {
+      setSpeakingUploadProgress(null);
       setSubmitting(false);
     }
   };
@@ -779,6 +1027,19 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
   useEffect(() => stopListeningAudio, [stopListeningAudio]);
 
   useEffect(() => {
+    speakingRecordingsRef.current = speakingRecordings;
+  }, [speakingRecordings]);
+
+  useEffect(() => {
+    return () => {
+      stopSpeakingStream();
+      for (const recording of Object.values(speakingRecordingsRef.current)) {
+        URL.revokeObjectURL(recording.url);
+      }
+    };
+  }, [stopSpeakingStream]);
+
+  useEffect(() => {
     if (masterAudioRef.current) applyAudioBoost(masterAudioRef.current);
     Object.values(audioRefs.current).forEach((audio) => applyAudioBoost(audio));
   }, [applyAudioBoost, currentPartInfo.part, listeningAudioSource.mode]);
@@ -854,6 +1115,7 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
   /* ── Submitting overlay ────────────── */
   if (submitting && !submitted) {
     const hasWriting = activeModules.includes("writing");
+    const hasSpeaking = activeModules.includes("speaking");
     return (
       <div className="ep-submitting">
         <div className="ep-submitting__card ep-fade-in">
@@ -861,16 +1123,18 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
             <div className="ep-submitting__ring" />
           </div>
           <h2 className="ep-submitting__title">
-            {hasWriting ? "Marking your writing" : "Scoring your answers"}
+            {hasSpeaking ? "Reviewing your speaking" : hasWriting ? "Marking your writing" : "Scoring your answers"}
           </h2>
           <p className="ep-submitting__sub">
-            {hasWriting
+            {hasSpeaking
+              ? `Your recordings are being checked against IELTS speaking criteria.${speakingUploadProgress ? ` Upload progress: ${speakingUploadProgress}%.` : ""} Keep this tab open while the band score and feedback are prepared.`
+              : hasWriting
               ? "Your response is being checked against IELTS writing criteria. Keep this tab open while the band score and feedback are prepared."
               : "Calculating your band scores across all modules. Please wait a moment."}
           </p>
-          {hasWriting ? (
-            <div className="ep-submitting__steps" aria-label="Writing marking progress">
-              <span>Reading responses</span>
+          {hasWriting || hasSpeaking ? (
+            <div className="ep-submitting__steps" aria-label="Assessment progress">
+              <span>{hasSpeaking ? "Uploading recordings" : "Reading responses"}</span>
               <span>Scoring criteria</span>
               <span>Preparing feedback</span>
             </div>
@@ -887,11 +1151,18 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
   if (submitted && result) {
     const reviewPending = result.reviewPendingModules.length > 0;
     const ai = result.aiWritingReview;
+    const speaking = result.speakingReview;
     const CRITERIA_LABELS: Record<string, string> = {
       task_response: "Task Response",
       coherence: "Coherence & Cohesion",
       lexical: "Lexical Resource",
       grammar: "Grammar & Accuracy",
+    };
+    const SPEAKING_CRITERIA_LABELS: Record<string, string> = {
+      fluency: "Fluency & Coherence",
+      lexical: "Lexical Resource",
+      grammar: "Grammar Range & Accuracy",
+      pronunciation: "Pronunciation",
     };
 
     return (
@@ -1009,6 +1280,83 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
               </div>
             ) : null}
 
+            {speaking ? (
+              <div className="ep-results__ai ep-results__speaking">
+                <div className="ep-results__ai-header">
+                  <div className="ep-results__ai-icon">
+                    <Mic size={22} strokeWidth={2.2} aria-hidden />
+                  </div>
+                  <div>
+                    <h2 className="ep-results__ai-title">Speaking Assessment</h2>
+                    <p className="ep-results__ai-sub">Marked against IELTS speaking criteria</p>
+                  </div>
+                </div>
+
+                <div className="ep-results__ai-summary">
+                  <p>{speaking.summary}</p>
+                </div>
+
+                <div className="ep-results__ai-insights">
+                  {speaking.strengths.length > 0 ? (
+                    <div className="ep-results__insight ep-results__insight--strength">
+                      <h3 className="ep-results__insight-title">
+                        <span className="ep-results__insight-dot ep-results__insight-dot--green" />
+                        What went well
+                      </h3>
+                      <ul className="ep-results__insight-list">
+                        {speaking.strengths.map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}
+                      </ul>
+                    </div>
+                  ) : null}
+                  {speaking.improvements.length > 0 ? (
+                    <div className="ep-results__insight ep-results__insight--improve">
+                      <h3 className="ep-results__insight-title">
+                        <span className="ep-results__insight-dot ep-results__insight-dot--amber" />
+                        Areas to Improve
+                      </h3>
+                      <ul className="ep-results__insight-list">
+                        {speaking.improvements.map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}
+                      </ul>
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="ep-results__criteria">
+                  {(Object.entries(speaking.criterion_scores) as [string, number][]).map(([key, score]) => (
+                    <div key={key} className="ep-results__criterion">
+                      <div className="ep-results__criterion-head">
+                        <span className="ep-results__criterion-label">{SPEAKING_CRITERIA_LABELS[key] ?? key}</span>
+                        <span className="ep-results__criterion-score">{score.toFixed(1)}</span>
+                      </div>
+                      <div className="ep-results__criterion-track">
+                        <div
+                          className={`ep-results__criterion-fill${score >= 7 ? " ep-results__criterion-fill--high" : score >= 5 ? " ep-results__criterion-fill--mid" : " ep-results__criterion-fill--low"}`}
+                          style={{ width: `${Math.min(100, (score / 9) * 100)}%` }}
+                        />
+                      </div>
+                      <p className="ep-results__criterion-feedback">
+                        {(speaking.criterion_feedback as Record<string, string>)[key]}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                {speaking.questions.map((question, index) => (
+                  <div key={`${question.question_id}-${index}`} className="ep-results__task-card">
+                    <div className="ep-results__task-head">
+                      <h3>Speaking Part {question.part}</h3>
+                      <span className="ep-results__task-band">Band {question.estimated_band.toFixed(1)}</span>
+                    </div>
+                    <div className="ep-results__task-meta">{question.prompt}</div>
+                    <p className="ep-results__criterion-feedback">
+                      <strong>Transcript:</strong> {question.transcript}
+                    </p>
+                    <p className="ep-results__criterion-feedback">{question.feedback}</p>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
             {reviewPending ? (
               <div className="ep-results__pending-note">
                 <strong>{result.reviewPendingModules.map((mod) => MODULE_LABELS[mod] ?? mod).join(" + ")}</strong> review is still pending. Check back later for your full results.
@@ -1119,17 +1467,19 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
             <Clock size={18} strokeWidth={2.25} aria-hidden />
           </span>
           <span className="ep-top__timer-copy">
-            <span>Time left</span>
-            <strong className={timeIsLow ? "ep-top__time ep-top__time--low" : "ep-top__time"}>{timeDisplay}</strong>
+            <span>{isUntimedSpeakingExam ? "Speaking test" : "Time left"}</span>
+            <strong className={timeIsLow && !isUntimedSpeakingExam ? "ep-top__time ep-top__time--low" : "ep-top__time"}>
+              {isUntimedSpeakingExam ? "Untimed" : timeDisplay}
+            </strong>
           </span>
         </div>
         <div className="ep-top__progress">
           <div className="ep-top__progress-meta">
             <span>{exam.title}</span>
-            <strong>{Math.round(timePct)}% time left</strong>
+            <strong>{isUntimedSpeakingExam ? "Record each answer when ready" : `${Math.round(timePct)}% time left`}</strong>
           </div>
           <div className="ep-top__track">
-            <div className="ep-top__fill" style={{ width: `${timePct}%` }} />
+            <div className="ep-top__fill" style={{ width: `${isUntimedSpeakingExam ? 100 : timePct}%` }} />
           </div>
         </div>
         <div className="ep-top__right">
@@ -1143,10 +1493,10 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
         <div className="ep-submit-error" role="alert">
           <AlertCircle size={18} strokeWidth={2.2} aria-hidden />
           <div>
-            <strong>Writing evaluation did not complete</strong>
+            <strong>Assessment did not complete</strong>
             <span>{submitError}</span>
           </div>
-          <button type="button" onClick={() => setSubmitError(null)} aria-label="Dismiss evaluation error">
+          <button type="button" onClick={() => setSubmitError(null)} aria-label="Dismiss assessment error">
             ×
           </button>
         </div>
@@ -1174,7 +1524,147 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
       {/* Main body: questions left + navigator right */}
       <div className="ep-body">
         {/* LEFT: scrollable content */}
-        {isReading ? (
+        {isSpeaking ? (
+          <div className="ep-speaking-stage" ref={contentRef}>
+            <div className="ep-speaking-stage__inner">
+              {activeSpeakingQuestion ? (() => {
+                const question = activeSpeakingQuestion;
+                const recording = speakingRecordings[question.id];
+                const isRecordingThis = recordingQuestionId === question.id;
+                const questionNumber = activeSpeakingIndex + 1;
+                const questionImageUrl = getQuestionImageUrlFor(question);
+                const partLabel = getPartLabel("speaking", Math.max(1, Math.floor(question.sort_order / 100) || currentPartInfo.part), readingSectionLabel);
+                return (
+                  <section className="ep-speaking-card ep-slide-up">
+                    <div className="ep-speaking-card__top">
+                      <span className="ep-speaking-card__part">{partLabel}</span>
+                      <span className="ep-speaking-card__count">{questionNumber} / {speakingQuestions.length}</span>
+                    </div>
+
+                    <div className="ep-speaking-card__prompt">
+                      <span className="ep-speaking-card__mic">
+                        <Mic size={24} strokeWidth={2.25} aria-hidden />
+                      </span>
+                      <div>
+                        <p>Question {questionNumber}</p>
+                        <h2>{question.prompt}</h2>
+                      </div>
+                    </div>
+
+                    {questionImageUrl ? (
+                      <img src={questionImageUrl} alt="" className="ep-speaking-card__image" />
+                    ) : null}
+
+                    <div className={`ep-speaking-recorder ep-speaking-recorder--pro${isRecordingThis ? " is-recording" : ""}`}>
+                      <div className="ep-speaking-recorder__meter" aria-hidden>
+                        <span /><span /><span /><span /><span /><span /><span />
+                      </div>
+                      <div className="ep-speaking-recorder__status">
+                        <strong>{isRecordingThis ? "Recording..." : recording ? "Answer recorded" : "Ready to record"}</strong>
+                        <span>
+                          {isRecordingThis
+                            ? "Speak clearly and naturally. Press stop when you finish."
+                            : recording
+                              ? `${formatDuration(recording.durationSeconds)} saved for this question.`
+                              : "Use your microphone to answer this question."}
+                        </span>
+                      </div>
+
+                      {recording ? (
+                        <audio className="ep-speaking-recorder__audio" controls src={recording.url} preload="metadata" />
+                      ) : null}
+
+                      {recordingError ? (
+                        <p className="ep-speaking-recorder__error" role="alert">{recordingError}</p>
+                      ) : null}
+
+                      <div className="ep-speaking-recorder__actions">
+                        {isRecordingThis ? (
+                          <button type="button" className="ep-speaking-recorder__btn ep-speaking-recorder__btn--stop" onClick={stopSpeakingRecording}>
+                            <Square size={15} fill="currentColor" aria-hidden />
+                            Stop
+                          </button>
+                        ) : (
+                          <button type="button" className="ep-speaking-recorder__btn" onClick={() => void startSpeakingRecording(question.id)}>
+                            <Mic size={16} aria-hidden />
+                            {recording ? "Record again" : "Start recording"}
+                          </button>
+                        )}
+                        {recording ? (
+                          <button type="button" className="ep-speaking-recorder__btn ep-speaking-recorder__btn--ghost" onClick={() => retakeSpeakingRecording(question.id)} disabled={Boolean(recordingQuestionId)}>
+                            <RotateCcw size={15} aria-hidden />
+                            Retake
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <div className="ep-speaking-card__footer">
+                      <button
+                        type="button"
+                        className="btn btn-outline"
+                        disabled={activeSpeakingIndex <= 0}
+                        onClick={() => {
+                          const nextIndex = Math.max(0, activeSpeakingIndex - 1);
+                          setActiveSpeakingIndex(nextIndex);
+                          const previous = speakingQuestions[nextIndex];
+                          const previousPart = previous ? parts.findIndex((part) => part.questions.some((item) => item.id === previous.id)) : -1;
+                          if (previousPart >= 0) setActivePart(previousPart + 1);
+                        }}
+                      >
+                        Previous
+                      </button>
+                      <div className="ep-speaking-progress" aria-label="Speaking progress">
+                        {speakingQuestions.map((item, index) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            className={`ep-speaking-progress__dot${index === activeSpeakingIndex ? " is-active" : ""}${speakingRecordings[item.id] ? " is-done" : ""}`}
+                            onClick={() => {
+                              setActiveSpeakingIndex(index);
+                              const targetPartIndex = parts.findIndex((part) => part.questions.some((candidate) => candidate.id === item.id));
+                              if (targetPartIndex >= 0) setActivePart(targetPartIndex + 1);
+                            }}
+                            aria-label={`Go to speaking question ${index + 1}`}
+                          />
+                        ))}
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-topbar-cta"
+                        onClick={() => {
+                          if (activeSpeakingIndex >= speakingQuestions.length - 1) {
+                            setShowConfirm(true);
+                            return;
+                          }
+                          const nextIndex = activeSpeakingIndex + 1;
+                          setActiveSpeakingIndex(nextIndex);
+                          const next = speakingQuestions[nextIndex];
+                          const nextPart = next ? parts.findIndex((part) => part.questions.some((item) => item.id === next.id)) : -1;
+                          if (nextPart >= 0) setActivePart(nextPart + 1);
+                        }}
+                      >
+                        {activeSpeakingIndex >= speakingQuestions.length - 1 ? "Finish" : recording ? "Next" : "Skip"}
+                      </button>
+                    </div>
+                  </section>
+                );
+              })() : (
+                <section className="ep-speaking-card ep-slide-up">
+                  <div className="ep-speaking-card__prompt">
+                    <span className="ep-speaking-card__mic">
+                      <Mic size={24} strokeWidth={2.25} aria-hidden />
+                    </span>
+                    <div>
+                      <p>Speaking</p>
+                      <h2>No speaking prompts are assigned to this exam yet.</h2>
+                    </div>
+                  </div>
+                </section>
+              )}
+            </div>
+          </div>
+        ) : isReading ? (
           /* ── Reading: split-pane (passage left, questions right) ── */
           <div className="ep-reading-split">
             {/* LEFT: Passage */}
