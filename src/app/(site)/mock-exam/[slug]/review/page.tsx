@@ -3,9 +3,17 @@ import type { Metadata } from "next";
 import { createClient, getAuthUser } from "@/lib/supabase/server";
 import type { WritingAiReview } from "@/lib/ai/writing-review";
 import { normalizeExamModules } from "@/lib/exam/ielts-defaults";
+import "./review.css";
 
 export const metadata: Metadata = {
   title: "Review results | The IELTS Exam",
+};
+
+const CRITERIA_LABELS: Record<string, string> = {
+  task_response: "Task Response",
+  coherence: "Coherence & Cohesion",
+  lexical: "Lexical Resource",
+  grammar: "Grammar & Accuracy",
 };
 
 export default async function ReviewMockExamPage({
@@ -24,17 +32,15 @@ export default async function ReviewMockExamPage({
 
   if (!exam) {
     return (
-      <main className="page" style={{ padding: "3rem 1.5rem" }}>
-        <div className="container" style={{ maxWidth: "42rem" }}>
-          <h1 style={{ fontFamily: "var(--font-display), var(--font-sans), sans-serif", fontSize: "1.75rem", fontWeight: 800 }}>
-            Review results
-          </h1>
-          <p style={{ color: "var(--muted)", marginTop: "0.75rem", lineHeight: 1.6 }}>
-            This exam could not be found.
-          </p>
-          <Link href="/mock-exam" className="btn btn-outline" style={{ marginTop: "1.5rem" }}>
-            Back to mock exams
-          </Link>
+      <main className="rv">
+        <div className="rv__inner">
+          <div className="rv__header">
+            <h1 className="rv__title">Review results</h1>
+            <p className="rv__exam-name">This exam could not be found.</p>
+          </div>
+          <div className="rv__actions">
+            <Link href="/mock-exam" className="btn btn-outline">Back to mock exams</Link>
+          </div>
         </div>
       </main>
     );
@@ -86,8 +92,10 @@ export default async function ReviewMockExamPage({
     ? attempt.ai_review_json as WritingAiReview
     : null;
   const activeModules = normalizeExamModules(exam.modules);
-  const summaryCards = attempt
-    ? [
+
+  type SummaryCard = { label: string; value: number | string | null };
+  const summaryCards: SummaryCard[] = attempt
+    ? ([
         activeModules.length > 1
           ? { label: "Overall", value: attempt.overall_band }
           : null,
@@ -100,111 +108,135 @@ export default async function ReviewMockExamPage({
         activeModules.includes("writing")
           ? {
               label: "Writing",
-              value: reviewPending ? "Pending review" : attempt.writing_band,
+              value: reviewPending ? "Pending" : attempt.writing_band,
             }
           : null,
-      ].filter((card): card is { label: string; value: number | string | null } => Boolean(card))
+      ].filter(Boolean) as SummaryCard[])
     : [];
 
   return (
-    <main className="page" style={{ padding: "3rem 1.5rem" }}>
-      <div className="container" style={{ maxWidth: "42rem" }}>
-        <h1
-          style={{
-            fontFamily: "var(--font-display), var(--font-sans), sans-serif",
-            fontSize: "1.75rem",
-            fontWeight: 800,
-          }}
-        >
-          Review results
-        </h1>
-        <p style={{ color: "var(--muted)", marginTop: "0.75rem", lineHeight: 1.6 }}>
-          {exam.title}
-        </p>
+    <main className="rv">
+      <div className="rv__inner">
+        {/* Header */}
+        <div className="rv__header">
+          <h1 className="rv__title">Review results</h1>
+          <p className="rv__exam-name">{exam.title}</p>
+        </div>
 
         {!attempt ? (
-          <p style={{ color: "var(--muted)", marginTop: "1rem", lineHeight: 1.6 }}>
-            No completed submission was found for this exam yet.
-          </p>
-        ) : reviewPending ? (
-          <>
-            <p style={{ color: "var(--text)", marginTop: "1rem", lineHeight: 1.7 }}>
-              Your writing submission was saved successfully. Objective sections can still show bands, but the writing score stays pending until review is completed.
-            </p>
-            <div style={{ marginTop: "1rem", display: "grid", gap: "0.75rem", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
-              {summaryCards.map((card) => (
-                <div key={card.label} style={{ padding: "1rem", border: "1px solid var(--border)", borderRadius: "16px", background: "var(--surface)" }}>
-                  <div style={{ color: "var(--muted)", fontSize: "0.8rem", textTransform: "uppercase", letterSpacing: "0.08em" }}>{card.label}</div>
-                  <div style={{ marginTop: "0.35rem", fontSize: typeof card.value === "string" ? "1.1rem" : "1.4rem", fontWeight: 800 }}>
-                    {typeof card.value === "number" ? card.value.toFixed(1) : (card.value ?? "—")}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </>
+          <p className="rv__empty">No completed submission was found for this exam yet.</p>
         ) : (
           <>
-            <p style={{ color: "var(--muted)", marginTop: "1rem", lineHeight: 1.6 }}>
-              Latest completed attempt.
-            </p>
-            <div style={{ marginTop: "1rem", display: "grid", gap: "0.75rem", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
+            {/* Overall band hero */}
+            {attempt.overall_band != null ? (
+              <div className="rv__band-hero">
+                <span className="rv__band-label">Overall Band Score</span>
+                <span className="rv__band-value">{attempt.overall_band.toFixed(1)}</span>
+              </div>
+            ) : null}
+
+            {/* Module bands */}
+            <div className="rv__modules">
               {summaryCards.map((card) => (
-                <div key={card.label} style={{ padding: "1rem", border: "1px solid var(--border)", borderRadius: "16px", background: "var(--surface)" }}>
-                  <div style={{ color: "var(--muted)", fontSize: "0.8rem", textTransform: "uppercase", letterSpacing: "0.08em" }}>{card.label}</div>
-                  <div style={{ marginTop: "0.35rem", fontSize: typeof card.value === "string" ? "1.1rem" : "1.4rem", fontWeight: 800 }}>
-                    {typeof card.value === "number" ? card.value.toFixed(1) : (card.value ?? "—")}
-                  </div>
+                <div key={card.label} className="rv__module-card">
+                  <span className="rv__module-name">{card.label}</span>
+                  {typeof card.value === "number" ? (
+                    <span className="rv__module-score">{card.value.toFixed(1)}</span>
+                  ) : (
+                    <span className="rv__module-score rv__module-score--pending">{card.value ?? "—"}</span>
+                  )}
                 </div>
               ))}
             </div>
+
+            {/* Pending message */}
+            {reviewPending ? (
+              <div className="rv__pending-msg">
+                Your writing submission was saved successfully. Objective sections show bands, but the writing score stays pending until AI review completes.
+              </div>
+            ) : null}
+
+            {/* AI Writing Review */}
             {aiReview ? (
-              <div style={{ marginTop: "1rem", display: "grid", gap: "0.9rem" }}>
-                <div style={{ padding: "1rem", border: "1px solid var(--border)", borderRadius: "16px", background: "var(--surface)" }}>
-                  <div style={{ color: "var(--muted)", fontSize: "0.8rem", textTransform: "uppercase", letterSpacing: "0.08em" }}>AI writing summary</div>
-                  <p style={{ margin: "0.5rem 0 0", lineHeight: 1.7, color: "var(--text)" }}>{aiReview.summary}</p>
-                  {aiReview.strengths.length > 0 ? (
-                    <div style={{ marginTop: "0.85rem" }}>
-                      <div style={{ fontWeight: 700, marginBottom: "0.35rem" }}>Strengths</div>
-                      <ul style={{ margin: 0, paddingLeft: "1.1rem", color: "var(--muted)", lineHeight: 1.7 }}>
-                        {aiReview.strengths.map((item) => <li key={item}>{item}</li>)}
-                      </ul>
-                    </div>
-                  ) : null}
-                  {aiReview.improvements.length > 0 ? (
-                    <div style={{ marginTop: "0.85rem" }}>
-                      <div style={{ fontWeight: 700, marginBottom: "0.35rem" }}>Improve next</div>
-                      <ul style={{ margin: 0, paddingLeft: "1.1rem", color: "var(--muted)", lineHeight: 1.7 }}>
-                        {aiReview.improvements.map((item) => <li key={item}>{item}</li>)}
-                      </ul>
-                    </div>
-                  ) : null}
+              <div className="rv__ai">
+                <div className="rv__ai-header">
+                  <div className="rv__ai-icon">✍</div>
+                  <div>
+                    <h2 className="rv__ai-title">AI Writing Assessment</h2>
+                    <p className="rv__ai-sub">Evaluated by Gemini AI examiner</p>
+                  </div>
                 </div>
 
-                <div style={{ display: "grid", gap: "0.75rem", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
-                  {aiReview.tasks.map((task) => (
-                    <div key={task.part} style={{ padding: "1rem", border: "1px solid var(--border)", borderRadius: "16px", background: "var(--surface)" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem", alignItems: "baseline" }}>
-                        <div style={{ fontWeight: 800 }}>Task {task.part}</div>
-                        <div style={{ color: "var(--primary)", fontWeight: 800 }}>Band {task.estimated_band.toFixed(1)}</div>
-                      </div>
-                      <div style={{ marginTop: "0.5rem", color: "var(--muted)", fontSize: "0.92rem" }}>
-                        {task.word_count} words
-                      </div>
-                      <div style={{ marginTop: "0.85rem", display: "grid", gap: "0.55rem" }}>
-                        <div><strong>Task response:</strong> {task.feedback.task_response}</div>
-                        <div><strong>Coherence:</strong> {task.feedback.coherence}</div>
-                        <div><strong>Lexical:</strong> {task.feedback.lexical}</div>
-                        <div><strong>Grammar:</strong> {task.feedback.grammar}</div>
-                      </div>
-                    </div>
-                  ))}
+                {/* Summary */}
+                <div className="rv__summary">
+                  <p>{aiReview.summary}</p>
                 </div>
+
+                {/* Strengths & Improvements */}
+                {aiReview.strengths.length > 0 || aiReview.improvements.length > 0 ? (
+                  <div className="rv__insights">
+                    {aiReview.strengths.length > 0 ? (
+                      <div className="rv__insight-card rv__insight-card--strength">
+                        <h3 className="rv__insight-label">
+                          <span className="rv__insight-dot rv__insight-dot--green" />
+                          Strengths
+                        </h3>
+                        <ul className="rv__insight-list">
+                          {aiReview.strengths.map((item) => <li key={item}>{item}</li>)}
+                        </ul>
+                      </div>
+                    ) : null}
+                    {aiReview.improvements.length > 0 ? (
+                      <div className="rv__insight-card rv__insight-card--improve">
+                        <h3 className="rv__insight-label">
+                          <span className="rv__insight-dot rv__insight-dot--amber" />
+                          Areas to Improve
+                        </h3>
+                        <ul className="rv__insight-list">
+                          {aiReview.improvements.map((item) => <li key={item}>{item}</li>)}
+                        </ul>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {/* Per-task detailed cards */}
+                {aiReview.tasks.map((task) => (
+                  <div key={task.part} className="rv__task-card">
+                    <div className="rv__task-head">
+                      <h3 className="rv__task-name">Writing Task {task.part}</h3>
+                      <span className="rv__task-band-pill">Band {task.estimated_band.toFixed(1)}</span>
+                    </div>
+                    <div className="rv__task-meta">{task.word_count} words</div>
+
+                    <div className="rv__criteria">
+                      {(Object.entries(task.criterion_scores) as [string, number][]).map(([key, score]) => (
+                        <div key={key}>
+                          <div className="rv__crit-head">
+                            <span className="rv__crit-label">{CRITERIA_LABELS[key] ?? key}</span>
+                            <span className="rv__crit-score">{score.toFixed(1)}</span>
+                          </div>
+                          <div className="rv__crit-track">
+                            <div
+                              className={`rv__crit-fill${score >= 7 ? " rv__crit-fill--high" : score >= 5 ? " rv__crit-fill--mid" : " rv__crit-fill--low"}`}
+                              style={{ width: `${Math.min(100, (score / 9) * 100)}%` }}
+                            />
+                          </div>
+                          <p className="rv__crit-feedback">
+                            {(task.feedback as Record<string, string>)[key]}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : null}
           </>
         )}
 
-        <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginTop: "1.75rem" }}>
+        {/* Actions */}
+        <div className="rv__actions">
           <Link href={`/mock-exam/${slug}/take`} className="btn btn-primary btn-topbar-cta">
             Retake exam
           </Link>

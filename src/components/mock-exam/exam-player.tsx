@@ -58,6 +58,19 @@ type SubmitResult = {
   overallBand: number | null;
   moduleBands: Record<string, number | null>;
   reviewPendingModules: string[];
+  aiWritingReview: {
+    overall_band: number;
+    summary: string;
+    strengths: string[];
+    improvements: string[];
+    tasks: {
+      part: number;
+      estimated_band: number;
+      word_count: number;
+      criterion_scores: { task_response: number; coherence: number; lexical: number; grammar: number };
+      feedback: { task_response: string; coherence: string; lexical: string; grammar: string };
+    }[];
+  } | null;
 };
 
 const MODULE_LABELS: Record<string, string> = {
@@ -680,44 +693,170 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
     [answers, visibleQuestions],
   );
 
+  /* ── Submitting overlay ────────────── */
+  if (submitting && !submitted) {
+    const hasWriting = activeModules.includes("writing");
+    return (
+      <div className="ep-submitting">
+        <div className="ep-submitting__card ep-fade-in">
+          <div className="ep-submitting__spinner">
+            <div className="ep-submitting__ring" />
+          </div>
+          <h2 className="ep-submitting__title">
+            {hasWriting ? "AI is evaluating your writing…" : "Scoring your answers…"}
+          </h2>
+          <p className="ep-submitting__sub">
+            {hasWriting
+              ? "Our AI examiner is reviewing your essay for task response, coherence, vocabulary, and grammar. This may take a few seconds."
+              : "Calculating your band scores across all modules. Please wait a moment."}
+          </p>
+          <div className="ep-submitting__dots" aria-hidden>
+            <span /><span /><span />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   /* ── Results screen ────────────── */
   if (submitted && result) {
     const reviewPending = result.reviewPendingModules.length > 0;
+    const ai = result.aiWritingReview;
+    const CRITERIA_LABELS: Record<string, string> = {
+      task_response: "Task Response",
+      coherence: "Coherence & Cohesion",
+      lexical: "Lexical Resource",
+      grammar: "Grammar & Accuracy",
+    };
+
     return (
-      <div className="ep-results">
-        <div className="ep-results__card ep-fade-in">
-          <div className="ep-results__badge">✓</div>
-          <h1 className="ep-results__title">{reviewPending ? "Submission Received" : "Exam Completed!"}</h1>
-          <p className="ep-results__sub">{exam.title}</p>
-          {reviewPending ? (
-            <div className="ep-results__stats" style={{ marginBottom: "1rem" }}>
-              <div>
-                <span>Review status</span>
-                <strong>{result.reviewPendingModules.map((mod) => MODULE_LABELS[mod] ?? mod).join(" + ")} pending review</strong>
+      <div className="ep-results ep-fade-in">
+        <div className="ep-results__scroll">
+          {/* Hero header */}
+          <div className="ep-results__hero">
+            <div className="ep-results__badge">✓</div>
+            <h1 className="ep-results__title">{reviewPending ? "Submission Received" : "Exam Completed!"}</h1>
+            <p className="ep-results__sub">{exam.title}</p>
+          </div>
+
+          <div className="ep-results__body">
+            {/* Overall band */}
+            {result.overallBand != null ? (
+              <div className="ep-results__band-main">
+                <span className="ep-results__band-label">Overall Band Score</span>
+                <span className="ep-results__band-value">{result.overallBand.toFixed(1)}</span>
+              </div>
+            ) : null}
+
+            {/* Module bands grid */}
+            <div className="ep-results__modules">
+              {Object.entries(result.moduleBands).map(([mod, band]) => (
+                <div key={mod} className="ep-results__module">
+                  <span>{MODULE_LABELS[mod] ?? mod}</span>
+                  <strong>{band != null ? band.toFixed(1) : "Pending"}</strong>
+                </div>
+              ))}
+              <div className="ep-results__module">
+                <span>Questions Answered</span>
+                <strong>{answeredCount} / {visibleQuestions.length}</strong>
               </div>
             </div>
-          ) : null}
-          {result.overallBand != null ? (
-            <div className="ep-results__band-main">
-              <span className="ep-results__band-label">Overall Band Score</span>
-              <span className="ep-results__band-value">{result.overallBand.toFixed(1)}</span>
-            </div>
-          ) : null}
-          <div className="ep-results__modules">
-            {Object.entries(result.moduleBands).map(([mod, band]) => (
-              <div key={mod} className="ep-results__module">
-                <span>{MODULE_LABELS[mod] ?? mod}</span>
-                <strong>{band != null ? band.toFixed(1) : "Pending review"}</strong>
+
+            {/* AI Writing Review Section */}
+            {ai && ai.tasks.length > 0 ? (
+              <div className="ep-results__ai">
+                <div className="ep-results__ai-header">
+                  <div className="ep-results__ai-icon">✍</div>
+                  <div>
+                    <h2 className="ep-results__ai-title">AI Writing Assessment</h2>
+                    <p className="ep-results__ai-sub">Evaluated by Gemini AI examiner</p>
+                  </div>
+                </div>
+
+                {/* Summary */}
+                <div className="ep-results__ai-summary">
+                  <p>{ai.summary}</p>
+                </div>
+
+                {/* Strengths & Improvements */}
+                {ai.strengths.length > 0 || ai.improvements.length > 0 ? (
+                  <div className="ep-results__ai-insights">
+                    {ai.strengths.length > 0 ? (
+                      <div className="ep-results__insight ep-results__insight--strength">
+                        <h3 className="ep-results__insight-title">
+                          <span className="ep-results__insight-dot ep-results__insight-dot--green" />
+                          Strengths
+                        </h3>
+                        <ul className="ep-results__insight-list">
+                          {ai.strengths.map((s, i) => <li key={i}>{s}</li>)}
+                        </ul>
+                      </div>
+                    ) : null}
+                    {ai.improvements.length > 0 ? (
+                      <div className="ep-results__insight ep-results__insight--improve">
+                        <h3 className="ep-results__insight-title">
+                          <span className="ep-results__insight-dot ep-results__insight-dot--amber" />
+                          Areas to Improve
+                        </h3>
+                        <ul className="ep-results__insight-list">
+                          {ai.improvements.map((s, i) => <li key={i}>{s}</li>)}
+                        </ul>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {/* Per-task detailed feedback */}
+                {ai.tasks.map((task) => (
+                  <div key={task.part} className="ep-results__task-card">
+                    <div className="ep-results__task-head">
+                      <h3>Writing Task {task.part}</h3>
+                      <span className="ep-results__task-band">Band {task.estimated_band.toFixed(1)}</span>
+                    </div>
+                    <div className="ep-results__task-meta">
+                      <span>{task.word_count} words</span>
+                    </div>
+
+                    {/* Criterion score bars */}
+                    <div className="ep-results__criteria">
+                      {(Object.entries(task.criterion_scores) as [string, number][]).map(([key, score]) => (
+                        <div key={key} className="ep-results__criterion">
+                          <div className="ep-results__criterion-head">
+                            <span className="ep-results__criterion-label">{CRITERIA_LABELS[key] ?? key}</span>
+                            <span className="ep-results__criterion-score">{score.toFixed(1)}</span>
+                          </div>
+                          <div className="ep-results__criterion-track">
+                            <div
+                              className={`ep-results__criterion-fill${score >= 7 ? " ep-results__criterion-fill--high" : score >= 5 ? " ep-results__criterion-fill--mid" : " ep-results__criterion-fill--low"}`}
+                              style={{ width: `${Math.min(100, (score / 9) * 100)}%` }}
+                            />
+                          </div>
+                          <p className="ep-results__criterion-feedback">
+                            {(task.feedback as Record<string, string>)[key]}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-          <div className="ep-results__stats">
-            <div><span>Questions Answered</span><strong>{answeredCount} / {visibleQuestions.length}</strong></div>
-          </div>
-          <div className="ep-results__actions">
-            <button className="btn btn-primary btn-topbar-cta" onClick={() => router.push("/mock-exam")}>
-              Back to Exams
-            </button>
+            ) : null}
+
+            {reviewPending ? (
+              <div className="ep-results__pending-note">
+                <strong>{result.reviewPendingModules.map((mod) => MODULE_LABELS[mod] ?? mod).join(" + ")}</strong> review is still pending. Check back later for your full results.
+              </div>
+            ) : null}
+
+            {/* Actions */}
+            <div className="ep-results__actions">
+              <button className="btn btn-primary btn-topbar-cta" onClick={() => router.push(`/mock-exam/${exam.slug}/review`)}>
+                View Full Review
+              </button>
+              <button className="btn btn-outline" onClick={() => router.push("/mock-exam")}>
+                Back to Exams
+              </button>
+            </div>
           </div>
         </div>
       </div>

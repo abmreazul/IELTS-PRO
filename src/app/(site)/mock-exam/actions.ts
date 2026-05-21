@@ -304,10 +304,25 @@ export async function startExamAttempt(
    ═══════════════════════════════════════════════════════════════════ */
 
 type AnswerMap = Record<string, unknown>;
+type WritingAiReviewResult = {
+  overall_band: number;
+  summary: string;
+  strengths: string[];
+  improvements: string[];
+  tasks: {
+    part: number;
+    estimated_band: number;
+    word_count: number;
+    criterion_scores: { task_response: number; coherence: number; lexical: number; grammar: number };
+    feedback: { task_response: string; coherence: string; lexical: string; grammar: string };
+  }[];
+};
+
 type SubmitResult = {
   overallBand: number | null;
   moduleBands: Record<string, number | null>;
   reviewPendingModules: string[];
+  aiWritingReview: WritingAiReviewResult | null;
 };
 
 export async function submitExamAttempt(
@@ -523,6 +538,21 @@ export async function submitExamAttempt(
       overallBand,
       moduleBands,
       reviewPendingModules: Array.from(reviewPendingModules),
+      aiWritingReview: aiReviewJson
+        ? {
+            overall_band: Number((aiReviewJson as Record<string, unknown>).overall_band) || 0,
+            summary: String((aiReviewJson as Record<string, unknown>).summary ?? ""),
+            strengths: Array.isArray((aiReviewJson as Record<string, unknown>).strengths)
+              ? ((aiReviewJson as Record<string, unknown>).strengths as string[])
+              : [],
+            improvements: Array.isArray((aiReviewJson as Record<string, unknown>).improvements)
+              ? ((aiReviewJson as Record<string, unknown>).improvements as string[])
+              : [],
+            tasks: Array.isArray((aiReviewJson as Record<string, unknown>).tasks)
+              ? ((aiReviewJson as Record<string, unknown>).tasks as WritingAiReviewResult["tasks"])
+              : [],
+          }
+        : null,
     },
   };
 }

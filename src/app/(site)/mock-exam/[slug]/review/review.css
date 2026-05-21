@@ -1,0 +1,367 @@
+/* ═══════════════════════════════════════════════════════════════════
+   Review Results Page
+   ═══════════════════════════════════════════════════════════════════ */
+
+.rv {
+  padding: clamp(2rem, 5vw, 3.5rem) 1.5rem clamp(3rem, 6vw, 4rem);
+  background: var(--bg);
+  min-height: 100vh;
+}
+
+.rv__inner {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+/* ── Header ── */
+
+.rv__header {
+  margin-bottom: 2rem;
+}
+
+.rv__title {
+  margin: 0;
+  font-family: var(--font-display), var(--font-sans), sans-serif;
+  font-size: clamp(1.5rem, 3.5vw, 2rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--text);
+}
+
+.rv__exam-name {
+  margin: 0.4rem 0 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+/* ── Band score hero ── */
+
+.rv__band-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 1.75rem;
+  border-radius: 20px;
+  background: linear-gradient(135deg, hsl(220, 25%, 12%), hsl(225, 30%, 18%));
+  color: #fff;
+  margin-bottom: 1.25rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+}
+
+.rv__band-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.65;
+}
+
+.rv__band-value {
+  font-size: 3.5rem;
+  font-weight: 900;
+  font-family: var(--font-display), sans-serif;
+  line-height: 1;
+}
+
+/* ── Module bands grid ── */
+
+.rv__modules {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.65rem;
+  margin-bottom: 1.75rem;
+}
+
+.rv__module-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.rv__module-name {
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+
+.rv__module-score {
+  font-size: 1.15rem;
+  font-weight: 900;
+  color: var(--text);
+}
+
+.rv__module-score--pending {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #f59e0b;
+}
+
+/* ── Pending message ── */
+
+.rv__pending-msg {
+  padding: 1rem 1.15rem;
+  border-radius: 14px;
+  background: color-mix(in srgb, #f59e0b 6%, var(--surface));
+  border: 1px solid color-mix(in srgb, #f59e0b 18%, var(--border));
+  font-size: 0.92rem;
+  line-height: 1.7;
+  color: var(--text);
+  margin-bottom: 1.75rem;
+}
+
+/* ── AI Writing Review ── */
+
+.rv__ai {
+  margin-bottom: 2rem;
+}
+
+.rv__ai-header {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  margin-bottom: 1.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.rv__ai-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #7c3aed, #a855f7);
+  color: #fff;
+  font-size: 1.2rem;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.rv__ai-title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  font-family: var(--font-display), sans-serif;
+  letter-spacing: -0.02em;
+}
+
+.rv__ai-sub {
+  margin: 0.15rem 0 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+/* ── Summary ── */
+
+.rv__summary {
+  padding: 1.15rem 1.25rem;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--primary) 4%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--primary) 12%, var(--border));
+  margin-bottom: 1.15rem;
+}
+
+.rv__summary p {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.8;
+  color: var(--text);
+}
+
+/* ── Insights (strengths / improvements) ── */
+
+.rv__insights {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.rv__insight-card {
+  padding: 1.1rem 1.2rem;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.rv__insight-card--strength {
+  border-color: color-mix(in srgb, #22c55e 20%, var(--border));
+}
+
+.rv__insight-card--improve {
+  border-color: color-mix(in srgb, #f59e0b 20%, var(--border));
+}
+
+.rv__insight-label {
+  margin: 0 0 0.65rem;
+  font-size: 0.88rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.rv__insight-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.rv__insight-dot--green { background: #22c55e; }
+.rv__insight-dot--amber { background: #f59e0b; }
+
+.rv__insight-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.88rem;
+  line-height: 1.8;
+  color: var(--muted);
+}
+
+.rv__insight-list li + li { margin-top: 0.25rem; }
+
+/* ── Task cards ── */
+
+.rv__task-card {
+  padding: 1.35rem;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  margin-bottom: 0.85rem;
+}
+
+.rv__task-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.2rem;
+}
+
+.rv__task-name {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 800;
+  font-family: var(--font-display), sans-serif;
+}
+
+.rv__task-band-pill {
+  padding: 0.32rem 0.72rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #7c3aed, #a855f7);
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.rv__task-meta {
+  font-size: 0.82rem;
+  color: var(--muted);
+  margin-bottom: 1.1rem;
+}
+
+/* ── Criterion bars ── */
+
+.rv__criteria {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+.rv__crit-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.3rem;
+}
+
+.rv__crit-label {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.rv__crit-score {
+  font-size: 0.88rem;
+  font-weight: 900;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.rv__crit-track {
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--border) 70%, var(--surface));
+  overflow: hidden;
+  margin-bottom: 0.45rem;
+}
+
+.rv__crit-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.8s ease-out;
+}
+
+.rv__crit-fill--high { background: linear-gradient(90deg, #16a34a, #22c55e); }
+.rv__crit-fill--mid  { background: linear-gradient(90deg, #2563eb, #3b82f6); }
+.rv__crit-fill--low  { background: linear-gradient(90deg, #dc2626, #ef4444); }
+
+.rv__crit-feedback {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.75;
+  color: var(--muted);
+}
+
+/* ── No attempt ── */
+
+.rv__empty {
+  margin-top: 1rem;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+/* ── Actions ── */
+
+.rv__actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 2rem;
+}
+
+/* ── Loading skeleton ── */
+
+@keyframes rvShimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.rv-skel {
+  border-radius: 8px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--border) 40%, var(--bg)) 25%,
+    color-mix(in srgb, var(--border) 60%, var(--bg)) 50%,
+    color-mix(in srgb, var(--border) 40%, var(--bg)) 75%
+  );
+  background-size: 200% 100%;
+  animation: rvShimmer 1.5s ease-in-out infinite;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Responsive
+   ═══════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 640px) {
+  .rv__band-value { font-size: 2.75rem; }
+  .rv__modules { grid-template-columns: 1fr 1fr; }
+  .rv__insights { grid-template-columns: 1fr; }
+}
