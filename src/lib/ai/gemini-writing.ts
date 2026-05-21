@@ -217,7 +217,10 @@ export async function evaluateWritingWithGemini(
   tasks: WritingTaskSubmission[],
 ): Promise<EvaluateWritingSuccess | EvaluateWritingFailure> {
   const apiKey = process.env.GEMINI_API_KEY;
-  const model = process.env.GEMINI_MODEL?.trim() || "gemini-2.0-flash";
+  const configuredModel = process.env.GEMINI_MODEL?.trim();
+  const model = !configuredModel || configuredModel === "gemini-2.0-flash"
+    ? "gemini-2.5-flash"
+    : configuredModel;
 
   if (tasks.length === 0) {
     return { ok: false, reason: "No writing tasks were provided." };
