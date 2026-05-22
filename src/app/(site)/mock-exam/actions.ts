@@ -46,20 +46,12 @@ function computeOverallBand(moduleBands: Record<string, number | null>, activeMo
   );
 }
 
-function isMissingAiReviewColumn(message: string | undefined) {
-  return Boolean(
-    message &&
-      message.includes("ai_review_json") &&
-      (message.includes("schema cache") || message.includes("Could not find the")),
-  );
-}
-
-function isMissingSpeakingReviewColumn(message: string | undefined) {
-  return Boolean(
-    message &&
-      message.includes("speaking_review_json") &&
-      (message.includes("schema cache") || message.includes("Could not find the")),
-  );
+function getMissingMockAttemptColumn(message: string | undefined) {
+  if (!message || !(message.includes("schema cache") || message.includes("Could not find the"))) {
+    return null;
+  }
+  const match = message.match(/'([^']+)' column of 'mock_attempts'/);
+  return match?.[1] ?? null;
 }
 
 function isMissingPaymentTable(message: string | undefined) {
@@ -723,25 +715,20 @@ export async function submitExamAttempt(
     speaking_band: moduleBands.speaking ?? null,
     completed_at: new Date().toISOString(),
   };
+  const optionalAttemptColumns = new Set(["ai_review_json", "speaking_review_json"]);
+  const updatePayload: Record<string, unknown> = { ...attemptUpdatePayload };
   let { error: updateErr } = await admin
     .from("mock_attempts")
-    .update(attemptUpdatePayload)
+    .update(updatePayload)
     .eq("id", attemptId);
 
-  if (updateErr && isMissingAiReviewColumn(updateErr.message)) {
-    const { ai_review_json: _ignored, ...fallbackPayload } = attemptUpdatePayload;
+  for (let attempt = 0; updateErr && attempt < optionalAttemptColumns.size; attempt += 1) {
+    const missingColumn = getMissingMockAttemptColumn(updateErr.message);
+    if (!missingColumn || !optionalAttemptColumns.has(missingColumn)) break;
+    delete updatePayload[missingColumn];
     const retry = await admin
       .from("mock_attempts")
-      .update(fallbackPayload)
-      .eq("id", attemptId);
-    updateErr = retry.error;
-  }
-
-  if (updateErr && isMissingSpeakingReviewColumn(updateErr.message)) {
-    const { speaking_review_json: _ignored, ...fallbackPayload } = attemptUpdatePayload;
-    const retry = await admin
-      .from("mock_attempts")
-      .update(fallbackPayload)
+      .update(updatePayload)
       .eq("id", attemptId);
     updateErr = retry.error;
   }
