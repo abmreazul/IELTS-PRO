@@ -2002,7 +2002,7 @@
 .ep-speaking-recorder__meter span {
   display: block;
   height: 52px;
-  border-radius: 999px;
+  border-radius: 3px;
   transform-origin: center;
   background: var(--primary);
   opacity: 0.52;

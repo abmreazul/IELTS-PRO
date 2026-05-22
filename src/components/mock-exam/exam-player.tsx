@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getSignedAttemptUploadUrl, startExamAttempt, submitExamAttempt } from "@/app/(site)/mock-exam/actions";
+import { createClient as createBrowserSupabaseClient } from "@/lib/supabase/client";
 import {
   coerceTestVariant,
   getReadingSectionLabel,
@@ -24,7 +25,6 @@ import {
   Pause,
   PenLine,
   Play,
-  RotateCcw,
   Send,
   Sparkles,
   Square,
@@ -421,6 +421,13 @@ function getRecordingExtension(mimeType: string) {
   return "webm";
 }
 
+function normalizeRecordingMimeType(mimeType: string) {
+  const clean = mimeType.split(";")[0]?.trim().toLowerCase();
+  if (!clean) return "audio/webm";
+  if (clean === "audio/x-wav") return "audio/wav";
+  return clean;
+}
+
 function formatDuration(seconds: number) {
   const safeSeconds = Math.max(0, Math.round(seconds));
   const mins = Math.floor(safeSeconds / 60);
@@ -744,7 +751,7 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
         stopSpeakingStream();
       };
       recorder.onstop = () => {
-        const finalMimeType = recorder.mimeType || mimeType || "audio/webm";
+        const finalMimeType = normalizeRecordingMimeType(recorder.mimeType || mimeType || "audio/webm");
         const blob = new Blob(recordingChunksRef.current, { type: finalMimeType });
         if (blob.size === 0) {
           setRecordingError("No audio was captured. Check the selected microphone and try again.");
@@ -798,17 +805,6 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
     }
   }, []);
 
-  const retakeSpeakingRecording = useCallback((questionId: string) => {
-    if (recordingQuestionId) return;
-    setSpeakingRecordings((prev) => {
-      if (prev[questionId]?.url) URL.revokeObjectURL(prev[questionId].url);
-      const next = { ...prev };
-      delete next[questionId];
-      return next;
-    });
-    setRecordingError(null);
-  }, [recordingQuestionId]);
-
   const uploadSpeakingRecordings = useCallback(async (): Promise<AnswerMap | null> => {
     const entries = Object.entries(speakingRecordings);
     if (entries.length === 0) {
@@ -820,35 +816,35 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
     for (let index = 0; index < entries.length; index += 1) {
       const [questionId, recording] = entries[index];
       setSpeakingUploadProgress(Math.round(((index + 1) / entries.length) * 100));
-      const ext = getRecordingExtension(recording.mimeType);
+      const contentType = normalizeRecordingMimeType(recording.mimeType);
+      const ext = getRecordingExtension(contentType);
       const signed = await getSignedAttemptUploadUrl(
         attemptId,
         questionId,
         `speaking-${questionId}.${ext}`,
-        recording.mimeType,
+        contentType,
       );
       if (!signed.ok) {
         setSubmitError(signed.message);
         return null;
       }
 
-      await new Promise<void>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open("PUT", signed.signedUrl);
-        xhr.setRequestHeader("Content-Type", recording.mimeType || "application/octet-stream");
-        xhr.onload = () => {
-          if (xhr.status >= 200 && xhr.status < 300) resolve();
-          else reject(new Error(`Recording upload failed (${xhr.status})`));
-        };
-        xhr.onerror = () => reject(new Error("Network error while uploading recording."));
-        xhr.send(recording.blob);
-      });
+      const supabase = createBrowserSupabaseClient();
+      const { error: uploadError } = await supabase.storage
+        .from(signed.bucket)
+        .uploadToSignedUrl(signed.path, signed.token, recording.blob, {
+          contentType,
+        });
+
+      if (uploadError) {
+        throw new Error(`Recording upload failed: ${uploadError.message}`);
+      }
 
       uploaded[questionId] = {
         kind: "audio_recording",
         bucket: signed.bucket,
         path: signed.path,
-        mimeType: recording.mimeType,
+        mimeType: contentType,
         durationSeconds: recording.durationSeconds,
       };
     }
@@ -1013,8 +1009,10 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
       } else {
         setSubmitError(res.message);
       }
-    } catch {
-      setSubmitError("Your assessment could not finish right now. Your answers are still here, so please try submitting again.");
+    } catch (error) {
+      setSubmitError(error instanceof Error
+        ? error.message
+        : "Your assessment could not finish right now. Your answers are still here, so please try submitting again.");
     } finally {
       setSpeakingUploadProgress(null);
       setSubmitting(false);
@@ -1662,12 +1660,6 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
                             {recording ? "Record again" : "Start recording"}
                           </button>
                         )}
-                        {recording ? (
-                          <button type="button" className="ep-speaking-recorder__btn ep-speaking-recorder__btn--ghost" onClick={() => retakeSpeakingRecording(question.id)} disabled={Boolean(recordingQuestionId)}>
-                            <RotateCcw size={15} aria-hidden />
-                            Retake
-                          </button>
-                        ) : null}
                       </div>
                     </div>
 

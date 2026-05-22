@@ -314,7 +314,7 @@ export async function getSignedAttemptUploadUrl(
   questionId: string,
   fileName: string,
   contentType: string,
-): Promise<{ ok: true; signedUrl: string; path: string; bucket: string } | { ok: false; message: string }> {
+): Promise<{ ok: true; signedUrl: string; token: string; path: string; bucket: string } | { ok: false; message: string }> {
   const { user, error } = await getAuthUser();
   if (error || !user) return { ok: false, message: "Sign in required" };
 
@@ -365,7 +365,7 @@ export async function getSignedAttemptUploadUrl(
     return { ok: false, message: uploadError?.message ?? "Could not prepare speaking upload." };
   }
 
-  return { ok: true, signedUrl: data.signedUrl, path, bucket: ATTEMPT_MEDIA_BUCKET };
+  return { ok: true, signedUrl: data.signedUrl, token: data.token, path, bucket: ATTEMPT_MEDIA_BUCKET };
 }
 
 /* ═══════════════════════════════════════════════════════════════════
