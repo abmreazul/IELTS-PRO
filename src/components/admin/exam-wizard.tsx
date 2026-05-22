@@ -600,7 +600,7 @@ export function ExamWizard({
   const [title, setTitle] = useState(initialExam?.title ?? "");
   const [slugSeed] = useState(() => initialExam?.slug?.split("-").slice(-1)[0] || randomSlugSuffix());
   const [slug, setSlug] = useState(initialExam?.slug ?? "");
-  const [description, setDescription] = useState(initialExam?.description ?? "");
+  const [description] = useState(initialExam?.description ?? "");
   const [difficulty, setDifficulty] = useState(initialExam?.difficulty ?? "intermediate");
   const [durationMinutes, setDurationMinutes] = useState(initialExam?.duration_minutes ?? 60);
   const [priceUsd, setPriceUsd] = useState(
@@ -618,7 +618,7 @@ export function ExamWizard({
   const [currency] = useState(initialExam?.currency ?? "USD");
   const [coverUrl, setCoverUrl] = useState(initialExam?.cover_image_url ?? "");
   const [isPublished, setIsPublished] = useState(initialExam?.is_published ?? false);
-  const [testVariant, setTestVariant] = useState<TestVariant>(() =>
+  const [testVariant] = useState<TestVariant>(() =>
     parseTestVariant(initialExam?.structure_json),
   );
 
@@ -1474,12 +1474,6 @@ export function ExamWizard({
           <div className="admin-form-grid" style={{ marginTop: "1rem" }}>
             <div style={{ gridColumn: "1 / -1" }}>
               <div className="admin-review-grid" style={{ marginTop: "-0.1rem", marginBottom: "1.1rem" }}>
-                <div className="admin-review-item admin-review-item--format">
-                  <span className="admin-review-label">IELTS Format</span>
-                  <span className="admin-review-value">
-                    {testVariant === "academic" ? "Academic" : "General Training"}
-                  </span>
-                </div>
                 <div className="admin-review-item admin-review-item--surface">
                   <span className="admin-review-label">Mock Surface</span>
                   <span className="admin-review-value">
@@ -1510,22 +1504,6 @@ export function ExamWizard({
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="e.g., IELTS Academic Full Mock Test #1"
               />
-            </div>
-            <div>
-              <span className="admin-label">IELTS Type</span>
-              <div className="admin-segment" style={{ marginTop: "0.35rem" }}>
-                {(["academic", "general"] as const).map((variant) => (
-                  <label key={variant}>
-                    <input
-                      type="radio"
-                      name="test-variant"
-                      checked={testVariant === variant}
-                      onChange={() => setTestVariant(variant)}
-                    />
-                    <span>{variant === "academic" ? "Academic" : "General Training"}</span>
-                  </label>
-                ))}
-              </div>
             </div>
             <div>
               <span className="admin-label">Exam Category</span>
@@ -1685,21 +1663,6 @@ export function ExamWizard({
                   />
                 </div>
               </div>
-            </div>
-            <div>
-              <label className="admin-label" htmlFor="ew-desc">
-                Description
-              </label>
-              <textarea
-                id="ew-desc"
-                className="admin-textarea"
-                rows={4}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-              />
-              <p style={{ margin: "0.45rem 0 0", fontSize: "0.78rem", color: "var(--muted)" }}>
-                Save state is controlled by the toolbar buttons above: <strong>Save Draft</strong> or <strong>Publish</strong>.
-              </p>
             </div>
           </div>
         </div>
@@ -2471,88 +2434,90 @@ export function ExamWizard({
          Step 2: Review
          ═══════════════════════════════════════════════════════════ */}
       {step === 2 ? (
-        <div className="admin-wizard-card">
-          <h2>Review</h2>
-          <p>Summary before saving or publishing.</p>
+        <div className="admin-wizard-card admin-wizard-card--review">
+          <div className="admin-exam-review__header">
+            <div>
+              <h2>Review Exam</h2>
+              <p>Check the setup before saving or publishing.</p>
+            </div>
+            <span className={`admin-badge ${isPublished ? "admin-badge--published" : "admin-badge--draft"}`}>
+              {isPublished ? "Published" : "Draft"}
+            </span>
+          </div>
 
-          <div className="admin-review-grid">
-            <div className="admin-review-item">
-              <span className="admin-review-label">Title</span>
-              <span className="admin-review-value">{title || "(Untitled)"}</span>
+          <div className="admin-exam-review__summary">
+            <div className="admin-exam-review__title-block">
+              <span className="admin-review-label">Exam title</span>
+              <strong>{title || "(Untitled)"}</strong>
+              <small>{surface === "full" ? "Full Test" : MODULE_LABELS[surface] ?? surface}</small>
             </div>
-            <div className="admin-review-item">
-              <span className="admin-review-label">IELTS Format</span>
-              <span className="admin-review-value">
-                {testVariant === "academic" ? "Academic" : "General Training"}
-              </span>
-            </div>
-            <div className="admin-review-item">
-              <span className="admin-review-label">Category</span>
-              <span className="admin-review-value">{surface === "full" ? "Full Test" : MODULE_LABELS[surface] ?? surface}</span>
-            </div>
-            <div className="admin-review-item">
-              <span className="admin-review-label">Difficulty</span>
-              <span className="admin-review-value">{difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}</span>
-            </div>
-            <div className="admin-review-item">
-              <span className="admin-review-label">Duration</span>
-              <span className="admin-review-value">{durationMinutes} minutes</span>
-            </div>
-            <div className="admin-review-item">
-              <span className="admin-review-label">Price</span>
-              <span className="admin-review-value">
-                {pricingMode === "free" ? "Free" : `$${priceUsd} · ৳${priceBdt} · RM${priceMyr}`}
-              </span>
-            </div>
-            <div className="admin-review-item">
-              <span className="admin-review-label">Status</span>
-              <span className={`admin-badge ${isPublished ? "admin-badge--published" : "admin-badge--draft"}`}>
-                {isPublished ? "Published" : "Draft"}
-              </span>
+            <div className="admin-exam-review__meta-grid">
+              <div>
+                <span className="admin-review-label">Catalog</span>
+                <strong>{currentCategory?.name ?? "Not mapped"}</strong>
+              </div>
+              <div>
+                <span className="admin-review-label">Difficulty</span>
+                <strong>{difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}</strong>
+              </div>
+              <div>
+                <span className="admin-review-label">Duration</span>
+                <strong>{durationMinutes} min</strong>
+              </div>
+              <div>
+                <span className="admin-review-label">Access</span>
+                <strong>{pricingMode === "free" ? "Free" : `$${priceUsd} · ৳${priceBdt} · RM${priceMyr}`}</strong>
+              </div>
             </div>
           </div>
 
-          <div style={{ marginTop: "1.25rem" }}>
-            <span className="admin-label" style={{ marginBottom: "0.5rem", display: "block" }}>
-              Questions by section
-            </span>
-            <div className="admin-review-grid">
+          <section className="admin-exam-review__section">
+            <div className="admin-exam-review__section-head">
+              <h3>Question Setup</h3>
+              <span>{payloadQuestions.length} total</span>
+            </div>
+            <div className="admin-exam-review__module-grid">
               {modules.map((m) => (
-                <div key={m} className="admin-review-item">
-                  <span className="admin-review-label">{MODULE_LABELS[m]}</span>
-                  <span className="admin-review-value">{questionCounts[m] ?? 0} question(s)</span>
+                <div key={m} className="admin-exam-review__module-card">
+                  <span>{MODULE_LABELS[m]}</span>
+                  <strong>{questionCounts[m] ?? 0}</strong>
+                  <small>{m === "writing" ? "response slots" : m === "speaking" ? "prompts" : "questions"}</small>
                 </div>
               ))}
-              <div className="admin-review-item" style={{ fontWeight: 700 }}>
-                <span className="admin-review-label">Total</span>
-                <span className="admin-review-value">{payloadQuestions.length} question(s)</span>
+            </div>
+          </section>
+
+          <section className="admin-exam-review__section">
+            <div className="admin-exam-review__section-head">
+              <h3>Assets</h3>
+              <span>Media check</span>
+            </div>
+            <div className="admin-exam-review__asset-grid">
+              {hasListening ? (
+                <div className="admin-exam-review__asset-card">
+                  <span className="admin-review-label">Listening audio</span>
+                  <strong>
+                    {listeningAudio?.url
+                      ? "Master audio ready"
+                      : legacyListeningClips.length > 0
+                        ? `${legacyListeningClips.filter((clip) => clip.url).length} legacy files saved`
+                        : "Missing"}
+                  </strong>
+                </div>
+              ) : null}
+              <div className="admin-exam-review__asset-card">
+                <span className="admin-review-label">Cover image</span>
+                <strong>{coverUrl ? "Ready" : "Not set"}</strong>
+                {coverUrl ? (
+                  <div className="admin-thumb-preview admin-exam-review__thumb">
+                    <img src={coverUrl} alt="Cover" />
+                  </div>
+                ) : null}
               </div>
             </div>
-          </div>
+          </section>
 
-          {hasListening ? (
-            <div style={{ marginTop: "1rem" }}>
-              <span className="admin-review-label">Listening audio</span>
-              <span className="admin-review-value" style={{ marginLeft: "0.5rem" }}>
-                {listeningAudio?.url
-                  ? "1 master audio file uploaded"
-                  : legacyListeningClips.length > 0
-                    ? `${legacyListeningClips.filter((clip) => clip.url).length} legacy part files saved`
-                    : "No listening audio uploaded"}
-              </span>
-            </div>
-          ) : null}
-
-          {coverUrl ? (
-            <div style={{ marginTop: "1rem" }}>
-              <span className="admin-review-label">Cover image</span>
-              <div className="admin-thumb-preview" style={{ maxWidth: "280px", marginTop: "0.5rem" }}>
-                <img src={coverUrl} alt="Cover" />
-              </div>
-            </div>
-          ) : null}
-
-          <div style={{ marginTop: "1.5rem", display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+          <div className="admin-exam-review__actions">
             <button
               type="button"
               className="btn btn-primary btn-topbar-cta"
