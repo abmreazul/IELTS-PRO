@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BookOpen, ClipboardCheck, DollarSign, TrendingUp, Users, Wallet } from "lucide-react";
+import { BookOpen, DollarSign, TrendingUp, Users, Wallet } from "lucide-react";
 import { unstable_cache } from "next/cache";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
 import {
@@ -32,7 +32,7 @@ const getAdminDashboardData = unstable_cache(
   async () => {
     const admin = createServiceRoleClient();
 
-    const [{ count: examCount }, { data: attempts }, { data: approvedPayments }, { data: exams }, { count: pendingReviews }, { count: pendingPayments }, authUsersResult] =
+    const [{ count: examCount }, { data: attempts }, { data: approvedPayments }, { data: exams }, { count: pendingPayments }, authUsersResult] =
       await Promise.all([
         admin.from("mock_exams").select("*", { count: "exact", head: true }),
         admin.from("mock_attempts").select("exam_id, overall_band, status"),
@@ -43,7 +43,6 @@ const getAdminDashboardData = unstable_cache(
             "*, exam_categories(name)",
           )
           .order("created_at", { ascending: false }),
-        admin.from("mock_attempts").select("*", { count: "exact", head: true }).eq("review_status", "pending"),
         admin.from("payment_requests").select("*", { count: "exact", head: true }).eq("status", "pending"),
         admin.auth.admin.listUsers({ page: 1, perPage: 1 }),
       ]);
@@ -123,7 +122,6 @@ const getAdminDashboardData = unstable_cache(
       avgBand,
       revenue,
       userCount: userCount ?? 0,
-      pendingReviews: pendingReviews ?? 0,
       pendingPayments: pendingPayments ?? 0,
       rows,
     };
@@ -133,7 +131,7 @@ const getAdminDashboardData = unstable_cache(
 );
 
 export default async function AdminHomePage() {
-  const { examCount, totalAttempts, avgBand, revenue, userCount, pendingReviews, pendingPayments, rows } =
+  const { examCount, totalAttempts, avgBand, revenue, userCount, pendingPayments, rows } =
     await getAdminDashboardData();
 
   return (
@@ -214,17 +212,6 @@ export default async function AdminHomePage() {
             </div>
             <div className="admin-stat-card__icon" aria-hidden>
               <Wallet strokeWidth={2} />
-            </div>
-          </div>
-        </Link>
-        <Link href="/admin/reviews" className="admin-stat-link">
-          <div className="admin-stat-card admin-stat-card--red">
-            <div className="admin-stat-card__body">
-              <div className="admin-stat-card__label">Pending Reviews</div>
-              <div className="admin-stat-card__value">{pendingReviews}</div>
-            </div>
-            <div className="admin-stat-card__icon" aria-hidden>
-              <ClipboardCheck strokeWidth={2} />
             </div>
           </div>
         </Link>

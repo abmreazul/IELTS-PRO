@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BookOpen, ClipboardCheck, GraduationCap, Users } from "lucide-react";
+import { BookOpen, GraduationCap, Users } from "lucide-react";
 import { notFound } from "next/navigation";
 import { getAuthUser } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
@@ -139,7 +139,6 @@ export default async function AdminUserDetailPage({
   const avgOverall = scoredAttempts.length
     ? scoredAttempts.reduce((sum, row) => sum + Number(row.overall_band), 0) / scoredAttempts.length
     : null;
-  const pendingReviews = attemptsRows.filter((row) => row.review_status === "pending").length;
   const approvedPayments = paymentRows.filter((row) => row.status === "approved").length;
 
   return (
@@ -192,7 +191,7 @@ export default async function AdminUserDetailPage({
             <div className="admin-stat-card__value">{attemptsRows.length}</div>
           </div>
           <div className="admin-stat-card__icon" aria-hidden>
-            <ClipboardCheck strokeWidth={2} />
+            <Users strokeWidth={2} />
           </div>
         </div>
         <div className="admin-stat-card admin-stat-card--green">
@@ -220,15 +219,6 @@ export default async function AdminUserDetailPage({
           </div>
           <div className="admin-stat-card__icon" aria-hidden>
             <GraduationCap strokeWidth={2} />
-          </div>
-        </div>
-        <div className="admin-stat-card admin-stat-card--red">
-          <div className="admin-stat-card__body">
-            <div className="admin-stat-card__label">Pending Reviews</div>
-            <div className="admin-stat-card__value">{pendingReviews}</div>
-          </div>
-          <div className="admin-stat-card__icon" aria-hidden>
-            <ClipboardCheck strokeWidth={2} />
           </div>
         </div>
         <div className="admin-stat-card admin-stat-card--green">
@@ -294,7 +284,7 @@ export default async function AdminUserDetailPage({
         <h2>Mock Exam Attempts</h2>
         {attemptsRows.length === 0 ? (
           <div className="admin-empty-state admin-empty-state--compact">
-            <ClipboardCheck />
+            <Users />
             <h2>No attempts yet</h2>
             <p>The student has not attempted any mock exams yet.</p>
           </div>

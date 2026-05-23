@@ -147,7 +147,7 @@ export function ReviewAttemptForm({
           <div>
             <p className="admin-review-submit__title">Finalise this review</p>
             <p className="admin-review-submit__copy">
-              Save the human-marked bands, update the live overall score, and then email the student manually.
+              Save the bands, update the live overall score, and then email the student if needed.
             </p>
           </div>
           <button type="submit" className="btn btn-primary btn-topbar-cta" disabled={pending}>
@@ -173,8 +173,8 @@ export function ReviewAttemptForm({
                   Email Student
                 </a>
               ) : null}
-              <Link href="/admin/reviews" className="btn btn-outline">
-                Back to queue
+              <Link href="/admin" className="btn btn-outline">
+                Back to dashboard
               </Link>
             </div>
             <button

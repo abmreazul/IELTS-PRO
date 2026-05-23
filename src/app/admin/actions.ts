@@ -646,8 +646,6 @@ export async function submitHumanReview(
     }
 
     revalidatePath("/admin");
-    revalidatePath("/admin/reviews");
-    revalidatePath(`/admin/reviews/${attemptId}`);
     revalidatePath(`/admin/exams/${examId}/analytics`);
     revalidatePath("/mock-exam");
 
