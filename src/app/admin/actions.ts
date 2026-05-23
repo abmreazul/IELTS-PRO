@@ -155,7 +155,7 @@ export async function reorderExamsInFolder(
   const admin = createServiceRoleClient();
   const { data: rows, error: fetchError } = await admin
     .from("mock_exams")
-    .select("id, exam_type, modules")
+    .select("id, exam_type, modules, structure_json")
     .in("id", ids);
 
   if (fetchError) return { ok: false, message: fetchError.message };
@@ -170,11 +170,21 @@ export async function reorderExamsInFolder(
     return { ok: false, message: "Exams can only be reordered inside the same folder." };
   }
 
-  for (let index = 0; index < ids.length; index += 1) {
+  const orderMap = new Map(ids.map((id, index) => [id, (index + 1) * 1000]));
+
+  for (const row of rows) {
+    const structure = row.structure_json && typeof row.structure_json === "object"
+      ? { ...(row.structure_json as Record<string, unknown>) }
+      : {};
+    const examMeta = structure.exam_meta && typeof structure.exam_meta === "object"
+      ? { ...(structure.exam_meta as Record<string, unknown>) }
+      : {};
+    examMeta.admin_order = orderMap.get(row.id) ?? 0;
+    structure.exam_meta = examMeta;
     const { error } = await admin
       .from("mock_exams")
-      .update({ display_order: (index + 1) * 1000 })
-      .eq("id", ids[index]);
+      .update({ structure_json: structure })
+      .eq("id", row.id);
     if (error) {
       return { ok: false, message: error.message };
     }
@@ -1155,12 +1165,39 @@ export async function saveExamWizard(
       ? input.cover_image_url.trim()
       : null;
 
-  const structure_json = input.structure_json ?? [];
+  const admin = createServiceRoleClient();
+
+  let structure_json = input.structure_json ?? [];
   const scoring_json = input.scoring_json ?? {};
   const listening_audio_json = sanitizeListeningAudioJson(input.listening_audio_json);
   const publishError = input.is_published ? validatePublishRules({ ...input, modules }, listening_audio_json) : null;
   if (publishError) {
     return { ok: false, message: publishError };
+  }
+
+  let existingStructureJson: Record<string, unknown> | null = null;
+  if (input.id?.trim()) {
+    const { data: existingExam } = await admin
+      .from("mock_exams")
+      .select("structure_json")
+      .eq("id", input.id.trim())
+      .maybeSingle();
+    if (existingExam?.structure_json && typeof existingExam.structure_json === "object") {
+      existingStructureJson = existingExam.structure_json as Record<string, unknown>;
+    }
+  }
+
+  if (existingStructureJson?.exam_meta && typeof existingStructureJson.exam_meta === "object") {
+    const incoming = structure_json && typeof structure_json === "object" ? { ...(structure_json as Record<string, unknown>) } : {};
+    const incomingMeta = incoming.exam_meta && typeof incoming.exam_meta === "object"
+      ? { ...(incoming.exam_meta as Record<string, unknown>) }
+      : {};
+    const existingMeta = existingStructureJson.exam_meta as Record<string, unknown>;
+    if (existingMeta.admin_order != null && incomingMeta.admin_order == null) {
+      incomingMeta.admin_order = existingMeta.admin_order;
+    }
+    incoming.exam_meta = incomingMeta;
+    structure_json = incoming;
   }
 
   const examPayload = {
@@ -1185,7 +1222,6 @@ export async function saveExamWizard(
     listening_audio_json,
   };
 
-  const admin = createServiceRoleClient();
   let examId = input.id?.trim();
 
   if (examId) {

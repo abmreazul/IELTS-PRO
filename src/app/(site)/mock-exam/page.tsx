@@ -52,8 +52,10 @@ const getCatalogData = unstable_cache(
         exams: exams
           .filter((e) => e.category_id === cat.id)
           .sort((a, b) => {
-            const aOrder = Number((a as unknown as { display_order?: unknown }).display_order) || 0;
-            const bOrder = Number((b as unknown as { display_order?: unknown }).display_order) || 0;
+            const aMeta = (a as unknown as { structure_json?: unknown }).structure_json as Record<string, unknown> | undefined;
+            const bMeta = (b as unknown as { structure_json?: unknown }).structure_json as Record<string, unknown> | undefined;
+            const aOrder = Number((aMeta?.exam_meta as Record<string, unknown> | undefined)?.admin_order) || 0;
+            const bOrder = Number((bMeta?.exam_meta as Record<string, unknown> | undefined)?.admin_order) || 0;
             if (aOrder !== bOrder) return aOrder - bOrder;
             const aCreated = String((a as unknown as { created_at?: unknown }).created_at ?? "");
             const bCreated = String((b as unknown as { created_at?: unknown }).created_at ?? "");

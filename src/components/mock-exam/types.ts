@@ -24,6 +24,12 @@ export type MockExamRow = {
   price_bdt_cents: number;
   price_myr_cents: number;
   cover_image_url: string | null;
+  structure_json?: {
+    exam_meta?: {
+      admin_order?: number;
+      test_variant?: "academic" | "general";
+    };
+  } | null;
   /** Public audio URLs per listening part (from DB / Supabase Storage). */
   listening_audio_json?: { part: number; url: string; title?: string }[] | null;
   is_published: boolean;

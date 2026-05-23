@@ -94,6 +94,12 @@ const getAdminDashboardData = unstable_cache(
     const rows: AdminExamRow[] = (exams ?? []).map((row) => {
       const st = statsByExam.get(row.id);
       const avgBandRow = st && st.n > 0 ? st.sum / st.n : null;
+      const structure = row.structure_json && typeof row.structure_json === "object"
+        ? (row.structure_json as Record<string, unknown>)
+        : null;
+      const adminOrder = structure?.exam_meta && typeof structure.exam_meta === "object"
+        ? Number((structure.exam_meta as Record<string, unknown>).admin_order) || 0
+        : 0;
       return {
         id: row.id,
         title: row.title,
@@ -104,7 +110,7 @@ const getAdminDashboardData = unstable_cache(
         price_cents: row.price_cents,
         currency: row.currency,
         created_at: row.created_at,
-        display_order: Number(row.display_order) || 0,
+        display_order: adminOrder,
         categoryName: categoryNameFromRelation(row.exam_categories),
         attempts: st?.count ?? 0,
         avgBand: avgBandRow,
