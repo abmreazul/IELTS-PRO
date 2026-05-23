@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { Mic, Sparkles } from "lucide-react";
+import { CheckCircle2, CircleHelp, Mic, Sparkles, XCircle } from "lucide-react";
 import { createClient, getAuthUser } from "@/lib/supabase/server";
 import type { WritingAiReview } from "@/lib/ai/writing-review";
 import type { SpeakingReview } from "@/lib/ai/speaking-review";
@@ -17,6 +17,183 @@ const CRITERIA_LABELS: Record<string, string> = {
   lexical: "Lexical Resource",
   grammar: "Grammar & Accuracy",
 };
+
+const MODULE_LABELS: Record<string, string> = {
+  listening: "Listening",
+  reading: "Reading",
+  writing: "Writing",
+  speaking: "Speaking",
+};
+
+const QUESTION_TYPE_LABELS: Record<string, string> = {
+  multiple_choice: "Multiple choice",
+  multiple_choice_multi: "Multiple choice",
+  true_false_not_given: "True / False / Not Given",
+  yes_no_not_given: "Yes / No / Not Given",
+  completion: "Completion",
+  short_answer: "Short answer",
+  fill_in_blank: "Fill in the blank",
+  sentence_completion: "Sentence completion",
+  matching_headings: "Matching headings",
+  matching_information: "Matching information",
+  matching_features: "Matching features",
+  sentence_endings: "Sentence endings",
+  map_diagram_labeling: "Map / diagram labelling",
+  matching: "Matching",
+  essay: "Writing task",
+  speaking_prompt: "Speaking prompt",
+};
+
+type CorrectJson =
+  | { kind: "index"; index?: unknown }
+  | { kind: "triple"; value?: unknown }
+  | { kind: "rubric"; value?: unknown }
+  | Record<string, unknown>
+  | null;
+
+type QuestionReviewRow = {
+  id: string;
+  module: string;
+  question_type: string;
+  prompt: string | null;
+  options_json: unknown;
+  correct_json: CorrectJson;
+  points: number | null;
+  sort_order: number;
+};
+
+type ObjectiveReview = {
+  status: "correct" | "incorrect" | "unanswered" | "unscored";
+  earned: number;
+  possible: number;
+  userAnswer: string;
+  correctAnswer: string;
+  hasAnswerKey: boolean;
+};
+
+function normalizeText(value: unknown) {
+  return String(value ?? "").toLowerCase().trim();
+}
+
+function titleCaseChoice(value: unknown) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "—";
+  return raw.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function formatAnswerValue(value: unknown, question: QuestionReviewRow) {
+  if (value === undefined || value === null || value === "") return "Not answered";
+  const options = Array.isArray(question.options_json) ? question.options_json.map(String) : [];
+  const correct = question.correct_json;
+
+  if (correct && typeof correct === "object" && "kind" in correct && correct.kind === "index") {
+    const index = Number(value);
+    const option = Number.isFinite(index) ? options[index] : null;
+    return option ? `${String.fromCharCode(65 + index)}. ${option}` : String(value);
+  }
+
+  if (correct && typeof correct === "object" && "kind" in correct && correct.kind === "triple") {
+    return titleCaseChoice(value);
+  }
+
+  if (typeof value === "object") {
+    const ref = value as Record<string, unknown>;
+    if (ref.kind === "audio_recording") {
+      const duration = Math.max(0, Number(ref.durationSeconds) || 0);
+      return duration > 0 ? `Audio recording (${Math.round(duration)}s)` : "Audio recording";
+    }
+    return "Submitted";
+  }
+
+  return String(value);
+}
+
+function formatCorrectAnswer(question: QuestionReviewRow) {
+  const correct = question.correct_json;
+  if (!correct || typeof correct !== "object" || !("kind" in correct)) return "No answer key";
+  const options = Array.isArray(question.options_json) ? question.options_json.map(String) : [];
+
+  if (correct.kind === "index") {
+    const index = Number(correct.index);
+    const option = Number.isFinite(index) ? options[index] : null;
+    return option ? `${String.fromCharCode(65 + index)}. ${option}` : "No answer key";
+  }
+
+  if (correct.kind === "triple") {
+    return titleCaseChoice(correct.value);
+  }
+
+  if (correct.kind === "rubric") {
+    const value = String(correct.value ?? "").trim();
+    return value || "No answer key";
+  }
+
+  return "No answer key";
+}
+
+function scoreObjectiveQuestion(question: QuestionReviewRow, rawAnswer: unknown): ObjectiveReview {
+  const possible = Math.max(0, Number(question.points) || 1);
+  const correct = question.correct_json;
+  const userAnswer = formatAnswerValue(rawAnswer, question);
+  const correctAnswer = formatCorrectAnswer(question);
+
+  if (rawAnswer === undefined || rawAnswer === null || rawAnswer === "") {
+    return {
+      status: "unanswered",
+      earned: 0,
+      possible,
+      userAnswer,
+      correctAnswer,
+      hasAnswerKey: Boolean(correct && typeof correct === "object" && "kind" in correct),
+    };
+  }
+
+  if (!correct || typeof correct !== "object" || !("kind" in correct)) {
+    return {
+      status: "unscored",
+      earned: 0,
+      possible,
+      userAnswer,
+      correctAnswer,
+      hasAnswerKey: false,
+    };
+  }
+
+  let isCorrect = false;
+  if (correct.kind === "index") {
+    isCorrect = Number(rawAnswer) === Number(correct.index);
+  } else if (correct.kind === "triple") {
+    isCorrect = normalizeText(rawAnswer) === normalizeText(correct.value);
+  } else if (correct.kind === "rubric") {
+    isCorrect = normalizeText(rawAnswer) === normalizeText(correct.value);
+  }
+
+  return {
+    status: isCorrect ? "correct" : "incorrect",
+    earned: isCorrect ? possible : 0,
+    possible,
+    userAnswer,
+    correctAnswer,
+    hasAnswerKey: true,
+  };
+}
+
+function decodeQuestionPart(sortOrder: number, fallback = 1) {
+  if (sortOrder >= 100) return Math.max(1, Math.floor(sortOrder / 100));
+  return fallback;
+}
+
+function questionImageUrl(question: QuestionReviewRow) {
+  if (!question.options_json || typeof question.options_json !== "object" || Array.isArray(question.options_json)) {
+    return "";
+  }
+  const value = question.options_json as Record<string, unknown>;
+  return typeof value.image_url === "string" ? value.image_url.trim() : "";
+}
+
+function isObjectiveQuestion(questionType: string) {
+  return !["essay", "speaking_prompt"].includes(questionType);
+}
 
 export default async function ReviewMockExamPage({
   params,
@@ -49,6 +226,7 @@ export default async function ReviewMockExamPage({
   }
 
   let attempt: {
+    id: string;
     status: string;
     review_status: string | null;
     overall_band: number | null;
@@ -56,6 +234,7 @@ export default async function ReviewMockExamPage({
     reading_band: number | null;
     writing_band: number | null;
     speaking_band: number | null;
+    answers_json: Record<string, unknown> | null;
     completed_at: string | null;
     created_at: string;
     ai_review_json?: WritingAiReview | null;
@@ -65,7 +244,7 @@ export default async function ReviewMockExamPage({
   if (user) {
     const primary = await supabase
       .from("mock_attempts")
-      .select("status, review_status, overall_band, listening_band, reading_band, writing_band, speaking_band, completed_at, created_at, ai_review_json, speaking_review_json")
+      .select("id, status, review_status, overall_band, listening_band, reading_band, writing_band, speaking_band, answers_json, completed_at, created_at, ai_review_json, speaking_review_json")
       .eq("exam_id", exam.id)
       .eq("user_id", user.id)
       .eq("status", "completed")
@@ -77,7 +256,7 @@ export default async function ReviewMockExamPage({
     if (primary.error && (primary.error.message.includes("ai_review_json") || primary.error.message.includes("speaking_review_json"))) {
       const fallback = await supabase
         .from("mock_attempts")
-        .select("status, review_status, overall_band, listening_band, reading_band, writing_band, speaking_band, completed_at, created_at")
+        .select("id, status, review_status, overall_band, listening_band, reading_band, writing_band, speaking_band, answers_json, completed_at, created_at")
         .eq("exam_id", exam.id)
         .eq("user_id", user.id)
         .eq("status", "completed")
@@ -91,7 +270,18 @@ export default async function ReviewMockExamPage({
     }
   }
 
+  const questionsRaw = attempt
+    ? (await supabase
+        .from("exam_questions")
+        .select("id, module, question_type, prompt, options_json, correct_json, points, sort_order")
+        .eq("exam_id", exam.id)
+        .order("sort_order")).data
+    : [];
+
   const reviewPending = attempt?.review_status === "pending";
+  const answers = attempt?.answers_json && typeof attempt.answers_json === "object"
+    ? attempt.answers_json as Record<string, unknown>
+    : {};
   const aiReview = attempt?.ai_review_json && typeof attempt.ai_review_json === "object"
     ? attempt.ai_review_json as WritingAiReview
     : null;
@@ -99,6 +289,28 @@ export default async function ReviewMockExamPage({
     ? attempt.speaking_review_json as SpeakingReview
     : null;
   const activeModules = normalizeExamModules(exam.modules);
+  const activeModuleSet = new Set(activeModules);
+  const questions = ((questionsRaw ?? []) as QuestionReviewRow[]).filter((question) =>
+    activeModuleSet.has(question.module as never),
+  );
+  const questionsByModule = activeModules
+    .map((module) => ({
+      module,
+      questions: questions.filter((question) => question.module === module),
+    }))
+    .filter((section) => section.questions.length > 0);
+
+  const objectiveReviews = new Map<string, ObjectiveReview>();
+  for (const question of questions) {
+    if (isObjectiveQuestion(question.question_type)) {
+      objectiveReviews.set(question.id, scoreObjectiveQuestion(question, answers[question.id]));
+    }
+  }
+  const objectiveRows = Array.from(objectiveReviews.values()).filter((row) => row.hasAnswerKey);
+  const objectiveCorrect = objectiveRows.filter((row) => row.status === "correct").length;
+  const objectiveTotal = objectiveRows.length;
+  const objectiveEarnedMarks = objectiveRows.reduce((sum, row) => sum + row.earned, 0);
+  const objectivePossibleMarks = objectiveRows.reduce((sum, row) => sum + row.possible, 0);
 
   type SummaryCard = { label: string; value: number | string | null };
   const summaryCards: SummaryCard[] = attempt
@@ -167,6 +379,163 @@ export default async function ReviewMockExamPage({
               <div className="rv__pending-msg">
                 Your submission was saved, but the assessment did not finish for this older attempt. Retake the exam to receive instant marking.
               </div>
+            ) : null}
+
+            {/* Question-by-question review */}
+            {questionsByModule.length > 0 ? (
+              <section className="rv__answers" aria-labelledby="question-review-title">
+                <div className="rv__section-head">
+                  <div>
+                    <h2 id="question-review-title" className="rv__section-title">Question Review</h2>
+                    <p className="rv__section-sub">
+                      See your submitted answers, correct answers, and marks for every scored question.
+                    </p>
+                  </div>
+                  {objectiveTotal > 0 ? (
+                    <div className="rv__raw-score">
+                      <span>{objectiveCorrect} / {objectiveTotal}</span>
+                      <small>{objectiveEarnedMarks} / {objectivePossibleMarks} marks</small>
+                    </div>
+                  ) : null}
+                </div>
+
+                {questionsByModule.map((section) => {
+                  const sectionObjective = section.questions
+                    .map((question) => objectiveReviews.get(question.id))
+                    .filter((row): row is ObjectiveReview => Boolean(row?.hasAnswerKey));
+                  const sectionEarned = sectionObjective.reduce((sum, row) => sum + row.earned, 0);
+                  const sectionPossible = sectionObjective.reduce((sum, row) => sum + row.possible, 0);
+
+                  return (
+                    <div key={section.module} className="rv__answer-section">
+                      <div className="rv__answer-section-head">
+                        <h3>{MODULE_LABELS[section.module] ?? section.module}</h3>
+                        {sectionObjective.length > 0 ? (
+                          <span>{sectionEarned} / {sectionPossible} marks</span>
+                        ) : (
+                          <span>Criterion marked</span>
+                        )}
+                      </div>
+
+                      <div className="rv__answer-list">
+                        {section.questions.map((question, index) => {
+                          const objective = objectiveReviews.get(question.id);
+                          const part = decodeQuestionPart(question.sort_order, 1);
+                          const imageUrl = questionImageUrl(question);
+                          const writingTask = aiReview?.tasks.find((task) => task.part === part);
+                          const speakingQuestion = speakingReview?.questions.find((item) => item.question_id === question.id)
+                            ?? speakingReview?.questions.find((item) => item.part === part && item.prompt === question.prompt);
+
+                          const status = objective?.status ?? (question.question_type === "essay" || question.question_type === "speaking_prompt" ? "assessed" : "unscored");
+                          const statusClass = status === "correct"
+                            ? "rv__status--correct"
+                            : status === "incorrect"
+                              ? "rv__status--incorrect"
+                              : status === "unanswered"
+                                ? "rv__status--unanswered"
+                                : "rv__status--neutral";
+                          const statusIcon = status === "correct"
+                            ? <CheckCircle2 size={18} aria-hidden />
+                            : status === "incorrect"
+                              ? <XCircle size={18} aria-hidden />
+                              : <CircleHelp size={18} aria-hidden />;
+
+                          return (
+                            <article key={question.id} className="rv__answer-card">
+                              <div className="rv__answer-top">
+                                <div>
+                                  <p className="rv__answer-kicker">
+                                    Question {index + 1} · {QUESTION_TYPE_LABELS[question.question_type] ?? question.question_type}
+                                  </p>
+                                  <h4>{question.prompt || "Untitled question"}</h4>
+                                </div>
+                                <span className={`rv__status ${statusClass}`}>
+                                  {statusIcon}
+                                  {status === "correct"
+                                    ? "Correct"
+                                    : status === "incorrect"
+                                      ? "Incorrect"
+                                      : status === "unanswered"
+                                        ? "Unanswered"
+                                        : status === "assessed"
+                                          ? "Assessed"
+                                          : "Not scored"}
+                                </span>
+                              </div>
+
+                              {imageUrl ? <img src={imageUrl} alt="" className="rv__answer-img" /> : null}
+
+                              {objective ? (
+                                <div className="rv__answer-grid">
+                                  <div>
+                                    <span>Your answer</span>
+                                    <strong className={objective.status === "unanswered" ? "rv__muted-answer" : ""}>
+                                      {objective.userAnswer}
+                                    </strong>
+                                  </div>
+                                  <div>
+                                    <span>Correct answer</span>
+                                    <strong>{objective.correctAnswer}</strong>
+                                  </div>
+                                  <div>
+                                    <span>Marks</span>
+                                    <strong>{objective.earned} / {objective.possible}</strong>
+                                  </div>
+                                </div>
+                              ) : question.question_type === "essay" ? (
+                                <div className="rv__answer-grid rv__answer-grid--wide">
+                                  <div>
+                                    <span>Your response</span>
+                                    <strong className="rv__long-answer">
+                                      {formatAnswerValue(answers[question.id], question)}
+                                    </strong>
+                                  </div>
+                                  <div>
+                                    <span>Assessment</span>
+                                    <strong>{writingTask ? `Band ${writingTask.estimated_band.toFixed(1)} · ${writingTask.word_count} words` : "Saved for assessment"}</strong>
+                                  </div>
+                                </div>
+                              ) : question.question_type === "speaking_prompt" ? (
+                                <div className="rv__answer-grid rv__answer-grid--wide">
+                                  <div>
+                                    <span>Your answer</span>
+                                    <strong>{formatAnswerValue(answers[question.id], question)}</strong>
+                                  </div>
+                                  <div>
+                                    <span>Assessment</span>
+                                    <strong>{speakingQuestion ? `Band ${speakingQuestion.estimated_band.toFixed(1)}` : "Saved for assessment"}</strong>
+                                  </div>
+                                  {speakingQuestion?.transcript ? (
+                                    <div>
+                                      <span>Transcript</span>
+                                      <strong className="rv__long-answer">{speakingQuestion.transcript}</strong>
+                                    </div>
+                                  ) : null}
+                                </div>
+                              ) : (
+                                <div className="rv__answer-grid">
+                                  <div>
+                                    <span>Your answer</span>
+                                    <strong>{formatAnswerValue(answers[question.id], question)}</strong>
+                                  </div>
+                                  <div>
+                                    <span>Correct answer</span>
+                                    <strong>No answer key</strong>
+                                  </div>
+                                  <div>
+                                    <span>Marks</span>
+                                    <strong>Not scored</strong>
+                                  </div>
+                                </div>
+                              )}
+                            </article>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </section>
             ) : null}
 
             {/* Writing Review */}

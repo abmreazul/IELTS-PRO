@@ -117,6 +117,213 @@
   margin-bottom: 1.75rem;
 }
 
+/* ── Question review ── */
+
+.rv__answers {
+  margin: 2rem 0;
+}
+
+.rv__section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 1rem;
+}
+
+.rv__section-title {
+  margin: 0;
+  font-family: var(--font-display), var(--font-sans), sans-serif;
+  font-size: 1.25rem;
+  font-weight: 850;
+  color: var(--text);
+}
+
+.rv__section-sub {
+  margin: 0.3rem 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.rv__raw-score {
+  display: grid;
+  justify-items: end;
+  gap: 0.1rem;
+  min-width: 8.5rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.rv__raw-score span {
+  color: var(--text);
+  font-size: 1.15rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.rv__raw-score small {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.rv__answer-section {
+  margin-top: 1.25rem;
+}
+
+.rv__answer-section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.rv__answer-section-head h3 {
+  margin: 0;
+  font-family: var(--font-display), var(--font-sans), sans-serif;
+  font-size: 1rem;
+  font-weight: 850;
+  color: var(--text);
+}
+
+.rv__answer-section-head span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.rv__answer-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.rv__answer-card {
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.rv__answer-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.rv__answer-kicker {
+  margin: 0 0 0.35rem;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.rv__answer-top h4 {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.98rem;
+  line-height: 1.5;
+  font-weight: 800;
+}
+
+.rv__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+  padding: 0.45rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 0.78rem;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.rv__status--correct {
+  color: #047857;
+  border-color: color-mix(in srgb, #10b981 35%, var(--border));
+  background: color-mix(in srgb, #10b981 8%, var(--surface));
+}
+
+.rv__status--incorrect {
+  color: #b91c1c;
+  border-color: color-mix(in srgb, #ef4444 34%, var(--border));
+  background: color-mix(in srgb, #ef4444 7%, var(--surface));
+}
+
+.rv__status--unanswered {
+  color: #92400e;
+  border-color: color-mix(in srgb, #f59e0b 34%, var(--border));
+  background: color-mix(in srgb, #f59e0b 8%, var(--surface));
+}
+
+.rv__status--neutral {
+  color: var(--muted);
+  background: var(--surface);
+}
+
+.rv__answer-img {
+  display: block;
+  width: 100%;
+  max-height: 22rem;
+  object-fit: contain;
+  margin-top: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+}
+
+.rv__answer-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(7rem, 0.4fr);
+  gap: 0.65rem;
+  margin-top: 0.9rem;
+}
+
+.rv__answer-grid--wide {
+  grid-template-columns: minmax(0, 1fr) minmax(12rem, 0.45fr);
+}
+
+.rv__answer-grid > div {
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+}
+
+.rv__answer-grid span {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.rv__answer-grid strong {
+  display: block;
+  color: var(--text);
+  font-size: 0.9rem;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.rv__muted-answer {
+  color: var(--muted) !important;
+}
+
+.rv__long-answer {
+  white-space: pre-wrap;
+}
+
 /* ── Writing Review ── */
 
 .rv__ai {
@@ -363,4 +570,24 @@
   .rv__band-value { font-size: 2.75rem; }
   .rv__modules { grid-template-columns: 1fr 1fr; }
   .rv__insights { grid-template-columns: 1fr; }
+  .rv__section-head,
+  .rv__answer-top {
+    flex-direction: column;
+  }
+  .rv__raw-score {
+    width: 100%;
+    justify-items: start;
+  }
+  .rv__answer-section-head {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  .rv__answer-grid,
+  .rv__answer-grid--wide {
+    grid-template-columns: 1fr;
+  }
+  .rv__status {
+    align-self: flex-start;
+  }
 }
