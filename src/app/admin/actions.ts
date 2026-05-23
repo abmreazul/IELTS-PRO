@@ -126,6 +126,66 @@ export async function deleteExam(formData: FormData) {
   revalidatePath("/mock-exam");
 }
 
+function examFolderKeyFromModules(examType: string | null, modules: unknown) {
+  if (examType === "full") return "full";
+  const normalized = normalizeExamModules(modules);
+  if (normalized.length === 1 && normalized[0]) return normalized[0];
+  return "partial";
+}
+
+export async function reorderExamsInFolder(
+  folderKey: string,
+  orderedIds: string[],
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  try {
+    await requireAdmin("reorder-exams");
+  } catch {
+    return { ok: false, message: "Unauthorized" };
+  }
+
+  const cleanFolderKey = String(folderKey ?? "").trim();
+  const ids = orderedIds
+    .map((id) => String(id ?? "").trim())
+    .filter(Boolean);
+
+  if (!cleanFolderKey || ids.length === 0) {
+    return { ok: false, message: "No exams were provided for sorting." };
+  }
+
+  const admin = createServiceRoleClient();
+  const { data: rows, error: fetchError } = await admin
+    .from("mock_exams")
+    .select("id, exam_type, modules")
+    .in("id", ids);
+
+  if (fetchError) return { ok: false, message: fetchError.message };
+  if (!rows || rows.length !== ids.length) {
+    return { ok: false, message: "One or more exams could not be found." };
+  }
+
+  const allSameFolder = rows.every((row) =>
+    examFolderKeyFromModules(row.exam_type, row.modules) === cleanFolderKey,
+  );
+  if (!allSameFolder) {
+    return { ok: false, message: "Exams can only be reordered inside the same folder." };
+  }
+
+  for (let index = 0; index < ids.length; index += 1) {
+    const { error } = await admin
+      .from("mock_exams")
+      .update({ display_order: (index + 1) * 1000 })
+      .eq("id", ids[index]);
+    if (error) {
+      return { ok: false, message: error.message };
+    }
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/exams");
+  revalidatePath("/mock-exam");
+  return { ok: true };
+}
+
 type CourseLessonInput = {
   title: string;
   summary: string;

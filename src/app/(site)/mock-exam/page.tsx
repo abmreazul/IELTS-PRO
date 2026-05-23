@@ -36,11 +36,7 @@ const getCatalogData = unstable_cache(
       supabase
         .from("mock_exams")
         .select(
-          `id, category_id, title, slug, description, exam_type, modules,
-           duration_minutes, question_count, difficulty, price_cents, currency,
-           price_usd_cents, price_bdt_cents, price_myr_cents,
-           cover_image_url, listening_audio_json, is_published,
-           exam_categories ( id, slug, name, sort_order )`,
+          `*, exam_categories ( id, slug, name, sort_order )`,
         )
         .eq("is_published", true),
     ]);
@@ -53,7 +49,16 @@ const getCatalogData = unstable_cache(
     const examsByCategory = catList
       .map((cat) => ({
         category: cat,
-        exams: exams.filter((e) => e.category_id === cat.id),
+        exams: exams
+          .filter((e) => e.category_id === cat.id)
+          .sort((a, b) => {
+            const aOrder = Number((a as unknown as { display_order?: unknown }).display_order) || 0;
+            const bOrder = Number((b as unknown as { display_order?: unknown }).display_order) || 0;
+            if (aOrder !== bOrder) return aOrder - bOrder;
+            const aCreated = String((a as unknown as { created_at?: unknown }).created_at ?? "");
+            const bCreated = String((b as unknown as { created_at?: unknown }).created_at ?? "");
+            return bCreated.localeCompare(aCreated);
+          }),
       }))
       .filter((g) => g.exams.length > 0);
 

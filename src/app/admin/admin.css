@@ -309,6 +309,174 @@
   accent-color: var(--primary);
 }
 
+/* ——— Exam folders ——— */
+.admin-exam-folders__hint,
+.admin-exam-folders__error {
+  margin: -0.55rem 0 1rem;
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.admin-exam-folders__hint {
+  color: var(--muted);
+}
+
+.admin-exam-folders__error {
+  color: #c93429;
+}
+
+.admin-exam-folders {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.admin-exam-folder {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.admin-exam-folder__head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.8rem 0.95rem;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.admin-exam-folder__head strong {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+.admin-exam-folder__chevron {
+  display: inline-flex;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+
+.admin-exam-folder__chevron--closed {
+  transform: rotate(-90deg);
+}
+
+.admin-exam-folder__chevron svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.admin-exam-folder__list {
+  display: grid;
+}
+
+.admin-exam-row {
+  display: grid;
+  grid-template-columns: 2rem 3.2rem minmax(220px, 1fr) auto 7rem 5.5rem 5.5rem auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.7rem 0.95rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.admin-exam-row--head {
+  color: var(--muted);
+  background: var(--bg);
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.admin-exam-row:last-child {
+  border-bottom: 0;
+}
+
+.admin-exam-row--dragging {
+  opacity: 0.55;
+  background: color-mix(in srgb, var(--primary) 6%, var(--surface));
+}
+
+.admin-exam-row__drag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
+  color: var(--primary);
+  cursor: grab;
+}
+
+.admin-exam-row__drag:active {
+  cursor: grabbing;
+}
+
+.admin-exam-row__drag svg {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.admin-exam-row__serial {
+  display: inline-grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.admin-exam-row__main {
+  min-width: 0;
+}
+
+.admin-exam-row__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  margin-top: 0.25rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.admin-exam-row__cell {
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .admin-exam-row {
+    grid-template-columns: 2rem 2.5rem minmax(0, 1fr);
+  }
+
+  .admin-exam-row--head {
+    display: none;
+  }
+
+  .admin-exam-row > .admin-badge,
+  .admin-exam-row > .admin-exam-row__cell,
+  .admin-exam-row > .admin-table-actions {
+    grid-column: 3;
+  }
+}
+
 /* ——— Badges ——— */
 .admin-badge {
   display: inline-flex;
