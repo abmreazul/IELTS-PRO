@@ -54,6 +54,7 @@ export type ExamWizardInitialExam = {
 
 type ListeningClip = { part: number; url: string; title: string };
 type ListeningAudioAsset = { url: string; title: string };
+type ListeningAudioPart = { part: number; url: string; title: string };
 type ReadingPassage = { part: number; title: string; text: string; image_url: string };
 type WritingTask = { part: number; prompt: string; image_url: string; min_words: number };
 type SpeakingPartOne = { topic_title: string; prompts: string[]; audio_url: string };
@@ -149,6 +150,17 @@ function parseListeningClips(raw: unknown): ListeningClip[] {
   }
   out.sort((a, b) => a.part - b.part);
   return out;
+}
+
+function createListeningAudioParts(raw: unknown): ListeningAudioPart[] {
+  const legacy = parseListeningClips(raw);
+  const existing = new Map<number, ListeningAudioPart>();
+
+  for (const clip of legacy) {
+    existing.set(clip.part, { part: clip.part, url: clip.url, title: clip.title });
+  }
+
+  return [1, 2, 3, 4].map((part) => existing.get(part) ?? { part, url: "", title: `Part ${part}` });
 }
 
 function parseListeningAudioAsset(raw: unknown): ListeningAudioAsset | null {
@@ -657,8 +669,11 @@ export function ExamWizard({
   const [legacyListeningClips] = useState<ListeningClip[]>(() =>
     parseListeningClips(initialExam?.listening_audio_json),
   );
-  const [listeningAudio, setListeningAudio] = useState<ListeningAudioAsset | null>(() =>
+  const [listeningAudioAsset, setListeningAudioAsset] = useState<ListeningAudioAsset | null>(() =>
     parseListeningAudioAsset(initialExam?.listening_audio_json),
+  );
+  const [listeningAudioParts, setListeningAudioParts] = useState<ListeningAudioPart[]>(() =>
+    createListeningAudioParts(initialExam?.listening_audio_json),
   );
 
   // Reading passages (stored in structure_json)
@@ -883,13 +898,30 @@ export function ExamWizard({
     [generatedSpeakingQuestions, generatedWritingQuestions, questions],
   );
 
-  const setListeningAudioUrl = useCallback((url: string) => {
+  const setListeningAudioPartUrl = useCallback((part: number, url: string) => {
+    const trimmed = url.trim();
+    setListeningAudioParts((prev) =>
+      prev.map((clip) =>
+        clip.part === part
+          ? { ...clip, url: trimmed, title: clip.title || `Part ${part}` }
+          : clip,
+      ),
+    );
+  }, []);
+
+  const setListeningAudioAssetUrl = useCallback((url: string) => {
     const trimmed = url.trim();
     if (!trimmed) {
-      setListeningAudio(null);
+      setListeningAudioAsset(null);
       return;
     }
-    setListeningAudio({ url: trimmed, title: "IELTS Listening Paper" });
+    setListeningAudioAsset({ url: trimmed, title: "IELTS Listening Paper" });
+  }, []);
+
+  const removeListeningAudioPart = useCallback((part: number) => {
+    setListeningAudioParts((prev) =>
+      prev.map((clip) => (clip.part === part ? { ...clip, url: "" } : clip)),
+    );
   }, []);
 
   const updateReadingPassage = useCallback((part: number, patch: Partial<ReadingPassage>) => {
@@ -1222,7 +1254,11 @@ export function ExamWizard({
       },
       scoring_json: DEFAULT_SCORING,
       listening_audio_json: hasListening
-        ? (listeningAudio?.url ? listeningAudio : legacyListeningClips)
+        ? listeningAudioParts.filter((clip) => clip.url.trim()).length > 0
+          ? listeningAudioParts
+          : listeningAudioAsset?.url
+            ? listeningAudioAsset
+            : legacyListeningClips
         : null,
       questions: payloadQuestions.map(toWizardQuestion),
     };
@@ -1731,44 +1767,114 @@ export function ExamWizard({
                 <div className="admin-part-card" style={{ marginBottom: "1rem" }}>
                   <div className="admin-part-card__body">
                     <div className="admin-part-audio">
-                      <span className="admin-label">Listening Audio Recording</span>
-                      <p style={{ color: "var(--muted)", fontSize: "0.82rem", margin: "0.35rem 0 0.75rem" }}>
-                        Upload one full listening paper audio file. The 4 parts below are only for assigning questions.
+                      <span className="admin-label">Listening Audio Files</span>
+                      <p style={{ color: "var(--muted)", fontSize: "0.82rem", margin: "0.35rem 0 0.95rem" }}>
+                        Upload one audio file for each listening part. The player will use the matching file when the student reaches that part.
                       </p>
-                      {listeningAudio?.url ? (
-                        <div style={{ marginBottom: "0.5rem" }}>
-                          <audio controls src={listeningAudio.url} style={{ width: "100%", maxWidth: "560px" }} preload="metadata" />
-                          <button
-                            type="button"
-                            className="admin-btn-ghost"
-                            style={{ marginTop: "0.35rem", fontSize: "0.78rem" }}
-                            onClick={() => setListeningAudio(null)}
-                          >
-                            Remove audio
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="admin-form-grid admin-form-grid--2" style={{ marginTop: "0.5rem" }}>
-                          <ExamLocalUpload
-                            folder="listening"
-                            accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/webm,audio/ogg,.mp3,.wav,.webm,.ogg"
-                            disabled={pending}
-                            onUploaded={(url) => setListeningAudioUrl(url)}
-                          />
-                          <div>
-                            <label className="admin-label" htmlFor="listen-master-url">Or paste URL</label>
+
+                      {listeningAudioAsset?.url ? (
+                        <div
+                          style={{
+                            marginBottom: "1rem",
+                            padding: "0.9rem",
+                            borderRadius: "14px",
+                            border: "1px solid var(--border)",
+                            background: "var(--surface)",
+                          }}
+                        >
+                          <div className="admin-listening-audio-card__head" style={{ marginBottom: "0.6rem" }}>
+                            <div>
+                              <span className="admin-listening-audio-card__label">Legacy master audio</span>
+                              <p>Preserved for older exams. Upload the four part files below to switch formats.</p>
+                            </div>
+                            <button
+                              type="button"
+                              className="admin-btn-ghost"
+                              style={{ fontSize: "0.78rem" }}
+                              onClick={() => setListeningAudioAsset(null)}
+                            >
+                              Remove
+                            </button>
+                          </div>
+                          <audio controls src={listeningAudioAsset.url} style={{ width: "100%" }} preload="metadata" />
+                          <div style={{ marginTop: "0.75rem" }}>
+                            <label className="admin-label" htmlFor="listen-master-url">Or replace with URL</label>
                             <input
                               id="listen-master-url"
                               className="admin-input"
-                              value={listeningAudio?.url ?? ""}
-                              onChange={(e) => setListeningAudioUrl(e.target.value)}
+                              value={listeningAudioAsset.url}
+                              onChange={(e) => setListeningAudioAssetUrl(e.target.value)}
                               placeholder="https://…"
                             />
                           </div>
                         </div>
-                      )}
+                      ) : null}
 
-                      {!listeningAudio?.url && legacyListeningClips.length > 0 ? (
+                      <div className="admin-listening-audio-grid">
+                        {listeningAudioParts.map((clip) => {
+                          const urlInputId = `listen-part-${clip.part}-url`;
+                          const audioReady = Boolean(clip.url.trim());
+
+                          return (
+                            <div key={clip.part} className="admin-listening-audio-card">
+                              <div className="admin-listening-audio-card__head">
+                                <div>
+                                  <span className="admin-listening-audio-card__label">Part {clip.part}</span>
+                                  <p>{audioReady ? "Audio attached" : "No audio added yet"}</p>
+                                </div>
+                                {audioReady ? (
+                                  <button
+                                    type="button"
+                                    className="admin-btn-ghost"
+                                    style={{ fontSize: "0.78rem" }}
+                                    onClick={() => removeListeningAudioPart(clip.part)}
+                                  >
+                                    Remove
+                                  </button>
+                                ) : null}
+                              </div>
+
+                              {audioReady ? (
+                                <div style={{ display: "grid", gap: "0.65rem" }}>
+                                  <audio controls src={clip.url} style={{ width: "100%" }} preload="metadata" />
+                                  <div>
+                                    <label className="admin-label" htmlFor={urlInputId}>Or replace with URL</label>
+                                    <input
+                                      id={urlInputId}
+                                      className="admin-input"
+                                      value={clip.url}
+                                      onChange={(e) => setListeningAudioPartUrl(clip.part, e.target.value)}
+                                      placeholder="https://…"
+                                    />
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="admin-listening-audio-card__upload">
+                                  <ExamLocalUpload
+                                    folder="listening"
+                                    accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/webm,audio/ogg,.mp3,.wav,.webm,.ogg"
+                                    disabled={pending}
+                                    label={`Upload Part ${clip.part}`}
+                                    onUploaded={(url) => setListeningAudioPartUrl(clip.part, url)}
+                                  />
+                                  <div>
+                                    <label className="admin-label" htmlFor={urlInputId}>Or paste URL</label>
+                                    <input
+                                      id={urlInputId}
+                                      className="admin-input"
+                                      value={clip.url}
+                                      onChange={(e) => setListeningAudioPartUrl(clip.part, e.target.value)}
+                                      placeholder="https://…"
+                                    />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {!listeningAudioParts.some((clip) => clip.url.trim()) && legacyListeningClips.length > 0 ? (
                         <div
                           style={{
                             marginTop: "0.85rem",
@@ -1781,7 +1887,7 @@ export function ExamWizard({
                             lineHeight: 1.6,
                           }}
                         >
-                          This exam still has legacy part-by-part listening audio saved. Upload one master listening file here to replace that older setup.
+                          This exam still has legacy part-by-part listening audio saved. Add the four part clips above to replace that older setup.
                         </div>
                       ) : null}
                     </div>
@@ -2497,8 +2603,10 @@ export function ExamWizard({
                 <div className="admin-exam-review__asset-card">
                   <span className="admin-review-label">Listening audio</span>
                   <strong>
-                    {listeningAudio?.url
-                      ? "Master audio ready"
+                    {listeningAudioParts.some((clip) => clip.url.trim())
+                      ? `${listeningAudioParts.filter((clip) => clip.url.trim()).length}/4 part files ready`
+                      : listeningAudioAsset?.url
+                        ? "Legacy master audio ready"
                       : legacyListeningClips.length > 0
                         ? `${legacyListeningClips.filter((clip) => clip.url).length} legacy files saved`
                         : "Missing"}

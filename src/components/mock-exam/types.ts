@@ -31,7 +31,7 @@ export type MockExamRow = {
     };
   } | null;
   /** Public audio URLs per listening part (from DB / Supabase Storage). */
-  listening_audio_json?: { part: number; url: string; title?: string }[] | null;
+  listening_audio_json?: { url: string; title?: string } | { part: number; url: string; title?: string }[] | null;
   is_published: boolean;
   exam_categories: ExamCategoryRow | null;
 };

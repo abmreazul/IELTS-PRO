@@ -911,7 +911,7 @@ function validateListeningForPublish(
   }
 
   if (!listeningAudio) {
-    return "Published Listening exams need one full listening audio recording.";
+    return "Published Listening exams need four audio recordings, one for each part.";
   }
 
   if (Array.isArray(listeningAudio)) {
@@ -930,7 +930,7 @@ function validateListeningForPublish(
     return null;
   }
 
-  return null;
+  return "Published Listening exams need four audio recordings, one for each part.";
 }
 
 function validateReadingForPublish(
