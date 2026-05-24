@@ -31,7 +31,7 @@ export default async function AdminUserDetailPage({
   const [{ data: authData, error: authError }, { data: profile }, { data: attempts }, { data: entitlements }, { data: payments }] =
     await Promise.all([
       admin.auth.admin.getUserById(userId),
-      admin.from("profiles").select("full_name, institution").eq("id", userId).maybeSingle(),
+      admin.from("profiles").select("full_name, institution, referral_name").eq("id", userId).maybeSingle(),
       admin
         .from("mock_attempts")
         .select(`
@@ -172,6 +172,10 @@ export default async function AdminUserDetailPage({
           <div className="admin-review-item">
             <span className="admin-review-label">Institution</span>
             <span className="admin-review-value">{profile?.institution || "—"}</span>
+          </div>
+          <div className="admin-review-item">
+            <span className="admin-review-label">Referral</span>
+            <span className="admin-review-value">{profile?.referral_name || "—"}</span>
           </div>
           <div className="admin-review-item">
             <span className="admin-review-label">Joined</span>

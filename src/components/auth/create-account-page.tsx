@@ -9,6 +9,7 @@ import {
   Check,
   Lock,
   Mail,
+  Tag,
   User,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -26,13 +27,14 @@ function isValidEmail(value: string): boolean {
   return t.length > 0 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t);
 }
 
-function persistProfileDraft(fullName: string, institution: string) {
+function persistProfileDraft(fullName: string, institution: string, referralName: string) {
   if (typeof sessionStorage === "undefined") return;
   sessionStorage.setItem(
     PROFILE_STORAGE_KEY,
     JSON.stringify({
       full_name: fullName.trim(),
       institution: institution.trim(),
+      referral_name: referralName.trim(),
     }),
   );
 }
@@ -133,6 +135,7 @@ export function CreateAccountPage() {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [institution, setInstitution] = useState("");
+  const [referralName, setReferralName] = useState("");
   const [loading, setLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [completeReached, setCompleteReached] = useState(false);
@@ -176,12 +179,14 @@ export function CreateAccountPage() {
         const parsed = JSON.parse(raw) as {
           full_name?: string;
           institution?: string;
+          referral_name?: string;
         };
         await supabase
           .from("profiles")
           .update({
             full_name: parsed.full_name?.trim() || null,
             institution: parsed.institution?.trim() || null,
+            referral_name: parsed.referral_name?.trim() || null,
           })
           .eq("id", user.id);
         if (typeof sessionStorage !== "undefined") {
@@ -214,7 +219,7 @@ export function CreateAccountPage() {
     if (!personalValid) return;
     setAuthError(null);
     setLoading(true);
-    persistProfileDraft(fullName, institution);
+    persistProfileDraft(fullName, institution, referralName);
     try {
       const supabase = createClient();
       const { data, error } = await supabase.auth.signInWithOAuth({
@@ -242,7 +247,7 @@ export function CreateAccountPage() {
     e.preventDefault();
     if (!personalValid) return;
     setAuthError(null);
-    persistProfileDraft(fullName, institution);
+    persistProfileDraft(fullName, institution, referralName);
     setStep(2);
   }
 
@@ -253,11 +258,13 @@ export function CreateAccountPage() {
     setLoading(true);
     try {
       const supabase = createClient();
-      const meta: { full_name: string; institution?: string } = {
+      const meta: { full_name: string; institution?: string; referral_name?: string } = {
         full_name: fullName.trim(),
       };
       const inst = institution.trim();
       if (inst) meta.institution = inst;
+      const ref = referralName.trim();
+      if (ref) meta.referral_name = ref;
 
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
@@ -276,6 +283,7 @@ export function CreateAccountPage() {
           .update({
             full_name: fullName.trim(),
             institution: inst || null,
+            referral_name: ref || null,
           })
           .eq("id", data.session.user.id);
         if (profileError) throw profileError;
@@ -357,6 +365,21 @@ export function CreateAccountPage() {
                             autoComplete="organization"
                           />
                         </div>
+                      </div>
+                      <div className="ca-field">
+                        <span className="ca-label">Referral name (optional)</span>
+                        <div className="ca-input-shell">
+                          <Tag className="ca-input-icon" strokeWidth={2} />
+                          <input
+                            type="text"
+                            name="referralName"
+                            placeholder="Who referred you?"
+                            value={referralName}
+                            onChange={(e) => setReferralName(e.target.value)}
+                            autoComplete="off"
+                          />
+                        </div>
+                        <p className="ca-hint">Optional. Used only for referral tracking in admin.</p>
                       </div>
                       <motion.button
                         type="submit"
@@ -528,7 +551,7 @@ export function CreateAccountPage() {
                         </motion.div>
                         <h1 className="ca-title">You&apos;re all set</h1>
                         <p className="ca-subtitle">
-                          Your account is ready. Your name and institution are saved to your profile.
+                          Your account is ready. Your name, institution, and referral details are saved to your profile.
                         </p>
                         <div className="ca-stack">
                           <Link href="/" className="ca-btn ca-btn-primary">
