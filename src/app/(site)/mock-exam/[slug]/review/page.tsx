@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { CheckCircle2, CircleHelp, Mic, Sparkles, XCircle } from "lucide-react";
 import { createClient, getAuthUser } from "@/lib/supabase/server";
+import { createServiceRoleClient } from "@/lib/supabase/admin";
 import type { WritingAiReview } from "@/lib/ai/writing-review";
 import type { SpeakingReview } from "@/lib/ai/speaking-review";
 import { normalizeExamModules } from "@/lib/exam/ielts-defaults";
@@ -271,7 +272,7 @@ export default async function ReviewMockExamPage({
   }
 
   const questionsRaw = attempt
-    ? (await supabase
+    ? (await createServiceRoleClient()
         .from("exam_questions")
         .select("id, module, question_type, prompt, options_json, correct_json, points, sort_order")
         .eq("exam_id", exam.id)
