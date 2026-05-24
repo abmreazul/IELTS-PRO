@@ -8,6 +8,7 @@ import {
   ClipboardCheck,
   GraduationCap,
   HeartHandshake,
+  Mic,
   ShieldCheck,
   Rocket,
   Search,
@@ -53,6 +54,12 @@ const features = [
     title: "Strengthen Writing Responses",
     text: "Practice clearer Task 1 and Task 2 responses.",
     image: "/EverythingYouNeed/writting.png",
+  },
+  {
+    category: "Speaking",
+    title: "Speak With More Confidence",
+    text: "Practice spoken answers with IELTS-style prompts.",
+    image: "/EverythingYouNeed/speaking.png",
   },
 ] as const;
 
