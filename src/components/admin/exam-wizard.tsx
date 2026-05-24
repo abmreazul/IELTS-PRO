@@ -2408,8 +2408,30 @@ export function ExamWizard({
                             }}
                             placeholder="What do you enjoy about your hometown?"
                           />
+                          <button
+                            type="button"
+                            className="admin-icon-btn"
+                            style={{ marginTop: "0.18rem" }}
+                            aria-label={`Remove Part 1 question ${index + 1}`}
+                            title="Remove question"
+                            onClick={() => {
+                              const next = speakingPartOne.prompts.filter((_, promptIndex) => promptIndex !== index);
+                              setSpeakingPartOne((prev) => ({ ...prev, prompts: next.length > 0 ? next : [""] }));
+                            }}
+                          >
+                            <Trash2 />
+                          </button>
                         </div>
                       ))}
+                      <button
+                        type="button"
+                        className="admin-btn-ghost"
+                        style={{ marginTop: "0.35rem", display: "inline-flex", alignItems: "center", gap: "0.4rem" }}
+                        onClick={() => setSpeakingPartOne((prev) => ({ ...prev, prompts: [...prev.prompts, ""] }))}
+                      >
+                        <Plus style={{ width: "0.95rem", height: "0.95rem" }} />
+                        Add question
+                      </button>
                     </div>
                   </div>
 
@@ -2474,18 +2496,41 @@ export function ExamWizard({
                         <span className="admin-label">Bullet points</span>
                         <div style={{ marginTop: "0.45rem", display: "grid", gap: "0.5rem" }}>
                           {speakingPartTwo.bullet_points.map((point, index) => (
-                            <input
-                              key={`sp2-bullet-${index}`}
-                              className="admin-input"
-                              value={point}
-                              onChange={(e) => {
-                                const next = [...speakingPartTwo.bullet_points];
-                                next[index] = e.target.value;
-                                setSpeakingPartTwo((prev) => ({ ...prev, bullet_points: next }));
-                              }}
-                              placeholder={index === 0 ? "Where you went" : index === 1 ? "Who you went with" : "Why it was memorable"}
-                            />
+                            <div key={`sp2-bullet-${index}`} style={{ display: "flex", gap: "0.55rem", alignItems: "flex-start" }}>
+                              <input
+                                className="admin-input"
+                                value={point}
+                                onChange={(e) => {
+                                  const next = [...speakingPartTwo.bullet_points];
+                                  next[index] = e.target.value;
+                                  setSpeakingPartTwo((prev) => ({ ...prev, bullet_points: next }));
+                                }}
+                                placeholder={index === 0 ? "Where you went" : index === 1 ? "Who you went with" : "Why it was memorable"}
+                              />
+                              <button
+                                type="button"
+                                className="admin-icon-btn"
+                                style={{ marginTop: "0.18rem" }}
+                                aria-label={`Remove Part 2 bullet ${index + 1}`}
+                                title="Remove bullet"
+                                onClick={() => {
+                                  const next = speakingPartTwo.bullet_points.filter((_, pointIndex) => pointIndex !== index);
+                                  setSpeakingPartTwo((prev) => ({ ...prev, bullet_points: next.length > 0 ? next : [""] }));
+                                }}
+                              >
+                                <Trash2 />
+                              </button>
+                            </div>
                           ))}
+                          <button
+                            type="button"
+                            className="admin-btn-ghost"
+                            style={{ width: "fit-content", display: "inline-flex", alignItems: "center", gap: "0.4rem" }}
+                            onClick={() => setSpeakingPartTwo((prev) => ({ ...prev, bullet_points: [...prev.bullet_points, ""] }))}
+                          >
+                            <Plus style={{ width: "0.95rem", height: "0.95rem" }} />
+                            Add bullet
+                          </button>
                         </div>
                       </div>
                       <div>
@@ -2572,8 +2617,30 @@ export function ExamWizard({
                             }}
                             placeholder="How has tourism changed the way people live in cities?"
                           />
+                          <button
+                            type="button"
+                            className="admin-icon-btn"
+                            style={{ marginTop: "0.18rem" }}
+                            aria-label={`Remove Part 3 question ${index + 1}`}
+                            title="Remove question"
+                            onClick={() => {
+                              const next = speakingPartThree.prompts.filter((_, promptIndex) => promptIndex !== index);
+                              setSpeakingPartThree((prev) => ({ ...prev, prompts: next.length > 0 ? next : [""] }));
+                            }}
+                          >
+                            <Trash2 />
+                          </button>
                         </div>
                       ))}
+                      <button
+                        type="button"
+                        className="admin-btn-ghost"
+                        style={{ marginTop: "0.35rem", display: "inline-flex", alignItems: "center", gap: "0.4rem" }}
+                        onClick={() => setSpeakingPartThree((prev) => ({ ...prev, prompts: [...prev.prompts, ""] }))}
+                      >
+                        <Plus style={{ width: "0.95rem", height: "0.95rem" }} />
+                        Add question
+                      </button>
                     </div>
                   </div>
                 </div>
