@@ -19,6 +19,7 @@ import { AuthSplitVisual } from "./auth-split-visual";
 import { GoogleSignInIcon } from "./google-sign-in-icon";
 
 const PROFILE_STORAGE_KEY = "ielts_ca_profile";
+const PROFILE_COOKIE_KEY = "ielts_ca_profile";
 
 const STEP_LABELS = ["Personal", "Account", "Complete"] as const;
 
@@ -28,15 +29,44 @@ function isValidEmail(value: string): boolean {
 }
 
 function persistProfileDraft(fullName: string, institution: string, referralName: string) {
-  if (typeof sessionStorage === "undefined") return;
-  sessionStorage.setItem(
-    PROFILE_STORAGE_KEY,
-    JSON.stringify({
-      full_name: fullName.trim(),
-      institution: institution.trim(),
-      referral_name: referralName.trim(),
-    }),
-  );
+  const payload = JSON.stringify({
+    full_name: fullName.trim(),
+    institution: institution.trim(),
+    referral_name: referralName.trim(),
+  });
+  if (typeof sessionStorage !== "undefined") {
+    sessionStorage.setItem(PROFILE_STORAGE_KEY, payload);
+  }
+  if (typeof localStorage !== "undefined") {
+    localStorage.setItem(PROFILE_STORAGE_KEY, payload);
+  }
+  if (typeof document !== "undefined") {
+    document.cookie = `${PROFILE_COOKIE_KEY}=${encodeURIComponent(payload)}; path=/; max-age=3600; samesite=lax`;
+  }
+}
+
+function readProfileDraft() {
+  if (typeof sessionStorage !== "undefined") {
+    const sessionDraft = sessionStorage.getItem(PROFILE_STORAGE_KEY);
+    if (sessionDraft) return sessionDraft;
+  }
+  if (typeof localStorage !== "undefined") {
+    const localDraft = localStorage.getItem(PROFILE_STORAGE_KEY);
+    if (localDraft) return localDraft;
+  }
+  return null;
+}
+
+function clearProfileDraft() {
+  if (typeof sessionStorage !== "undefined") {
+    sessionStorage.removeItem(PROFILE_STORAGE_KEY);
+  }
+  if (typeof localStorage !== "undefined") {
+    localStorage.removeItem(PROFILE_STORAGE_KEY);
+  }
+  if (typeof document !== "undefined") {
+    document.cookie = `${PROFILE_COOKIE_KEY}=; path=/; max-age=0; samesite=lax`;
+  }
 }
 
 function StepCircle({
@@ -171,10 +201,7 @@ export function CreateAccountPage() {
           data: { user },
         } = await supabase.auth.getUser();
         if (cancelled || !user) return;
-        const raw =
-          typeof sessionStorage !== "undefined"
-            ? sessionStorage.getItem(PROFILE_STORAGE_KEY)
-            : null;
+        const raw = readProfileDraft();
         if (!raw) return;
         const parsed = JSON.parse(raw) as {
           full_name?: string;
@@ -189,9 +216,7 @@ export function CreateAccountPage() {
             referral_name: parsed.referral_name?.trim() || null,
           })
           .eq("id", user.id);
-        if (typeof sessionStorage !== "undefined") {
-          sessionStorage.removeItem(PROFILE_STORAGE_KEY);
-        }
+        clearProfileDraft();
         if (!cancelled) {
           setCompleteReached(true);
           setNeedsEmailVerification(false);
