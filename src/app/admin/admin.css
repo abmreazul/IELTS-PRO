@@ -736,6 +736,9 @@
 }
 
 .admin-wizard-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
   font-size: 0.9rem;
   font-weight: 600;
   color: var(--muted);
@@ -757,10 +760,17 @@
   gap: 0.5rem;
 }
 
+.admin-wizard-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
 .admin-stepper {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem 1.25rem;
+  gap: 0.55rem;
   margin-bottom: 1.5rem;
   padding-bottom: 1rem;
   border-bottom: 1px solid var(--border);
@@ -769,13 +779,14 @@
 .admin-stepper__step {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.5rem;
   font-size: 0.82rem;
   font-weight: 600;
   color: var(--muted);
-  background: none;
-  border: none;
-  padding: 0.35rem 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.42rem 0.75rem 0.42rem 0.45rem;
   cursor: pointer;
   font-family: inherit;
 }
@@ -786,11 +797,13 @@
 
 .admin-stepper__step--active {
   color: var(--primary);
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+  background: color-mix(in srgb, var(--primary) 6%, var(--surface));
 }
 
 .admin-stepper__num {
-  width: 1.65rem;
-  height: 1.65rem;
+  width: 1.85rem;
+  height: 1.85rem;
   border-radius: 999px;
   border: 2px solid var(--border);
   display: grid;
@@ -809,7 +822,6 @@
   border-radius: 16px;
   background: var(--surface);
   padding: 1.35rem 1.5rem;
-  box-shadow: var(--shadow-sm);
   margin-bottom: 1.25rem;
 }
 
@@ -823,10 +835,90 @@
   font-weight: 800;
 }
 
-.admin-wizard-card > p:first-of-type {
+.admin-wizard-card > p:first-of-type,
+.admin-wizard-card__heading p {
   margin: 0 0 1.25rem;
   color: var(--muted);
   font-size: 0.9rem;
+}
+
+.admin-wizard-card__heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8rem;
+  margin-bottom: 1.15rem;
+}
+
+.admin-wizard-card__heading h2 {
+  margin-top: 0.08rem;
+}
+
+.admin-wizard-card__heading p {
+  margin-bottom: 0;
+}
+
+.admin-wizard-card__icon {
+  width: 2.35rem;
+  height: 2.35rem;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--primary) 28%, var(--border));
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 7%, var(--surface));
+  flex: 0 0 auto;
+}
+
+.admin-basic-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.admin-basic-summary__item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 5.25rem;
+  padding: 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--bg) 42%, var(--surface));
+}
+
+.admin-basic-summary__icon {
+  width: 2.35rem;
+  height: 2.35rem;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 12px;
+  color: var(--primary);
+  border: 1px solid color-mix(in srgb, var(--primary) 28%, var(--border));
+  background: color-mix(in srgb, var(--primary) 7%, var(--surface));
+  flex: 0 0 auto;
+}
+
+.admin-basic-summary__item span:not(.admin-basic-summary__icon) {
+  display: block;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.admin-basic-summary__item strong {
+  display: block;
+  margin-top: 0.24rem;
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.admin-label--icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
 }
 
 .admin-segment {
@@ -846,7 +938,10 @@
 }
 
 .admin-segment span {
-  display: block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.42rem;
   padding: 0.45rem 0.75rem;
   border-radius: 10px;
   border: 1px solid var(--border);
@@ -860,7 +955,42 @@
   border-color: var(--primary);
   color: var(--primary);
   background: color-mix(in srgb, var(--primary) 8%, var(--surface));
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 25%, transparent);
+  outline: 1px solid color-mix(in srgb, var(--primary) 25%, transparent);
+  outline-offset: 0;
+}
+
+.admin-segment--icons span svg {
+  width: 1rem;
+  height: 1rem;
+  flex: 0 0 auto;
+}
+
+.admin-inline-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.9rem 1rem;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.admin-inline-note--success {
+  border-color: color-mix(in srgb, #22c55e 25%, var(--border));
+  background: color-mix(in srgb, #22c55e 7%, var(--surface));
+}
+
+.admin-inline-note--success svg {
+  color: #15803d;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 900px) {
+  .admin-basic-summary {
+    grid-template-columns: 1fr;
+  }
 }
 
 .admin-dropzone {

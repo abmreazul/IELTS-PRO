@@ -1,7 +1,30 @@
 "use client";
 
 import Link from "next/link";
-import { BookOpen, ChevronDown, ChevronRight, Headphones, ImagePlus, Mic, PenLine, Plus, Trash2, Upload, X } from "lucide-react";
+import {
+  ArrowLeft,
+  BadgeCheck,
+  BookOpen,
+  ChevronDown,
+  ChevronRight,
+  CircleDollarSign,
+  ClipboardList,
+  FileImage,
+  FolderOpen,
+  Gauge,
+  Headphones,
+  ImagePlus,
+  Layers3,
+  Mic,
+  PenLine,
+  Plus,
+  Rocket,
+  Save,
+  Timer,
+  Trash2,
+  Upload,
+  X,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
 import { getSignedUploadUrl, saveExamWizard, type ExamWizardSaveInput, type WizardQuestionInput } from "@/app/admin/actions";
@@ -583,6 +606,19 @@ function JsonImportControls({
    Steps: Basic Info → Questions → Review
    ═══════════════════════════════════════════════════════════════════ */
 const STEPS = ["Basic Info", "Questions", "Review"] as const;
+const STEP_ICONS = [ClipboardList, BookOpen, BadgeCheck] as const;
+const SURFACE_ICONS: Record<Surface, typeof Layers3> = {
+  full: Layers3,
+  listening: Headphones,
+  reading: BookOpen,
+  writing: PenLine,
+  speaking: Mic,
+};
+const DIFFICULTY_LABELS = {
+  beginner: "Beginner",
+  intermediate: "Intermediate",
+  advanced: "Advanced",
+} as const;
 
 export function ExamWizard({
   categories,
@@ -1456,13 +1492,15 @@ export function ExamWizard({
       <div className="admin-wizard-toolbar">
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.75rem" }}>
           <Link href="/admin" className="admin-wizard-back">
-            ← Back to Dashboard
+            <ArrowLeft size={17} strokeWidth={2.2} aria-hidden />
+            Back to Dashboard
           </Link>
           <span style={{ color: "var(--border)", fontWeight: 300 }}>|</span>
           <span className="admin-wizard-title">{isEdit ? "Edit exam" : "Create New Exam"}</span>
         </div>
         <div className="admin-wizard-actions">
           <button type="button" className="btn btn-outline" disabled={pending} onClick={() => runSave(false)}>
+            <Save size={18} strokeWidth={2.2} aria-hidden />
             Save Draft
           </button>
           <button
@@ -1471,6 +1509,7 @@ export function ExamWizard({
             disabled={pending}
             onClick={() => runSave(true)}
           >
+            <Rocket size={18} strokeWidth={2.2} aria-hidden />
             Publish
           </button>
         </div>
@@ -1478,19 +1517,23 @@ export function ExamWizard({
 
       {/* ── Stepper ────────────────────────────── */}
       <div className="admin-stepper" role="tablist" aria-label="Exam steps">
-        {STEPS.map((label, i) => (
-          <button
-            key={label}
-            type="button"
-            role="tab"
-            className={`admin-stepper__step ${step === i ? "admin-stepper__step--active" : ""}`}
-            aria-selected={step === i}
-            onClick={() => setStep(i)}
-          >
-            <span className="admin-stepper__num">{i + 1}</span>
-            {label}
-          </button>
-        ))}
+        {STEPS.map((label, i) => {
+          const StepIcon = STEP_ICONS[i];
+          return (
+            <button
+              key={label}
+              type="button"
+              role="tab"
+              className={`admin-stepper__step ${step === i ? "admin-stepper__step--active" : ""}`}
+              aria-selected={step === i}
+              onClick={() => setStep(i)}
+            >
+              <span className="admin-stepper__num">{i + 1}</span>
+              <StepIcon size={17} strokeWidth={2.2} aria-hidden />
+              {label}
+            </button>
+          );
+        })}
       </div>
 
       {message ? (
@@ -1504,33 +1547,52 @@ export function ExamWizard({
          ═══════════════════════════════════════════════════════════ */}
       {step === 0 ? (
         <div className="admin-wizard-card">
-          <h2>Basic information</h2>
-          <p>Title, pricing, and how this mock appears in the catalog.</p>
+          <div className="admin-wizard-card__heading">
+            <span className="admin-wizard-card__icon">
+              <ClipboardList size={21} strokeWidth={2.2} aria-hidden />
+            </span>
+            <div>
+              <h2>Basic information</h2>
+              <p>Title, pricing, and how this mock appears in the catalog.</p>
+            </div>
+          </div>
 
           <div className="admin-form-grid" style={{ marginTop: "1rem" }}>
             <div style={{ gridColumn: "1 / -1" }}>
-              <div className="admin-review-grid" style={{ marginTop: "-0.1rem", marginBottom: "1.1rem" }}>
-                <div className="admin-review-item admin-review-item--surface">
-                  <span className="admin-review-label">Mock Surface</span>
-                  <span className="admin-review-value">
-                    {surface === "full" ? "Full Test" : MODULE_LABELS[surface] ?? surface}
+              <div className="admin-basic-summary" style={{ marginTop: "-0.1rem", marginBottom: "1.1rem" }}>
+                <div className="admin-basic-summary__item">
+                  <span className="admin-basic-summary__icon">
+                    <Layers3 size={18} strokeWidth={2.2} aria-hidden />
                   </span>
+                  <div>
+                    <span>Mock Surface</span>
+                    <strong>{surface === "full" ? "Full Test" : MODULE_LABELS[surface] ?? surface}</strong>
+                  </div>
                 </div>
-                <div className="admin-review-item admin-review-item--category">
-                  <span className="admin-review-label">Catalog Category</span>
-                  <span className="admin-review-value">{currentCategory?.name ?? "Not mapped"}</span>
-                </div>
-                <div className="admin-review-item admin-review-item--state">
-                  <span className="admin-review-label">Save State</span>
-                  <span className={`admin-badge ${isPublished ? "admin-badge--published" : "admin-badge--draft"}`}>
-                    {isPublished ? "Published" : "Draft"}
+                <div className="admin-basic-summary__item">
+                  <span className="admin-basic-summary__icon">
+                    <FolderOpen size={18} strokeWidth={2.2} aria-hidden />
                   </span>
+                  <div>
+                    <span>Catalog Category</span>
+                    <strong>{currentCategory?.name ?? "Not mapped"}</strong>
+                  </div>
+                </div>
+                <div className="admin-basic-summary__item">
+                  <span className="admin-basic-summary__icon">
+                    <BadgeCheck size={18} strokeWidth={2.2} aria-hidden />
+                  </span>
+                  <div>
+                    <span>Save State</span>
+                    <strong>{isPublished ? "Published" : "Draft"}</strong>
+                  </div>
                 </div>
               </div>
             </div>
 
             <div>
-              <label className="admin-label" htmlFor="ew-title">
+              <label className="admin-label admin-label--icon" htmlFor="ew-title">
+                <PenLine size={15} strokeWidth={2.2} aria-hidden />
                 Exam title (required)
               </label>
               <input
@@ -1542,28 +1604,38 @@ export function ExamWizard({
               />
             </div>
             <div>
-              <span className="admin-label">Exam Category</span>
-              <div className="admin-segment" style={{ marginTop: "0.35rem" }}>
-                {(["full", "listening", "reading", "writing", "speaking"] as Surface[]).map((s) => (
-                  <label key={s}>
-                    <input
-                      type="radio"
-                      name="surface"
-                      checked={surface === s}
-                      onChange={() => handleSurface(s)}
-                    />
-                    <span>
-                      {s === "full"
-                        ? "Full Test"
-                        : s.charAt(0).toUpperCase() + s.slice(1)}
-                    </span>
-                  </label>
-                ))}
+              <span className="admin-label admin-label--icon">
+                <Layers3 size={15} strokeWidth={2.2} aria-hidden />
+                Exam Category
+              </span>
+              <div className="admin-segment admin-segment--icons" style={{ marginTop: "0.35rem" }}>
+                {(["full", "listening", "reading", "writing", "speaking"] as Surface[]).map((s) => {
+                  const SurfaceIcon = SURFACE_ICONS[s];
+                  return (
+                    <label key={s}>
+                      <input
+                        type="radio"
+                        name="surface"
+                        checked={surface === s}
+                        onChange={() => handleSurface(s)}
+                      />
+                      <span>
+                        <SurfaceIcon size={16} strokeWidth={2.2} aria-hidden />
+                        {s === "full"
+                          ? "Full Test"
+                          : s.charAt(0).toUpperCase() + s.slice(1)}
+                      </span>
+                    </label>
+                  );
+                })}
               </div>
             </div>
             <div>
-              <span className="admin-label">Difficulty</span>
-              <div className="admin-segment" style={{ marginTop: "0.35rem" }}>
+              <span className="admin-label admin-label--icon">
+                <Gauge size={15} strokeWidth={2.2} aria-hidden />
+                Difficulty
+              </span>
+              <div className="admin-segment admin-segment--icons" style={{ marginTop: "0.35rem" }}>
                 {(["beginner", "intermediate", "advanced"] as const).map((d) => (
                   <label key={d}>
                     <input
@@ -1572,14 +1644,18 @@ export function ExamWizard({
                       checked={difficulty === d}
                       onChange={() => setDifficulty(d)}
                     />
-                    <span>{d.charAt(0).toUpperCase() + d.slice(1)}</span>
+                    <span>
+                      <Gauge size={16} strokeWidth={2.2} aria-hidden />
+                      {DIFFICULTY_LABELS[d]}
+                    </span>
                   </label>
                 ))}
               </div>
             </div>
             <div className="admin-form-grid admin-form-grid--2">
               <div>
-                <label className="admin-label" htmlFor="ew-dur">
+                <label className="admin-label admin-label--icon" htmlFor="ew-dur">
+                  <Timer size={15} strokeWidth={2.2} aria-hidden />
                   Duration (minutes)
                 </label>
                 <input
@@ -1592,8 +1668,11 @@ export function ExamWizard({
                 />
               </div>
               <div>
-                <span className="admin-label">Access</span>
-                <div className="admin-segment" style={{ marginTop: "0.35rem" }}>
+                <span className="admin-label admin-label--icon">
+                  <CircleDollarSign size={15} strokeWidth={2.2} aria-hidden />
+                  Access
+                </span>
+                <div className="admin-segment admin-segment--icons" style={{ marginTop: "0.35rem" }}>
                   {(["free", "paid"] as const).map((mode) => (
                     <label key={mode}>
                       <input
@@ -1602,7 +1681,10 @@ export function ExamWizard({
                         checked={pricingMode === mode}
                         onChange={() => setPricingMode(mode)}
                       />
-                      <span>{mode === "free" ? "Free Mock" : "Paid Mock"}</span>
+                      <span>
+                        <CircleDollarSign size={16} strokeWidth={2.2} aria-hidden />
+                        {mode === "free" ? "Free Mock" : "Paid Mock"}
+                      </span>
                     </label>
                   ))}
                 </div>
@@ -1657,22 +1739,16 @@ export function ExamWizard({
                 </div>
               </div>
             ) : (
-              <div
-                style={{
-                  padding: "0.9rem 1rem",
-                  borderRadius: "12px",
-                  border: "1px solid var(--border)",
-                  background: "color-mix(in srgb, #22c55e 7%, var(--surface))",
-                  color: "var(--muted)",
-                  fontSize: "0.86rem",
-                  fontWeight: 600,
-                }}
-              >
+              <div className="admin-inline-note admin-inline-note--success">
+                <BadgeCheck size={17} strokeWidth={2.2} aria-hidden />
                 This mock will appear as free in the public catalog.
               </div>
             )}
             <div>
-              <span className="admin-label">Thumbnail Image</span>
+              <span className="admin-label admin-label--icon">
+                <FileImage size={15} strokeWidth={2.2} aria-hidden />
+                Thumbnail Image
+              </span>
               <div className="admin-thumb-grid">
                 <div className="admin-thumb-card">
                   <p className="admin-thumb-card__title">Image URL</p>
