@@ -297,7 +297,13 @@ export default async function ReviewMockExamPage({
   const questionsByModule = activeModules
     .map((module) => ({
       module,
-      questions: questions.filter((question) => question.module === module),
+      questions: questions.filter((question) => {
+        if (question.module !== module) return false;
+        // Skip speaking questions when a full speaking review exists —
+        // the detailed assessment is rendered in its own section below.
+        if (question.module === "speaking" && speakingReview) return false;
+        return true;
+      }),
     }))
     .filter((section) => section.questions.length > 0);
 
