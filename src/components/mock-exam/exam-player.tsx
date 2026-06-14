@@ -1461,7 +1461,6 @@ export function ExamPlayer({ exam, questions, attemptId }: Props) {
                   <label
                     key={i}
                     className={`ep-q__radio${selected ? " ep-q__radio--sel" : ""}`}
-                    onClick={() => setAnswer(q.id, selected ? undefined : i)}
                   >
                     <input type="radio" name={`q-${q.id}`} checked={selected} onChange={() => setAnswer(q.id, selected ? undefined : i)} />
                     <span className="ep-q__letter">{String.fromCharCode(65 + i)}</span>
