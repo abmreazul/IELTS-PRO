@@ -89,6 +89,17 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <script async src="https://www.googletagmanager.com/gtag/js?id=G-BVC5X4LNXK"></script>
+        <script dangerouslySetInnerHTML={{
+          __html: `
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'G-BVC5X4LNXK');
+          `
+        }} />
+      </head>
       <body className={`${inter.variable} ${jakarta.variable}`}>
         <ThemeProvider>{children}</ThemeProvider>
       </body>
