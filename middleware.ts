@@ -8,11 +8,11 @@ function buildContentSecurityPolicy() {
     "form-action 'self'",
     "frame-ancestors 'none'",
     "object-src 'none'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com",
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob: https://images.unsplash.com https://*.supabase.co",
+    "img-src 'self' data: blob: https://images.unsplash.com https://*.supabase.co https://www.google-analytics.com",
     "font-src 'self' data:",
-    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.youtube.com https://www.youtube-nocookie.com",
+    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.youtube.com https://www.youtube-nocookie.com https://www.google-analytics.com https://analytics.google.com https://www.googletagmanager.com https://region1.google-analytics.com",
     "media-src 'self' blob: data: https://*.supabase.co",
     "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com",
   ].join("; ");
@@ -28,6 +28,7 @@ function applySecurityHeaders(response: NextResponse, request: NextRequest) {
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("X-Frame-Options", "DENY");
   response.headers.set("Permissions-Policy", "camera=(), microphone=(self), geolocation=()");
+
   if (isHttps) {
     response.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
   }
@@ -64,12 +65,10 @@ export async function middleware(request: NextRequest) {
     },
   });
 
-  // getSession() refreshes the JWT locally (no network call to Auth API).
-  // Actual user validation via getUser() happens in server components where
-  // security matters (e.g., admin layout). This saves ~200-400ms per navigation.
   await supabase.auth.getSession();
 
   applySecurityHeaders(supabaseResponse, request);
+
   return supabaseResponse;
 }
 
