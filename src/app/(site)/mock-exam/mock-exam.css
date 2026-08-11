@@ -569,7 +569,7 @@
 
 .manual-pay__methods {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(105px, 1fr));
   gap: 0.6rem;
 }
 
@@ -592,6 +592,11 @@
   border-color: #2d82ff;
   background: #122244;
   box-shadow: inset 0 0 0 1px rgba(45, 130, 255, 0.4);
+}
+
+.manual-pay__method:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .manual-pay__method-logo {
@@ -617,6 +622,10 @@
 
 .manual-pay__method--touchngo .manual-pay__wordmark {
   color: #3cc8ff;
+}
+
+.manual-pay__method--paypal .manual-pay__wordmark {
+  color: #5aa7ff;
 }
 
 .manual-pay__method span:last-child {
@@ -671,6 +680,11 @@
 
 .manual-pay__number--maybank {
   color: #ffd11a;
+}
+
+.manual-pay__number--paypal {
+  color: #5aa7ff;
+  letter-spacing: 0;
 }
 
 .manual-pay__copy {

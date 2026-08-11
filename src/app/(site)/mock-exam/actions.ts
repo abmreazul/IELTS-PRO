@@ -7,7 +7,11 @@ import { evaluateWritingWithGemini } from "@/lib/ai/gemini-writing";
 import { evaluateSpeakingWithGemini, type SpeakingRecordingSubmission } from "@/lib/ai/gemini-speaking";
 import { roundBandToNearestHalf } from "@/lib/ai/writing-review";
 import { coerceTestVariant, normalizeExamModules } from "@/lib/exam/ielts-defaults";
-import type { ManualPaymentMethodId } from "@/lib/payments/manual-payment";
+import {
+  isManualPaymentMethodId,
+  MANUAL_PAYMENT_METHOD_CURRENCIES,
+  type ManualPaymentMethodId,
+} from "@/lib/payments/manual-payment";
 import { enforceActionRateLimit } from "@/lib/security/rate-limit";
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -130,7 +134,6 @@ type SubmitPaymentInput = {
   transactionId: string;
   proofUrl?: string | null;
   currency: string;
-  amountCents: number;
 };
 
 export async function submitPaymentRequest(input: SubmitPaymentInput) {
@@ -150,8 +153,15 @@ export async function submitPaymentRequest(input: SubmitPaymentInput) {
   }
 
   const transactionId = String(input.transactionId ?? "").trim();
-  if (!input.examId || !input.paymentMethod || !transactionId) {
+  if (!input.examId || !isManualPaymentMethodId(input.paymentMethod) || !transactionId) {
     return { ok: false, message: "Payment method and transaction ID are required." };
+  }
+
+  if (
+    input.paymentMethod === "paypal" &&
+    !process.env.NEXT_PUBLIC_PAYPAL_PAYMENT_EMAIL?.trim()
+  ) {
+    return { ok: false, message: "PayPal payments are not configured yet." };
   }
 
   const admin = createServiceRoleClient();
@@ -167,7 +177,10 @@ export async function submitPaymentRequest(input: SubmitPaymentInput) {
   }
 
   // Validate the submitted currency + amount against the exam's actual price
-  const validCurrency = input.currency || "USD";
+  const validCurrency = String(input.currency || "USD").trim().toUpperCase();
+  if (!MANUAL_PAYMENT_METHOD_CURRENCIES[input.paymentMethod].includes(validCurrency)) {
+    return { ok: false, message: `${input.paymentMethod === "paypal" ? "PayPal" : "This payment method"} does not support ${validCurrency}.` };
+  }
   const examPriceMap: Record<string, number> = {
     USD: exam.price_usd_cents ?? 0,
     BDT: exam.price_bdt_cents ?? 0,

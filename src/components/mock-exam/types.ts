@@ -55,7 +55,7 @@ export type PaymentRequestStatus = "pending" | "approved" | "rejected";
 export type MockPaymentRequestRow = {
   id: string;
   exam_id: string;
-  payment_method: "bkash" | "touchngo" | "ebl" | "maybank";
+  payment_method: "bkash" | "touchngo" | "ebl" | "maybank" | "paypal";
   transaction_id: string;
   proof_url: string | null;
   amount_cents: number;

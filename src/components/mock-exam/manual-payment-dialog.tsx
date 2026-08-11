@@ -1,25 +1,18 @@
 "use client";
 
 import Image from "next/image";
-import { Check, Copy, Upload, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { Check, Upload, X } from "lucide-react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { submitPaymentRequest, uploadPaymentProof } from "@/app/(site)/mock-exam/actions";
 import type { MockPaymentRequestRow } from "./types";
 import {
   formatExamPrice,
   getManualPaymentMethod,
+  MANUAL_PAYMENT_METHOD_CURRENCIES,
   MANUAL_PAYMENT_METHODS,
   type ManualPaymentMethodId,
 } from "@/lib/payments/manual-payment";
-
-/** Currency shown per payment method */
-const METHOD_CURRENCIES: Record<ManualPaymentMethodId, string[]> = {
-  bkash: ["BDT"],
-  touchngo: ["MYR"],
-  ebl: ["USD", "BDT", "MYR"],
-  maybank: ["USD", "BDT", "MYR"],
-};
 
 type Props = {
   examId: string;
@@ -51,7 +44,6 @@ export function ManualPaymentDialog({
   const [error, setError] = useState<string | null>(null);
   const [copyDone, setCopyDone] = useState(false);
   const [showQrPreview, setShowQrPreview] = useState(false);
-  const [mounted, setMounted] = useState(false);
   const [isSubmitting, startSubmit] = useTransition();
   const [isUploading, startUpload] = useTransition();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -72,28 +64,26 @@ export function ManualPaymentDialog({
 
   // Available currencies for this method
   const availableCurrencies = useMemo(() => {
-    const methodCurrencies = METHOD_CURRENCIES[selectedMethod] ?? ["USD"];
+    const methodCurrencies = MANUAL_PAYMENT_METHOD_CURRENCIES[selectedMethod] ?? ["USD"];
     return methodCurrencies.filter((c) => priceMap[c] != null);
   }, [selectedMethod, priceMap]);
 
-  // Selected currency for payment (auto-pick first available)
-  const [selectedCurrency, setSelectedCurrency] = useState<string>("USD");
-
-  // Reset currency when method changes
-  useEffect(() => {
-    if (availableCurrencies.length > 0 && !availableCurrencies.includes(selectedCurrency)) {
-      setSelectedCurrency(availableCurrencies[0]);
-    }
-  }, [availableCurrencies, selectedCurrency]);
+  // Preserve the user's choice when possible and otherwise use the method's
+  // first supported price without a state-synchronizing effect.
+  const [preferredCurrency, setPreferredCurrency] = useState<string>("USD");
+  const selectedCurrency = availableCurrencies.includes(preferredCurrency)
+    ? preferredCurrency
+    : availableCurrencies[0] ?? "USD";
 
   const currentAmountCents = priceMap[selectedCurrency] ?? 0;
   const amountLabel = formatExamPrice(currentAmountCents, selectedCurrency);
 
-  const canSubmit = transactionId.trim().length > 2 && !isSubmitting && !isUploading;
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const canSubmit =
+    selectedPayment.isConfigured !== false &&
+    currentAmountCents > 0 &&
+    transactionId.trim().length > 2 &&
+    !isSubmitting &&
+    !isUploading;
 
   async function handleCopy() {
     try {
@@ -121,7 +111,7 @@ export function ManualPaymentDialog({
         </button>
       )}
 
-      {mounted && open
+      {open && typeof document !== "undefined"
         ? createPortal(
             <div
               className="manual-pay__backdrop"
@@ -158,6 +148,8 @@ export function ManualPaymentDialog({
                         type="button"
                         className={`manual-pay__method ${method.accentClass}${selectedMethod === method.id ? " is-active" : ""}`}
                         onClick={() => setSelectedMethod(method.id)}
+                        disabled={method.isConfigured === false}
+                        title={method.isConfigured === false ? "PayPal receiving email is not configured" : undefined}
                       >
                         <div className="manual-pay__method-logo">
                           {method.logoSrc ? (
@@ -191,7 +183,7 @@ export function ManualPaymentDialog({
                             key={curr}
                             type="button"
                             className={`manual-pay__currency-chip${selectedCurrency === curr ? " is-active" : ""}`}
-                            onClick={() => setSelectedCurrency(curr)}
+                            onClick={() => setPreferredCurrency(curr)}
                           >
                             <span className="manual-pay__currency-chip-code">{curr}</span>
                             <span className="manual-pay__currency-chip-amount">{formatExamPrice(priceMap[curr] ?? 0, curr)}</span>
@@ -201,7 +193,9 @@ export function ManualPaymentDialog({
                     </div>
                   ) : null}
 
-                  <p className="manual-pay__hint">Send exactly {amountLabel} to this number.</p>
+                  <p className="manual-pay__hint">
+                    Send exactly {amountLabel} using {selectedPayment.name}, then enter the transaction ID below.
+                  </p>
                   {selectedPayment.qrSrc ? (
                     <>
                       <p className="manual-pay__muted manual-pay__muted--qr">Or scan the QR code:</p>
@@ -306,7 +300,6 @@ export function ManualPaymentDialog({
                         transactionId,
                         proofUrl: proofUrl || null,
                         currency: selectedCurrency,
-                        amountCents: currentAmountCents,
                       });
                       if (!result.ok) {
                         setError(result.message ?? "Could not submit payment request.");

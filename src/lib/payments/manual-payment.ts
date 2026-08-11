@@ -1,4 +1,4 @@
-export type ManualPaymentMethodId = "bkash" | "touchngo" | "ebl" | "maybank";
+export type ManualPaymentMethodId = "bkash" | "touchngo" | "ebl" | "maybank" | "paypal";
 
 export type ManualPaymentMethod = {
   id: ManualPaymentMethodId;
@@ -10,7 +10,18 @@ export type ManualPaymentMethod = {
   accentClass: string;
   numberClass: string;
   wordmark?: string;
+  isConfigured?: boolean;
 };
+
+export const MANUAL_PAYMENT_METHOD_CURRENCIES: Record<ManualPaymentMethodId, readonly string[]> = {
+  bkash: ["BDT"],
+  touchngo: ["MYR"],
+  ebl: ["USD", "BDT", "MYR"],
+  maybank: ["USD", "BDT", "MYR"],
+  paypal: ["USD"],
+};
+
+const paypalPaymentEmail = process.env.NEXT_PUBLIC_PAYPAL_PAYMENT_EMAIL?.trim() ?? "";
 
 export const MANUAL_PAYMENT_METHODS: ManualPaymentMethod[] = [
   {
@@ -52,7 +63,25 @@ export const MANUAL_PAYMENT_METHODS: ManualPaymentMethod[] = [
     accentClass: "manual-pay__method--maybank",
     numberClass: "manual-pay__number--maybank",
   },
+  {
+    id: "paypal",
+    name: "PayPal",
+    accountLabel: "Send payment to this PayPal email:",
+    accountNumber: paypalPaymentEmail || "PayPal email not configured",
+    accentClass: "manual-pay__method--paypal",
+    numberClass: "manual-pay__number--paypal",
+    wordmark: "PayPal",
+    isConfigured: Boolean(paypalPaymentEmail),
+  },
 ] as const;
+
+const MANUAL_PAYMENT_METHOD_IDS = new Set<string>(
+  MANUAL_PAYMENT_METHODS.map((method) => method.id),
+);
+
+export function isManualPaymentMethodId(value: unknown): value is ManualPaymentMethodId {
+  return typeof value === "string" && MANUAL_PAYMENT_METHOD_IDS.has(value);
+}
 
 export function getManualPaymentMethod(methodId: string | null | undefined) {
   return MANUAL_PAYMENT_METHODS.find((method) => method.id === methodId) ?? MANUAL_PAYMENT_METHODS[0];
