@@ -5,10 +5,10 @@ import Link from "next/link";
 import {
   ArrowRight,
   BookOpen,
+  ChevronDown,
   ClipboardCheck,
   GraduationCap,
   HeartHandshake,
-  Mic,
   ShieldCheck,
   Rocket,
   Search,
@@ -17,8 +17,15 @@ import {
 import { LogoMark } from "@/components/layout/logo-mark";
 import { ExamCard } from "@/components/mock-exam/mock-exam-catalog";
 import type { MockExamRow } from "@/components/mock-exam/types";
-import { MotionConfig, motion, useScroll, useSpring } from "framer-motion";
-import { useEffect, useState } from "react";
+import {
+  MotionConfig,
+  motion,
+  useReducedMotion,
+  useScroll,
+  useSpring,
+  useTransform,
+} from "framer-motion";
+import { useEffect, useRef, useState } from "react";
 import { fadeUp, heroImage, staggerContainer, staggerItem } from "./motion-variants";
 
 const heroSlides = [
@@ -178,8 +185,33 @@ type HomePageProps = {
 
 export function HomePage({ featuredExams = [] }: HomePageProps) {
   const [activeHeroSlide, setActiveHeroSlide] = useState(0);
+  const prefersReducedMotion = useReducedMotion();
+  const heroRef = useRef<HTMLElement>(null);
+  const featuresRef = useRef<HTMLElement>(null);
+  const aboutRef = useRef<HTMLElement>(null);
   const { scrollYProgress } = useScroll();
   const scaleX = useSpring(scrollYProgress, { stiffness: 100, damping: 30, restDelta: 0.001 });
+  const { scrollYProgress: heroScrollProgress } = useScroll({
+    target: heroRef,
+    offset: ["start start", "end start"],
+  });
+  const { scrollYProgress: featureScrollProgress } = useScroll({
+    target: featuresRef,
+    offset: ["start end", "end start"],
+  });
+  const { scrollYProgress: aboutScrollProgress } = useScroll({
+    target: aboutRef,
+    offset: ["start end", "end start"],
+  });
+  const heroMediaY = useTransform(heroScrollProgress, [0, 1], [0, 150]);
+  const heroMediaScale = useTransform(heroScrollProgress, [0, 1], [1, 1.1]);
+  const heroCopyY = useTransform(heroScrollProgress, [0, 1], [0, -72]);
+  const heroCopyOpacity = useTransform(heroScrollProgress, [0, 0.72, 1], [1, 0.82, 0]);
+  const featureMarqueeX = useTransform(featureScrollProgress, [0, 1], ["8%", "-38%"]);
+  const featureLeadY = useTransform(featureScrollProgress, [0, 1], [-28, 34]);
+  const aboutLeftY = useTransform(aboutScrollProgress, [0, 1], [-54, 64]);
+  const aboutRightY = useTransform(aboutScrollProgress, [0, 1], [72, -48]);
+  const aboutImageScale = useTransform(aboutScrollProgress, [0, 0.5, 1], [1.06, 1, 1.04]);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -192,9 +224,15 @@ export function HomePage({ featuredExams = [] }: HomePageProps) {
     <MotionConfig reducedMotion="user">
       <motion.div className="scroll-progress" style={{ scaleX }} aria-hidden />
 
-      <main className="page">
-        <section className="hero">
-          <motion.div className="hero-media" initial="hidden" animate="visible" variants={heroImage}>
+      <main className="page home-motion-page">
+        <section ref={heroRef} className="hero">
+          <motion.div
+            className="hero-media"
+            initial="hidden"
+            animate="visible"
+            variants={heroImage}
+            style={prefersReducedMotion ? undefined : { y: heroMediaY, scale: heroMediaScale }}
+          >
             {heroSlides.map((slide, index) => (
               <Image
                 key={slide}
@@ -216,6 +254,7 @@ export function HomePage({ featuredExams = [] }: HomePageProps) {
               variants={staggerContainer}
               initial="hidden"
               animate="visible"
+              style={prefersReducedMotion ? undefined : { y: heroCopyY, opacity: heroCopyOpacity }}
             >
               <motion.h1 className="hero-title" variants={staggerItem}>
                 Planning to Ace <span className="text-primary">IELTS</span>
@@ -237,6 +276,17 @@ export function HomePage({ featuredExams = [] }: HomePageProps) {
               </motion.div>
             </motion.div>
           </div>
+          <motion.div
+            className="hero-scroll-cue"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.8, duration: 0.5 }}
+            style={prefersReducedMotion ? undefined : { opacity: heroCopyOpacity }}
+            aria-hidden
+          >
+            <span>Scroll to explore</span>
+            <ChevronDown size={17} strokeWidth={2.2} />
+          </motion.div>
         </section>
 
         {featuredExams.length > 0 ? (
@@ -255,23 +305,38 @@ export function HomePage({ featuredExams = [] }: HomePageProps) {
             </div>
             <div className="container">
               <div className="me-grid home-mock-row__grid">
-                {featuredExams.map((exam) => (
-                  <ExamCard
+                {featuredExams.map((exam, index) => (
+                  <motion.div
                     key={exam.id}
-                    exam={exam}
-                    latestAttempt={null}
-                    entitled
-                    isLoggedIn
-                    actionHrefOverride="/mock-exam"
-                    actionLabelOverride="Open in Mock Exams"
-                  />
+                    className="home-mock-row__item"
+                    initial={{ opacity: 0, y: 38, scale: 0.97 }}
+                    whileInView={{ opacity: 1, y: 0, scale: 1 }}
+                    viewport={{ once: true, margin: "-40px" }}
+                    transition={{ delay: index * 0.08, duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+                  >
+                    <ExamCard
+                      exam={exam}
+                      latestAttempt={null}
+                      entitled
+                      isLoggedIn
+                      actionHrefOverride="/mock-exam"
+                      actionLabelOverride="Open in Mock Exams"
+                    />
+                  </motion.div>
                 ))}
               </div>
             </div>
           </section>
         ) : null}
 
-        <section id="features" className="section section--alt">
+        <section ref={featuresRef} id="features" className="section section--alt feature-story">
+          <motion.div
+            className="feature-story__marquee"
+            style={prefersReducedMotion ? undefined : { x: featureMarqueeX }}
+            aria-hidden
+          >
+            LISTEN · READ · WRITE · SPEAK · PRACTISE · IMPROVE
+          </motion.div>
           <div className="container feature-intro">
             <div className="feature-intro__title-group">
               <motion.h2
@@ -311,6 +376,7 @@ export function HomePage({ featuredExams = [] }: HomePageProps) {
               viewport={{ once: true, margin: "-40px" }}
               variants={fadeUp}
               custom={0}
+              style={prefersReducedMotion ? undefined : { y: featureLeadY }}
               whileHover={{ y: -4, transition: { duration: 0.25 } }}
             >
               <div className="feature-lead__image">
@@ -387,7 +453,21 @@ export function HomePage({ featuredExams = [] }: HomePageProps) {
           <div className="container steps">
             <div className="steps__curve" aria-hidden>
               <svg viewBox="0 0 1200 180" preserveAspectRatio="none">
-                <path d="M90 70 C190 130, 310 130, 410 70 S630 10, 730 70 S950 130, 1050 70" />
+                <path
+                  className="steps__curve-ghost"
+                  d="M90 70 C190 130, 310 130, 410 70 S630 10, 730 70 S950 130, 1050 70"
+                />
+                <motion.path
+                  className="steps__curve-progress"
+                  d="M90 70 C190 130, 310 130, 410 70 S630 10, 730 70 S950 130, 1050 70"
+                  initial={prefersReducedMotion ? false : { pathLength: 0, opacity: 0 }}
+                  whileInView={{ pathLength: 1, opacity: 1 }}
+                  viewport={{ once: true, margin: "-100px" }}
+                  transition={{
+                    duration: prefersReducedMotion ? 0 : 1.65,
+                    ease: [0.22, 1, 0.36, 1],
+                  }}
+                />
               </svg>
             </div>
             {steps.map((s, i) => (
@@ -414,9 +494,12 @@ export function HomePage({ featuredExams = [] }: HomePageProps) {
           </div>
         </section>
 
-        <section id="about" className="section about-showcase">
+        <section ref={aboutRef} id="about" className="section about-showcase">
           <div className="container about-intro">
-            <div className="about-intro__media about-intro__media--left">
+            <motion.div
+              className="about-intro__media about-intro__media--left"
+              style={prefersReducedMotion ? { rotate: -9 } : { y: aboutLeftY, rotate: -9 }}
+            >
               <Image
                 src="/About%20Us/aboutus1.jpg"
                 alt="Student holding books"
@@ -424,13 +507,14 @@ export function HomePage({ featuredExams = [] }: HomePageProps) {
                 sizes="220px"
                 style={{ objectFit: "cover" }}
               />
-            </div>
+            </motion.div>
             <div className="about-intro__content">
               <span className="about-chip">About Us</span>
               <motion.h2
                 className="about-intro__title"
                 initial="hidden"
-                animate="visible"
+                whileInView="visible"
+                viewport={{ once: true, margin: "-80px" }}
                 variants={fadeUp}
                 custom={0}
               >
@@ -441,7 +525,8 @@ export function HomePage({ featuredExams = [] }: HomePageProps) {
               <motion.p
                 className="about-intro__text"
                 initial="hidden"
-                animate="visible"
+                whileInView="visible"
+                viewport={{ once: true, margin: "-80px" }}
                 variants={fadeUp}
                 custom={1}
               >
@@ -452,7 +537,10 @@ export function HomePage({ featuredExams = [] }: HomePageProps) {
             </div>
             <div className="about-intro__accent about-intro__accent--star" aria-hidden />
             <div className="about-intro__accent about-intro__accent--spark" aria-hidden />
-            <div className="about-intro__media about-intro__media--right">
+            <motion.div
+              className="about-intro__media about-intro__media--right"
+              style={prefersReducedMotion ? { rotate: 9 } : { y: aboutRightY, rotate: 9 }}
+            >
               <Image
                 src="/About%20Us/aboutus2.jpg"
                 alt="Smiling student"
@@ -460,11 +548,14 @@ export function HomePage({ featuredExams = [] }: HomePageProps) {
                 sizes="220px"
                 style={{ objectFit: "cover" }}
               />
-            </div>
+            </motion.div>
           </div>
 
           <div className="container about-values">
-            <div className="about-values__image">
+            <motion.div
+              className="about-values__image"
+              style={prefersReducedMotion ? undefined : { scale: aboutImageScale }}
+            >
               <Image
                 src="/Our%20Values/our%20values.jpg"
                 alt="Students studying together"
@@ -472,7 +563,7 @@ export function HomePage({ featuredExams = [] }: HomePageProps) {
                 sizes="(max-width: 1024px) 100vw, 44vw"
                 style={{ objectFit: "cover" }}
               />
-            </div>
+            </motion.div>
             <div className="about-values__content">
               <span className="about-chip">Our Values</span>
               <motion.h2
@@ -566,13 +657,26 @@ export function HomePage({ featuredExams = [] }: HomePageProps) {
         </section>
 
         <footer className="site-footer">
-          <div className="container footer-cta">
+          <motion.div
+            className="container footer-cta"
+            initial={{ opacity: 0, y: 46, scale: 0.97 }}
+            whileInView={{ opacity: 1, y: 0, scale: 1 }}
+            viewport={{ once: true, margin: "-70px" }}
+            transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+          >
             <div className="footer-cta__rings footer-cta__rings--left" aria-hidden />
             <div className="footer-cta__rings footer-cta__rings--right" aria-hidden />
-            {footerFaces.map((face) => (
-              <div key={face.src} className={face.className}>
+            {footerFaces.map((face, index) => (
+              <motion.div
+                key={face.src}
+                className={face.className}
+                initial={{ opacity: 0, scale: 0.55 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                viewport={{ once: true, margin: "-80px" }}
+                transition={{ delay: 0.15 + index * 0.055, type: "spring", stiffness: 220, damping: 18 }}
+              >
                 <Image src={face.src} alt={face.alt} fill sizes="96px" style={{ objectFit: "cover" }} />
-              </div>
+              </motion.div>
             ))}
             <div className="footer-cta__content">
               <h2>
@@ -586,7 +690,7 @@ export function HomePage({ featuredExams = [] }: HomePageProps) {
                 Explore Mock Exams
               </Link>
             </div>
-          </div>
+          </motion.div>
 
           <div className="container footer-grid">
             <div className="footer-brand">

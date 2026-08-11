@@ -157,13 +157,6 @@ export async function submitPaymentRequest(input: SubmitPaymentInput) {
     return { ok: false, message: "Payment method and transaction ID are required." };
   }
 
-  if (
-    input.paymentMethod === "paypal" &&
-    !process.env.NEXT_PUBLIC_PAYPAL_PAYMENT_EMAIL?.trim()
-  ) {
-    return { ok: false, message: "PayPal payments are not configured yet." };
-  }
-
   const admin = createServiceRoleClient();
   const { data: exam } = await admin
     .from("mock_exams")

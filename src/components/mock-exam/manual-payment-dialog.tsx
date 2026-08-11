@@ -153,7 +153,12 @@ export function ManualPaymentDialog({
                       >
                         <div className="manual-pay__method-logo">
                           {method.logoSrc ? (
-                            <Image src={method.logoSrc} alt={method.name} width={84} height={40} />
+                            <Image
+                              src={method.logoSrc}
+                              alt={method.name}
+                              width={method.logoWidth ?? 84}
+                              height={method.logoHeight ?? 40}
+                            />
                           ) : (
                             <span className="manual-pay__wordmark">{method.wordmark ?? method.name}</span>
                           )}

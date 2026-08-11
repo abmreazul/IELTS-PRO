@@ -4,6 +4,8 @@ export type ManualPaymentMethod = {
   id: ManualPaymentMethodId;
   name: string;
   logoSrc?: string;
+  logoWidth?: number;
+  logoHeight?: number;
   accountLabel: string;
   accountNumber: string;
   qrSrc?: string;
@@ -21,7 +23,8 @@ export const MANUAL_PAYMENT_METHOD_CURRENCIES: Record<ManualPaymentMethodId, rea
   paypal: ["USD"],
 };
 
-const paypalPaymentEmail = process.env.NEXT_PUBLIC_PAYPAL_PAYMENT_EMAIL?.trim() ?? "";
+const paypalPaymentEmail =
+  process.env.NEXT_PUBLIC_PAYPAL_PAYMENT_EMAIL?.trim() || "reazulhasan.me@gmail.com";
 
 export const MANUAL_PAYMENT_METHODS: ManualPaymentMethod[] = [
   {
@@ -66,12 +69,15 @@ export const MANUAL_PAYMENT_METHODS: ManualPaymentMethod[] = [
   {
     id: "paypal",
     name: "PayPal",
+    logoSrc: "/Payment%20methods/paypal.png",
+    logoWidth: 33,
+    logoHeight: 40,
     accountLabel: "Send payment to this PayPal email:",
-    accountNumber: paypalPaymentEmail || "PayPal email not configured",
+    accountNumber: paypalPaymentEmail,
     accentClass: "manual-pay__method--paypal",
     numberClass: "manual-pay__number--paypal",
     wordmark: "PayPal",
-    isConfigured: Boolean(paypalPaymentEmail),
+    isConfigured: true,
   },
 ] as const;
 
