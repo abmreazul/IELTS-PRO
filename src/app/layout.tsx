@@ -37,6 +37,9 @@ export const metadata: Metadata = {
     "IELTS General Training",
   ],
   metadataBase: new URL(SITE_URL),
+  other: {
+    "google-adsense-account": "ca-pub-6709131265560684",
+  },
   alternates: {
     canonical: "/",
   },
